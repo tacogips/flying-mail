@@ -25,12 +25,10 @@ export interface ContactPage {
 export interface ContactRepository {
   findById(id: ContactId): Promise<Contact | null>;
   /** `(addressBookId, uid)` is the CardDAV upsert key -- the only stable
-   * identity a remote server and mailcal share, mirroring
-   * `CalendarEventRepository.findByUid`. */
+   * identity a remote server and mailcal share. */
   findByUid(addressBookId: AddressBookId, uid: string): Promise<Contact | null>;
   /** Atomic write of the contact row plus its emails/phones/postal
-   * addresses/urls child rows, mirroring
-   * `CalendarEventRepository.createEvent`/`updateEvent`'s one-batch shape. */
+   * addresses/urls child rows. */
   createContact(contact: Contact): Promise<void>;
   updateContact(contact: Contact): Promise<void>;
   deleteContact(id: ContactId): Promise<void>;

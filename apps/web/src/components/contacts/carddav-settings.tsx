@@ -7,10 +7,9 @@ import { pushToast } from "../../lib/toast";
 import type { ContactStore } from "../../store/contact-store";
 
 /** Connect an iCloud (or other CardDAV) account, link its collections to
- * local address books, and run a sync. Structurally mirrors
- * `calendar/caldav-settings.tsx`; the app-specific password is typed here
- * and sent once, and nothing in this component ever reads it back, because
- * the server never returns it. */
+ * local address books, and run a sync. The app-specific password is typed
+ * here and sent once; nothing in this component reads it back because the
+ * server never returns it. */
 export function CarddavSettings(props: {
   readonly store: ContactStore;
   readonly addressBooks: readonly AddressBookView[];
@@ -128,10 +127,10 @@ export function CarddavSettings(props: {
   }
 
   return (
-    <section class="caldav-settings">
+    <section class="carddav-settings">
       <h3>CardDAV</h3>
       <form
-        class="caldav-settings__row"
+        class="carddav-settings__row"
         onSubmit={(event) => void connect(event)}
       >
         <label>
@@ -164,11 +163,11 @@ export function CarddavSettings(props: {
       </form>
 
       <Show when={discovered().length > 0 && activeAccountId() !== null}>
-        <div class="caldav-settings__account">
+        <div class="carddav-settings__account">
           <strong>Discovered address books</strong>
           <For each={discovered()}>
             {(remote) => (
-              <div class="caldav-settings__row">
+              <div class="carddav-settings__row">
                 <span>{remote.displayName ?? remote.remoteUrl}</span>
                 <label>
                   Link to
@@ -215,8 +214,8 @@ export function CarddavSettings(props: {
 
       <For each={props.store.carddavAccounts()}>
         {(account) => (
-          <div class="caldav-settings__account">
-            <div class="caldav-settings__row">
+          <div class="carddav-settings__account">
+            <div class="carddav-settings__row">
               <strong>{account.username}</strong>
               <span>{account.serverUrl}</span>
               <button
@@ -244,7 +243,7 @@ export function CarddavSettings(props: {
                 .filter((link) => link.accountId === account.id)}
             >
               {(linked) => (
-                <div class="caldav-settings__row">
+                <div class="carddav-settings__row">
                   <span>{linked.displayName ?? linked.remoteUrl}</span>
                   <span>
                     {linked.lastSyncedAt === null

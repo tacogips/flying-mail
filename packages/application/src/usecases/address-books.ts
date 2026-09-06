@@ -134,8 +134,7 @@ export function createUpdateAddressBookUseCase(
   };
 }
 
-/** Hard delete. Contacts (and, transitively, any CardDAV link on the book)
- * cascade -- same posture as `deleteCalendar`. */
+/** Hard delete. Contacts and any CardDAV link on the address book cascade. */
 export function createDeleteAddressBookUseCase(
   deps: AppDependencies,
 ): (viewer: Viewer, id: AddressBookId) => Promise<boolean> {

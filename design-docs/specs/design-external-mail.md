@@ -5,9 +5,9 @@ mailcal aggregates external mailboxes. An admin binds an external account
 provisioned mail address; fetched messages flow through the existing
 ingest pipeline into that mailbox, and mail sent *as* the external address
 leaves through that provider's SMTP submission server instead of
-Cloudflare Email Sending. The direction is deliberate: mailcal is a
-*client* of these protocols, exactly as it is a CalDAV/CardDAV client --
-it does not serve JMAP, POP3, or SMTP to mail apps.
+Cloudflare Email Sending. The direction is deliberate: mailcal is a client
+of these protocols, as it is for CardDAV; it does not serve JMAP, POP3, or
+SMTP to mail apps.
 
 Explicitly out of scope:
 
@@ -94,8 +94,8 @@ Invariants: `sessionUrl` is absolute `https` (`http` for `localhost` only,
 same rule as DAV servers); POP3 port 110 is refused -- implicit TLS (995)
 only, because STARTTLS-on-110 downgrade is exactly the attack a hostile
 network wants; SMTP `port`/`security` must agree (465⇒IMPLICIT_TLS,
-587⇒STARTTLS); all credentials are ciphertext-only in the entity, same
-`CredentialCipher` posture as `CaldavAccount` (unset
+587⇒STARTTLS); all credentials are ciphertext-only in the entity and use the
+shared `CredentialCipher` also used by CardDAV (unset
 `MAILCAL_CREDENTIAL_KEY` ⇒ external-account mutations fail
 `SERVICE_UNAVAILABLE`).
 

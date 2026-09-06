@@ -25,6 +25,7 @@ import {
   createMessageId,
   createThreadId,
 } from "@mailcal/domain/value-objects/ids";
+import type { GraphQLEnumType, GraphQLObjectType } from "graphql";
 import { beforeEach, describe, expect, test } from "vitest";
 import {
   createGraphQLHarness,
@@ -117,6 +118,36 @@ describe("graphql schema", () => {
     const schema = buildGraphQLSchema();
     expect(schema.getQueryType()).toBeDefined();
     expect(schema.getMutationType()).toBeDefined();
+  });
+
+  test("does not expose calendar types, fields, or capabilities", () => {
+    const schema = buildGraphQLSchema();
+    const calendarTypeNames = Object.keys(schema.getTypeMap()).filter((name) =>
+      /^(Calendar|Caldav|EventOccurrence|EventLink|Recurrence)/.test(name),
+    );
+    expect(calendarTypeNames).toEqual([]);
+
+    const objectTypes = [
+      schema.getQueryType(),
+      schema.getMutationType(),
+      schema.getType("User") as GraphQLObjectType | undefined,
+    ];
+    for (const type of objectTypes) {
+      expect(type).toBeDefined();
+      expect(
+        Object.keys(type?.getFields() ?? {}).filter((name) =>
+          /calendar|caldav/i.test(name),
+        ),
+      ).toEqual([]);
+    }
+
+    const capability = schema.getType("Capability") as
+      | GraphQLEnumType
+      | undefined;
+    expect(capability).toBeDefined();
+    const capabilityNames = capability?.getValues().map((value) => value.name);
+    expect(capabilityNames).not.toContain("CALENDAR_READ");
+    expect(capabilityNames).not.toContain("CALENDAR_WRITE");
   });
 
   test("viewer is null when unauthenticated", async () => {
@@ -596,7 +627,7 @@ describe("graphql schema", () => {
       // Without this credential a deployed instance would be unreachable:
       // login needs a verified sending domain that only an admin can add.
       expect(payload.secret.startsWith(payload.apiKey.keyPrefix)).toBe(true);
-      // One scope per capability: mail, templates and calendars alike.
+      // One scope per capability across the retained feature set.
       expect(payload.apiKey.scopes).toHaveLength(
         Object.values(Capability).length,
       );

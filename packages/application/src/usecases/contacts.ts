@@ -231,8 +231,7 @@ export function createCreateContactUseCase(
         id: createContactId(deps.random.uuid()),
         addressBookId: book.id,
         // A vCard UID for a locally created contact: mailcal mints it once
-        // and preserves it verbatim thereafter, same doctrine as
-        // `CalendarEvent.uid`.
+        // and preserves it verbatim thereafter.
         uid: deps.random.uuid(),
         displayName: input.displayName,
         ...(input.givenName === undefined
@@ -306,9 +305,8 @@ export function createUpdateContactUseCase(
 }
 
 /** Deleting a CardDAV-linked contact records a `carddav_deletions`
- * tombstone (so the next sync pushes the deletion); a contact in an
- * unlinked book skips that step entirely, mirroring how event deletion
- * records a CalDAV tombstone only when linked. */
+ * tombstone so the next sync pushes the deletion; a contact in an unlinked
+ * book skips that step entirely. */
 export function createDeleteContactUseCase(
   deps: AppDependencies,
 ): (viewer: Viewer, id: ContactId) => Promise<boolean> {

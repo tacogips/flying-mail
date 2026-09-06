@@ -50,8 +50,9 @@ MAILCAL_SPAM_THRESHOLD = "0.6"
 # Hard cap, in seconds, on a file link's requested ttlSeconds (7 days).
 MAILCAL_FILE_LINK_MAX_TTL = "604800"
 
-# CalDAV credential encryption key: base64 of 32 random bytes, AES-256-GCM.
+# Shared CardDAV and external-mail credential encryption key: base64 of 32
+# random bytes, AES-256-GCM.
 # A secret, never a var -- set it out of band and never commit a value:
 #   kinko exec -- bunx wrangler secret put MAILCAL_CREDENTIAL_KEY
-# Unset is a supported deployment: CalDAV mutations then fail with
-# SERVICE_UNAVAILABLE and the rest of the calendar feature works normally.
+# Unset is a supported deployment: CardDAV and external-mail account mutations
+# then fail with SERVICE_UNAVAILABLE; mail and local contacts keep working.

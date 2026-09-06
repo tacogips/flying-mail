@@ -22,9 +22,9 @@ import {
   type GraphQLHarness,
 } from "./graphql-test-support";
 
-/** End-to-end operation tests for the contacts SDL module, mirroring
- * `schema-calendar.test.ts`'s style: real yoga requests over in-memory
- * fakes. Permission derivation is exercised at this layer (not only in the
+/** End-to-end operation tests for the contacts SDL module using real yoga
+ * requests over in-memory fakes. Permission derivation is exercised at this
+ * layer (not only in the
  * application layer's own use-case tests) because it is the design doc's
  * central claim about contacts: "no second permission system", entirely
  * derived from the existing mail permission rules and API-key scopes. */
@@ -113,9 +113,8 @@ describe("address books and contacts: lifecycle", () => {
       ADMIN,
       { id: book.id, input: { name: "Suppliers" } },
     );
-    // A GraphQL `null` on an optional field is treated as "not supplied",
-    // same convention `calendar-mutation.ts` uses -- so `description` here
-    // is left untouched rather than cleared.
+    // A GraphQL `null` on an optional field is treated as "not supplied", so
+    // `description` here is left untouched rather than cleared.
     expect(updated.data?.["updateAddressBook"]).toEqual({
       id: book.id,
       name: "Suppliers",

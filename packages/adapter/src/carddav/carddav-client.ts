@@ -11,7 +11,6 @@ import {
   CarddavTransportError,
   type RemoteAddressBookRef,
 } from "@mailcal/application/ports/carddav";
-import { resolveHref } from "../caldav/caldav-client";
 import {
   escapeXmlText,
   findChild,
@@ -19,19 +18,12 @@ import {
   findOkPropText,
   type MultistatusResponse,
   parseMultistatus,
-} from "../caldav/xml";
+} from "../webdav/xml";
+import { resolveHref } from "../webdav/url";
 
-/** RFC 6352 (CardDAV) client, structurally the mirror of
- * `caldav/caldav-client.ts` -- discovery, sync, multiget and writes all
- * follow the identical WebDAV shape, just against `addressbook` collections
- * and vCard payloads instead of `VEVENT` calendars. The multistatus XML
- * reader (`../caldav/xml.ts`) is reused as-is: it matches purely on local
- * element name, so it needs no CardDAV-specific knowledge at all, and
- * keeping one copy is what the design doc's "reusing the existing CalDAV
- * multistatus XML reader" calls for. `resolveHref` (href resolution against
- * a possibly-redirected response URL) is likewise reused from
- * `caldav-client.ts` rather than duplicated. mailcal is a CardDAV *client*
- * only -- see the design doc's out-of-scope list. */
+/** RFC 6352 CardDAV client. Discovery, sync, multiget, and writes share
+ * protocol-generic URL and multistatus XML handling from `webdav/`. mailcal
+ * acts only as a CardDAV client. */
 
 export interface CarddavClientOptions {
   /** Injected so tests drive canned multistatus fixtures instead of the

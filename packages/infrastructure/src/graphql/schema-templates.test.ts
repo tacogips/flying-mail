@@ -405,62 +405,6 @@ describe("mail template graphql surface", () => {
       expect(errorCodes(result)).toEqual(["FORBIDDEN"]);
     });
 
-    test("an admin grants a calendar rule and it shows on the user", async () => {
-      const ADD_CALENDAR = `
-        mutation AddCal($userId: ID!, $input: UserCalendarPermissionInput!) {
-          addUserCalendarPermission(userId: $userId, input: $input) {
-            id
-            capability
-            effect
-            ownerUserId
-          }
-        }
-      `;
-      const added = await harness.run(ADD_CALENDAR, ADMIN, {
-        userId: targetId,
-        input: { capability: "CALENDAR_READ", effect: "DENY" },
-      });
-      expect(added.errors).toBeUndefined();
-      expect(added.data?.["addUserCalendarPermission"]).toMatchObject({
-        capability: "CALENDAR_READ",
-        effect: "DENY",
-        // Absent owner is the all-owners rule.
-        ownerUserId: null,
-      });
-
-      const users = await harness.run(
-        `query U { users { id calendarPermissions { capability effect ownerUserId } } }`,
-        ADMIN,
-      );
-      const rows = users.data?.["users"] as readonly {
-        id: string;
-        calendarPermissions: readonly { capability: string }[];
-      }[];
-      expect(
-        rows.find((row) => row.id === targetId)?.calendarPermissions,
-      ).toEqual([
-        expect.objectContaining({
-          capability: "CALENDAR_READ",
-          effect: "DENY",
-        }),
-      ]);
-    });
-
-    test("the calendar permission input cannot name a mail capability", async () => {
-      const result = await harness.run(
-        `mutation A($userId: ID!, $input: UserCalendarPermissionInput!) {
-           addUserCalendarPermission(userId: $userId, input: $input) { id }
-         }`,
-        ADMIN,
-        {
-          userId: targetId,
-          input: { capability: "MAIL_READ", effect: "ALLOW" },
-        },
-      );
-      // Rejected by the schema's narrower CalendarCapability enum.
-      expect(result.errors?.length ?? 0).toBeGreaterThan(0);
-    });
-
     test("the permission input cannot name a mail capability", async () => {
       const result = await harness.run(ADD, ADMIN, {
         userId: targetId,

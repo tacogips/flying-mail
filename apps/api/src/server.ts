@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import type { MigrationFile } from "@mailcal/adapter/migrations/runner";
 import { createMigrationRunner } from "@mailcal/adapter/migrations/runner";
+import { drainBlobCleanupQueue } from "@mailcal/adapter/migrations/blob-cleanup";
 import type { AppDependencies } from "@mailcal/application/dependencies";
 import { createUseCases, type UseCases } from "@mailcal/application/usecases";
 import { buildDependencies } from "@mailcal/infrastructure/composition/build-dependencies";
@@ -11,6 +12,13 @@ import { loadConfigFromEnv } from "@mailcal/infrastructure/composition/config";
 import { createApp } from "@mailcal/infrastructure/http/app";
 import type { AuthVariables } from "@mailcal/infrastructure/http/auth-middleware";
 import type { Context, Hono } from "hono";
+
+/** Retry policy for local post-migration blob cleanup. */
+export interface BlobCleanupRetryOptions {
+  readonly maxAttempts?: number;
+  readonly baseDelayMs?: number;
+  readonly sleep?: (delayMs: number) => Promise<void>;
+}
 
 export interface ServerConfig {
   readonly port: number;
@@ -96,6 +104,50 @@ export interface LocalApp {
   readonly app: Hono<{ Variables: AuthVariables }>;
   readonly deps: AppDependencies;
   readonly usecases: UseCases;
+  /** Resolves when the bounded background cleanup finishes. */
+  readonly blobCleanup: Promise<void>;
+}
+
+const DEFAULT_CLEANUP_MAX_ATTEMPTS = 3;
+const DEFAULT_CLEANUP_BASE_DELAY_MS = 100;
+
+function sleep(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+/** Drains the durable cleanup queue with bounded exponential backoff. */
+export async function drainBlobCleanupQueueWithRetry(
+  db: AppDependencies["db"],
+  blobs: AppDependencies["blobs"],
+  options: BlobCleanupRetryOptions = {},
+): Promise<void> {
+  const maxAttempts = options.maxAttempts ?? DEFAULT_CLEANUP_MAX_ATTEMPTS;
+  const baseDelayMs = options.baseDelayMs ?? DEFAULT_CLEANUP_BASE_DELAY_MS;
+  const wait = options.sleep ?? sleep;
+  if (!Number.isSafeInteger(maxAttempts) || maxAttempts <= 0) {
+    throw new RangeError(
+      "Blob cleanup max attempts must be a positive integer",
+    );
+  }
+  if (!Number.isSafeInteger(baseDelayMs) || baseDelayMs < 0) {
+    throw new RangeError(
+      "Blob cleanup base delay must be a non-negative integer",
+    );
+  }
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await drainBlobCleanupQueue(db, blobs);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        await wait(baseDelayMs * 2 ** (attempt - 1));
+      }
+    }
+  }
+  throw lastError;
 }
 
 /** Builds the local app: config from `process.env`, every pending migration
@@ -118,6 +170,16 @@ export async function createLocalApp(
   if (applied.length > 0) {
     console.log(`Applied migrations: ${applied.join(", ")}`);
   }
+  // Cleanup is durable and independent of request serving. Start it eagerly,
+  // but do not hold startup hostage to a temporarily unavailable blob store.
+  const blobCleanup = drainBlobCleanupQueueWithRetry(deps.db, deps.blobs).catch(
+    (error: unknown) => {
+      console.error(
+        "Failed to drain the post-migration blob cleanup queue after retries",
+        error,
+      );
+    },
+  );
 
   const usecases = createUseCases(deps);
   // Idempotent: creates only the system tags a migration has not already
@@ -130,7 +192,7 @@ export async function createLocalApp(
     graphiql: true,
     devInbound: createDevInboundHandler(usecases),
   });
-  return { app, deps, usecases };
+  return { app, deps, usecases, blobCleanup };
 }
 
 export async function startServer(

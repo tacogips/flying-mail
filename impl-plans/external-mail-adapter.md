@@ -96,7 +96,7 @@ must contain plain `CREATE TABLE`/`CREATE INDEX` DDL only, no seed
       managed address" at the database layer: `UNIQUE` column constraint
       plus `idx_external_mail_accounts_mail_address` unique index, not just
       in the use case
-- [ ] Migration test (mirrors `calendar-migration.test.ts`) asserting the
+- [ ] Migration test asserting the
       table/index shapes above -- not written; this session was scoped to
       the SQL file only (TypeScript test authorship excluded), left for
       TASK-004 (`external-mail-repository.ts`) or a follow-up test task
@@ -182,7 +182,7 @@ in two files rather than the one this task originally specified -- see the
 progress log. Each follows repo convention exactly: a plain object literal,
 a private snake_case `ExternalMailAccountRow`/`ExternalMessageStateRow`
 interface plus a `rowToExternalMailAccount`/`rowToExternalMessageState`
-mapper (mirroring `caldav-account-repository.ts`), and `assertEnumValue`
+mapper, and `assertEnumValue`
 from `sql-helpers.ts` for `fetch_kind`/`status`. Row mapping: `fetch_kind` +
 `fetch_config` JSON + `fetch_password_ciphertext` reassemble into the
 `ExternalFetchConfig` union (`JSON.parse` + a `kind`-discriminated
@@ -265,8 +265,8 @@ terminated `\r\n.\r\n`, `QUIT`. A non-2xx/3xx reply at any step throws
 **Parallelizable**: Yes (parallel with TASK-003..006)
 **Deliverables**: `packages/adapter/src/jmap/jmap-client.ts`:
 `createJmapClient(options?: { fetchImpl?: typeof fetch }): JmapClient` (RFC
-8620/8621 subset, plain `fetch` -- no `TcpDialer`, following the
-`caldav-client.ts` injectable-`fetchImpl` pattern so tests use canned JSON
+8620/8621 subset, plain `fetch` -- no `TcpDialer`, with injectable
+`fetchImpl` so tests use canned JSON
 fixtures with no real network). Flow: `GET` the session resource with Basic
 auth, find the `Mailbox/get` inbox (`role: "inbox"`), `Email/query` sorted
 by `receivedAt` ascending bounded to `max` beyond whatever
@@ -372,7 +372,7 @@ TASK-005 (POP3 client), TASK-006 (SMTP client), TASK-007 (JMAP client)
   `external-mail-account-repository.ts` and
   `external-message-state-repository.ts` -- per this session's explicit
   task assignment, which named the two files directly. Both still follow
-  the `caldav-account-repository.ts` row/mapper convention exactly; the
+  the repository row/mapper convention exactly; the
   `./repositories/*` wildcard export already in `package.json` covers both
   without a new export entry.
 - **TASK-001's deferred migration-shape test** was written in this session

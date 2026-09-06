@@ -9,9 +9,8 @@ import { createIsoDate } from "@mailcal/domain/value-objects/iso-date";
 
 /** Row <-> entity mapping for `contacts` and its four child tables.
  *
- * Kept beside the repository rather than inside it, mirroring
- * `calendar-event-rows.ts` beside `calendar-event-repository.ts`, so the
- * repository file stays about queries. */
+ * Kept beside the repository rather than inside it so the repository file
+ * stays focused on queries. */
 
 export interface ContactRow {
   readonly id: string;

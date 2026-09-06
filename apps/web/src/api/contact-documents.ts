@@ -1,7 +1,7 @@
 /**
- * Every contacts and CardDAV GraphQL document the client sends. A separate
- * module from `documents.ts` and `calendar-documents.ts` so no file has to
- * carry more than one feature's worth of queries.
+ * Every contacts and CardDAV GraphQL document the client sends. Keeping these
+ * in a separate module prevents the shared documents file from carrying a
+ * second feature's worth of queries.
  */
 
 const MAIL_ADDRESS_REF_FIELDS = `

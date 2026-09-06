@@ -50,8 +50,7 @@ import {
 } from "./contacts";
 
 /** The contact half of `UseCases`, assembled here so `usecases.ts` gains a
- * single spread rather than another feature's worth of entries -- mirrors
- * `calendar-usecases.ts`. */
+ * single spread rather than another feature's worth of entries. */
 export interface ContactUseCases {
   readonly listAddressBooks: (
     viewer: Viewer,

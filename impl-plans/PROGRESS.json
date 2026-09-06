@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-24T13:00:00Z",
+  "lastUpdated": "2026-09-06T11:18:03Z",
   "phases": {
     "1": {
       "status": "COMPLETED"
@@ -29,6 +29,9 @@
       "status": "COMPLETED"
     },
     "10": {
+      "status": "COMPLETED"
+    },
+    "11": {
       "status": "COMPLETED"
     }
   },
@@ -454,155 +457,10 @@
         }
       }
     },
-    "calendar-domain": {
-      "phase": 7,
-      "status": "Completed",
-      "tasks": {
-        "TASK-001": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-002": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-003": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-004": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-005": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        }
-      }
-    },
-    "calendar-application": {
-      "phase": 7,
-      "status": "Completed",
-      "tasks": {
-        "TASK-001": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-002": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-003": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-004": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-005": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        }
-      }
-    },
-    "calendar-adapter": {
-      "phase": 7,
-      "status": "Completed",
-      "tasks": {
-        "TASK-001": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-002": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-003": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-004": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        }
-      }
-    },
-    "calendar-graphql": {
-      "phase": 7,
-      "status": "Completed",
-      "tasks": {
-        "TASK-001": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-002": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-003": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-004": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        }
-      }
-    },
-    "calendar-web": {
-      "phase": 7,
-      "status": "Completed",
-      "tasks": {
-        "TASK-001": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-002": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-003": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-004": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        },
-        "TASK-005": {
-          "status": "Completed",
-          "parallelizable": true,
-          "deps": []
-        }
-      }
-    },
     "mail-templates": {
       "phase": 7,
       "status": "Completed",
-      "note": "Backend, catalogue page and web integration (send panel mounted in the mailbox, sidebar entry, users-page template/calendar permission editors, settings styles) all restored after the 2026-08-24 checkout incident. Shared files remain a re-derivation pending a human diff.",
+      "note": "Backend, catalogue page and web integration (send panel mounted in the mailbox, sidebar entry, users-page template permission editor, settings styles) all restored after the 2026-08-24 checkout incident. Shared files remain a re-derivation pending a human diff.",
       "tasks": {}
     },
     "contacts-domain": {
@@ -940,6 +798,63 @@
             "external-mail-adapter:TASK-005",
             "external-mail-adapter:TASK-006",
             "external-mail-adapter:TASK-007"
+          ]
+        }
+      }
+    },
+    "remove-calendar": {
+      "phase": 11,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "TASK-002",
+            "TASK-003"
+          ]
+        },
+        "TASK-005": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-006": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-007": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-008": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-004",
+            "TASK-005",
+            "TASK-006",
+            "TASK-007"
           ]
         }
       }

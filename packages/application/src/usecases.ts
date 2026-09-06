@@ -34,12 +34,10 @@ import type {
   MailTemplateContentInput,
 } from "@mailcal/domain/entities/mail-template";
 export type { MailTemplateContentInput };
-import type { UserCalendarPermission } from "@mailcal/domain/entities/user-calendar-permission";
 import type { UserTemplatePermission } from "@mailcal/domain/entities/user-template-permission";
 import type {
   MailAddressId,
   MailTemplateId,
-  UserCalendarPermissionId,
   UserTemplatePermissionId,
 } from "@mailcal/domain/value-objects/ids";
 import type {
@@ -47,10 +45,6 @@ import type {
   TemplateValueEntry,
 } from "@mailcal/domain/entities/template-values";
 import type { AppDependencies } from "./dependencies";
-import {
-  type CalendarUseCases,
-  createCalendarUseCases,
-} from "./usecases/calendar-usecases";
 import {
   type ContactUseCases,
   createContactUseCases,
@@ -82,12 +76,6 @@ import {
   type RenderedTemplate,
   type SendTemplatedMessageInput,
 } from "./usecases/mail-template-send";
-import {
-  createAddUserCalendarPermissionUseCase,
-  createListUserCalendarPermissionsUseCase,
-  createRemoveUserCalendarPermissionUseCase,
-  type UserCalendarPermissionInput,
-} from "./usecases/user-calendar-permissions";
 import {
   createAddUserTemplatePermissionUseCase,
   createListUserTemplatePermissionsUseCase,
@@ -541,36 +529,17 @@ export interface UseCases {
     viewer: Viewer,
     id: UserTemplatePermissionId,
   ) => Promise<boolean>;
-
-  // --- calendar permissions ---
-  readonly listUserCalendarPermissions: (
-    viewer: Viewer,
-    userIds: readonly UserId[],
-  ) => Promise<ReadonlyMap<string, readonly UserCalendarPermission[]>>;
-  readonly addUserCalendarPermission: (
-    viewer: Viewer,
-    userId: UserId,
-    input: UserCalendarPermissionInput,
-  ) => Promise<UserCalendarPermission>;
-  readonly removeUserCalendarPermission: (
-    viewer: Viewer,
-    id: UserCalendarPermissionId,
-  ) => Promise<boolean>;
 }
 
-/** The calendar, contact and external-mail halves are declared in their own
+/** The contact and external-mail halves are declared in their own
  * modules and spread in, so this file does not grow another feature's worth
  * of entries. */
-export interface UseCases
-  extends CalendarUseCases,
-    ContactUseCases,
-    ExternalMailUseCases {}
+export interface UseCases extends ContactUseCases, ExternalMailUseCases {}
 
 export function createUseCases(deps: AppDependencies): UseCases {
   const sendMessage = createSendMessageUseCase(deps);
   const receiveMessage = createReceiveMessageUseCase(deps);
   return {
-    ...createCalendarUseCases(deps),
     ...createContactUseCases(deps),
     ...createExternalMailUseCases(deps, receiveMessage),
 
@@ -587,11 +556,6 @@ export function createUseCases(deps: AppDependencies): UseCases {
     addUserTemplatePermission: createAddUserTemplatePermissionUseCase(deps),
     removeUserTemplatePermission:
       createRemoveUserTemplatePermissionUseCase(deps),
-
-    listUserCalendarPermissions: createListUserCalendarPermissionsUseCase(deps),
-    addUserCalendarPermission: createAddUserCalendarPermissionUseCase(deps),
-    removeUserCalendarPermission:
-      createRemoveUserCalendarPermissionUseCase(deps),
 
     resolveViewerFromToken: createResolveViewerFromTokenUseCase(deps),
     logout: createLogoutUseCase(deps),

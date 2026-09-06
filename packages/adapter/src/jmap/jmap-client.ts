@@ -7,9 +7,9 @@ import {
   type JmapFetchResult,
 } from "@mailcal/application/ports/external-mail";
 
-/** RFC 8620/8621 JMAP client, `fetch`-based like `caldav-client.ts` (same
- * injectable-`fetchImpl` pattern for canned-fixture tests, no real
- * network). Flow: GET the session resource -> `Mailbox/get` for the inbox
+/** RFC 8620/8621 JMAP client using an injectable `fetchImpl` for
+ * canned-fixture tests with no real network. Flow: GET the session resource
+ * -> `Mailbox/get` for the inbox
  * (`role: "inbox"`) -> `Email/query` sorted by `receivedAt` ascending,
  * bounded to one page of `max` -> `Email/get` + raw blob download for ids
  * not already in `knownRemoteIds`. `state`/`queryState` are read but not
@@ -27,8 +27,7 @@ export interface JmapClientOptions {
 
 function basicAuth(credentials: JmapCredentials): string {
   // `btoa` is Latin-1 only; a JMAP username/password is not guaranteed
-  // ASCII, so this goes through UTF-8 bytes first, mirroring
-  // `caldav-client.ts`'s `basicAuth`.
+  // ASCII, so this goes through UTF-8 bytes first.
   const raw = `${credentials.username}:${credentials.password}`;
   let binary = "";
   for (const byte of new TextEncoder().encode(raw)) {

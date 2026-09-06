@@ -1,7 +1,5 @@
-/* Contacts surface. One stylesheet for the whole feature: the rail, the
-   list and the two dialogs share spacing and colour rules with the
-   calendar surface's `.calendar-dialog*` classes, reused here rather than
-   duplicated. */
+/* Contacts surface. One stylesheet for the rail, list, detail pane and
+   dialogs. */
 
 .contacts-page {
   display: flex;
@@ -275,4 +273,168 @@
 
 .contact-detail__note {
   white-space: pre-wrap;
+}
+
+.contact-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(20 24 31 / 45%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 20;
+}
+
+.contact-dialog {
+  background: var(--bg-raised);
+  color: var(--text);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  width: min(640px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 20px;
+}
+
+.contact-dialog h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.contact-dialog label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.contact-dialog input,
+.contact-dialog select,
+.contact-dialog textarea {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.contact-dialog__row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.contact-dialog__row > * {
+  flex: 1;
+  min-width: 140px;
+}
+
+.contact-dialog__field {
+  margin-bottom: 12px;
+}
+
+.contact-dialog__grouplabel {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.contact-dialog__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.contact-dialog__listrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.contact-dialog__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.contact-dialog__actions button {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.contact-dialog__actions button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.contact-dialog__hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 4px 0 0;
+}
+
+.carddav-settings {
+  border-top: 1px solid var(--border);
+  padding: 16px;
+}
+
+.carddav-settings h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.carddav-settings__account {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.carddav-settings__row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 8px;
+}
+
+.carddav-settings__row > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.carddav-settings input,
+.carddav-settings select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.carddav-settings button {
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+  font: inherit;
 }

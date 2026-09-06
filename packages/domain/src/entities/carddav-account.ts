@@ -8,8 +8,7 @@ import type {
 } from "../value-objects/ids";
 
 /** A user's connection to a remote CardDAV server (in practice iCloud).
- * Mirrors `CaldavAccount` exactly, including its credential posture: the
- * entity holds **ciphertext only**, the app-specific password exists in
+ * The entity holds **ciphertext only**; the app-specific password exists in
  * plaintext solely inside the connect/sync use cases, for the duration of
  * one request -- see `CredentialCipher`. CarddavAccount belongs to a
  * *user*, unlike `AddressBook`/`Contact` which belong to a mail address:
@@ -28,8 +27,7 @@ export interface CarddavAccount {
 
 /** One local address book bound to one remote collection. `ctag`/`syncToken`
  * are opaque server-issued values; `lastSyncedAt` is what makes a local
- * contact "dirty" (its `updatedAt` is newer) and therefore due for push --
- * mirrors `CaldavCalendarLink`. */
+ * contact "dirty" (its `updatedAt` is newer) and therefore due for push. */
 export interface CarddavBookLink {
   readonly id: CarddavBookId;
   readonly accountId: CarddavAccountId;
@@ -50,21 +48,16 @@ export interface CarddavContactState {
   readonly etag: string | null;
   readonly lastSyncedAt: string;
   /** True when the remote vCard could not be *fully* modeled and part of it
-   * was imported into `extraVcardLines` instead. Unlike
-   * `CaldavEventState.remoteUnsupported` -- which excludes an event from
-   * push entirely because an unrepresentable `RRULE` cannot be
-   * re-serialized without silently rewriting the series -- a partially
-   * modeled vCard still round-trips losslessly through `extraVcardLines`
-   * and is **not** excluded from push. Only a wholly unparsable vCard is
-   * skipped (and reported in the sync summary); this flag never gates a
-   * push decision the way the CalDAV one does. */
+   * was imported into `extraVcardLines` instead. A partially modeled vCard
+   * still round-trips losslessly through `extraVcardLines` and is **not**
+   * excluded from push. Only a wholly unparsable vCard is skipped and
+   * reported in the sync summary. */
   readonly remoteUnsupported: boolean;
 }
 
 /** A tombstone for a synced contact deleted locally. Needed because
  * deleting the contact cascades its `carddav_contact_states` row away, and
- * the deletion still has to be pushed on the next sync -- mirrors
- * `CaldavDeletion`. */
+ * the deletion still has to be pushed on the next sync. */
 export interface CarddavDeletion {
   readonly carddavBookId: CarddavBookId;
   readonly href: string;
@@ -87,10 +80,7 @@ export interface CreateCarddavAccountInput {
 /** Rejects anything but an absolute `https` URL. A plain-`http` CardDAV
  * server would carry the app-specific password in clear text on the wire;
  * `http` is allowed only for `localhost`, so integration testing against a
- * local server stays possible without weakening the real rule. Duplicates
- * `normalizeCaldavServerUrl`'s exact rule rather than sharing a helper: the
- * two entities stay independent, as CalDAV and CardDAV are separate
- * credentials for separate servers in practice. */
+ * local server stays possible without weakening the real rule. */
 export function normalizeCarddavServerUrl(value: string): string {
   const trimmed = value.trim();
   let url: URL;

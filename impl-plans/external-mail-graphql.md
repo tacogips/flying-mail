@@ -35,8 +35,8 @@ settings UI is an explicit follow-up, admin GraphQL/agent surface first).
 **Status**: Completed
 **Parallelizable**: Yes (contract-first, needs no other task)
 **Deliverables**: `packages/infrastructure/src/graphql/schema-external-mail.graphql.ts`
-(new SDL document, following `schema-calendar.graphql.ts`'s "separate module
-merged via the `typeDefs` array" pattern rather than growing
+(new SDL document, using a separate module merged via the `typeDefs` array
+rather than growing
 `schema.graphql.ts`):
 
 ```graphql
@@ -130,7 +130,7 @@ input UpdateExternalMailAccountInput {
 }
 
 extend type Query {
-  "Admin-only, mirrors caldavAccounts/domains."
+  "Admin-only."
   externalMailAccounts: [ExternalMailAccount!]!
 }
 
@@ -151,20 +151,18 @@ extend type Mutation {
 ```
 
 **Completion Criteria**:
-- [x] SDL merges cleanly (`extend type` on `Query`/`Mutation`, same as
-      `calendarTypeDefs`)
+- [x] SDL merges cleanly (`extend type` on `Query`/`Mutation`)
 - [x] No field can leak a plaintext password or ciphertext, by type shape
       (there is no `String` field named/typed for either)
-- [x] Doc comments on every type/field for agent consumers, matching the
-      calendar SDL's density
+- [x] Doc comments on every type/field for agent consumers
 
 ### TASK-002: Resolvers
 **Status**: Completed
 **Parallelizable**: No (depends on TASK-001, `external-mail-core.md` TASK-007)
 **Deliverables**: `packages/infrastructure/src/graphql/resolvers/external-mail.ts`
 (one file -- the surface is one query and five mutations, small enough that
-splitting into `-query.ts`/`-mutation.ts`/`-types.ts` the way calendar did
-would be premature; split later if it grows past the file-size policy):
+splitting into `-query.ts`/`-mutation.ts`/`-types.ts` would be premature;
+split later if it grows past the file-size policy):
 `externalMailQueryResolvers` (`externalMailAccounts`),
 `externalMailMutationResolvers` (`createExternalMailAccount`,
 `updateExternalMailAccount`, `deleteExternalMailAccount`,
@@ -186,7 +184,7 @@ plumbing. `packages/infrastructure/src/graphql/schema.ts` (extend): add
       probe-resistance on `fetchExternalMail` for an address the viewer
       cannot read, no secret field ever present in a response (assert
       against the full JSON, not just the documented fields)
-- [x] `schema.ts`'s existing merges (calendar, templates, mail) are
+- [x] `schema.ts`'s existing merges (templates and mail) are
       untouched except for the new import/spread lines
 
 ### TASK-003: Composition wiring
@@ -216,9 +214,9 @@ Wire `externalMailAccountRepository: createExternalMailAccountRepository(db)`,
 `jmapClient: createJmapClient({ fetchImpl: fetch })` into the object
 `buildDependencies` returns, reusing the already-resolved
 `credentialCipher` (no new config surface needed -- external accounts share
-`MAILCAL_CREDENTIAL_KEY` with CalDAV, per the design doc). No new
+`MAILCAL_CREDENTIAL_KEY` with CardDAV, per the design doc). No new
 `apps/api` secrets: the same `wrangler secret put MAILCAL_CREDENTIAL_KEY`
-documented for CalDAV now covers this feature too, worth one line in
+documented for shared credentials covers this feature too, worth one line in
 whatever doc already covers that secret (do not duplicate the secret name in
 a second place).
 
@@ -228,8 +226,7 @@ a second place).
       config test for each, mirroring `config.test.ts`'s existing
       backend-selection tests
 - [x] Boot without `MAILCAL_CREDENTIAL_KEY`: external mail mutations return
-      `SERVICE_UNAVAILABLE`, exactly like CalDAV today (reuses the same gate,
-      no new code path to verify beyond "it applies here too")
+      `SERVICE_UNAVAILABLE` through the shared credential gate
 - [x] `AppDependencies` is fully constructed with no missing field
       (`tsc --noEmit` across `@mailcal/infrastructure` passes)
 
@@ -275,8 +272,8 @@ the existing `./graphql/resolvers/*` wildcard -- verify before adding).
 `packages/infrastructure/src/graphql/schema-external-mail.graphql.ts` with
 `ExternalMailAccount` (no plaintext/ciphertext field by construction),
 `ExternalAccountTestResult`, `ExternalFetchSummary`, the three enums,
-input types and `extend type Query`/`Mutation`, following
-`schema-calendar.graphql.ts`'s doc-comment density; not merged into
+input types and `extend type Query`/`Mutation`, with thorough doc comments;
+not merged into
 `schema.ts`/`createSchema` (TASK-002 owns wiring plus the resolvers). Also
 fixed `packages/infrastructure/src/graphql/schema.test.ts`'s failing
 bootstrapAdmin test by adding `CONTACT_READ`/`CONTACT_WRITE` to the

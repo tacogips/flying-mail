@@ -40,11 +40,10 @@ function rowToAddressBook(row: AddressBookRow): AddressBook {
 }
 
 /** Re-issuing a book under the same id replaces it, so a use case can call
- * `save` for both create and update without asking which one it is -- the
- * same shape `calendar-repository.ts` uses. Violating the partial unique
- * index on `is_default` surfaces as the driver's own constraint error; this
- * repository does not catch it, leaving translation to `CONFLICT` to the
- * use case's `translateDomainError`. */
+ * `save` for both create and update without asking which one it is.
+ * Violating the partial unique index on `is_default` surfaces as the
+ * driver's own constraint error; this repository does not catch it, leaving
+ * translation to `CONFLICT` to the use case's `translateDomainError`. */
 const UPSERT_SQL = `INSERT INTO address_books
   (id, mail_address_id, name, description, is_default, created_at, updated_at)
   VALUES (?, ?, ?, ?, ?, ?, ?)

@@ -18,14 +18,12 @@ Domain layer for address books and contacts: branded IDs, the two new
 `Capability` values, the `AddressBook` and `Contact` (+ `ContactEmail` /
 `ContactPhone` / `ContactPostalAddress`) entities with their smart
 constructors, and the CardDAV *client* sync entities (`CarddavAccount`,
-`CarddavBookLink`, `CarddavContactState`, `CarddavDeletion`) mirroring the
-existing `CaldavAccount` family.
+`CarddavBookLink`, `CarddavContactState`, `CarddavDeletion`).
 
 ### Scope
 **Included**: `packages/domain` additions only.
 **Excluded**: the `0010_contacts.sql` migration (owned by
-`contacts-adapter.md`, unlike the calendar precedent where the migration
-lived in the domain plan), ports/use cases (`contacts-application.md`),
+`contacts-adapter.md`), ports/use cases (`contacts-application.md`),
 adapters (`contacts-adapter.md`), GraphQL/web. No CardDAV *server* entities;
 mailcal remains a CardDAV client only. No contact groups, `PHOTO`, or
 modeled `X-*` properties -- see the design doc's out-of-scope list.
@@ -49,10 +47,7 @@ function createContactId(value: string): ContactId;
 function createCarddavAccountId(value: string): CarddavAccountId;
 function createCarddavBookId(value: string): CarddavBookId;
 ```
-`CarddavAccountId`/`CarddavBookId` are new, distinct brands -- **do not**
-reuse `CaldavAccountId`/`CaldavCalendarId`. The CardDAV tables are separate
-from the CalDAV ones (design doc "Domain model"), and sharing a brand would
-let a caldav id type-check where a carddav id is expected. Follows the
+`CarddavAccountId`/`CarddavBookId` are new, distinct brands. They follow the
 existing `requireNonEmptyId` + caller-supplied-id pattern exactly.
 **Completion Criteria**:
 - [x] Four new brands and constructors added, alphabetically placed among
@@ -76,8 +71,7 @@ type ContactCapability = Capability.ContactRead | Capability.ContactWrite;
 const CONTACT_CAPABILITIES: readonly ContactCapability[];
 function isContactCapability(capability: Capability): capability is ContactCapability;
 ```
-Mirrors `CalendarCapability`/`CALENDAR_CAPABILITIES`/`isCalendarCapability`
-exactly. `CONTACT_READ`/`CONTACT_WRITE` are **not** added to
+`CONTACT_READ`/`CONTACT_WRITE` are **not** added to
 `GLOBAL_CAPABILITIES`: like mail capabilities (and unlike templates), they
 are per-address, matched against the address book's owning mail address.
 **Completion Criteria**:
@@ -95,8 +89,7 @@ are per-address, matched against the address book's owning mail address.
 **Status**: Completed
 **Parallelizable**: No (depends on TASK-001)
 **Deliverables**:
-- `packages/domain/src/entities/address-book.ts` (new), modeled on
-  `entities/calendar.ts`:
+- `packages/domain/src/entities/address-book.ts` (new):
 ```typescript
 interface AddressBook {
   readonly id: AddressBookId;
@@ -180,18 +173,17 @@ function updateContact(contact: Contact, input: UpdateContactInput, updatedAt: s
   Invariants (design doc "Domain model"): `displayName` non-empty after
   trim; each `emails[].address` goes through `createEmailAddress` and the
   list is deduplicated case-insensitively; `urls` must be absolute
-  `http(s)` (reuse the `EventLink` URL validation pattern from
-  `calendar-event.ts`); every list capped at 32 (a hostile CardDAV server's
+  `http(s)`; every list capped at 32 (a hostile CardDAV server's
   vCard bomb must not become a megabyte row); `labels` are free text 1..40,
   never an enum -- an enum would drop iCloud's arbitrary labels on round
   trip. `extraVcardLines` is opaque to the domain: stored and returned
   verbatim, never parsed or validated here.
 **Completion Criteria**:
-- [x] `createAddressBook`/`updateAddressBook` mirror `calendar.ts`'s shape
+- [x] `createAddressBook`/`updateAddressBook` use consistent entity shapes
       and error messages
 - [x] `createContact` enforces every invariant above with a field-named
-      `ValidationError`; `updateContact` re-validates through the same path
-      `updateCalendar` uses (rebuild via `createContact`)
+      `ValidationError`; `updateContact` re-validates by rebuilding via
+      `createContact`
 - [x] Unit tests: each invariant and its rejection, list-cap boundary
       (32 vs 33), case-insensitive email dedup, label length boundary
       (40 vs 41), all-optional-fields-omitted minimal contact
@@ -199,15 +191,14 @@ function updateContact(contact: Contact, input: UpdateContactInput, updatedAt: s
 ### TASK-004: CardDAV client entity family
 **Status**: Completed
 **Parallelizable**: No (depends on TASK-001)
-**Deliverables**: `packages/domain/src/entities/carddav-account.ts` (new),
-modeled on `entities/caldav-account.ts`:
+**Deliverables**: `packages/domain/src/entities/carddav-account.ts` (new):
 ```typescript
 interface CarddavAccount {
   readonly id: CarddavAccountId;
   readonly userId: UserId;
   readonly serverUrl: string;
   readonly username: string;
-  readonly passwordCiphertext: string;   // ciphertext only, same posture as CaldavAccount
+  readonly passwordCiphertext: string;   // ciphertext only
   readonly principalUrl: string | null;
   readonly homeSetUrl: string | null;
   readonly createdAt: string;
@@ -248,25 +239,17 @@ interface CreateCarddavAccountInput {
   readonly createdAt: string;
   readonly updatedAt?: string;
 }
-function normalizeCarddavServerUrl(value: string): string;   // https-only, localhost http exception -- same rule as normalizeCaldavServerUrl
+function normalizeCarddavServerUrl(value: string): string;   // HTTPS, with localhost HTTP exception
 function createCarddavAccount(input: CreateCarddavAccountInput): CarddavAccount;
 ```
-Unlike `CarddavContactState.remoteUnsupported`, which means "this vCard's
-extra properties are preserved but the row could not be fully modeled" --
-importantly this is looser than `CaldavEventState.remoteUnsupported` (an
-*unrepresentable* RRULE excludes the event from push entirely): per the
-design doc, a partially-modeled vCard still round-trips via
+`CarddavContactState.remoteUnsupported` means "this vCard's extra properties
+are preserved but the row could not be fully modeled." Per the design doc,
+a partially-modeled vCard still round-trips via
 `extraVcardLines` and is **not** excluded from push; only a wholly
-unparsable vCard is skipped. Document this distinction inline so the
-application-layer sync use case (`contacts-application.md`) does not copy
-the CalDAV exclusion rule by reflex.
+unparsable vCard is skipped. Document this distinction inline.
 **Completion Criteria**:
-- [x] `normalizeCarddavServerUrl` duplicates `normalizeCaldavServerUrl`'s
-      exact https/localhost rule (a shared helper is out of scope here --
-      the two entities stay independent, as CalDAV and CardDAV are separate
-      credentials for separate servers in practice)
-- [x] `createCarddavAccount` rejects an empty username or empty
-      ciphertext, same as `createCaldavAccount`
+- [x] `normalizeCarddavServerUrl` enforces the exact HTTPS/localhost rule
+- [x] `createCarddavAccount` rejects an empty username or empty ciphertext
 - [x] Unit tests: server URL normalization (https accepted, http rejected
       except localhost/127.0.0.1), empty username/ciphertext rejection
 
@@ -303,9 +286,8 @@ the CalDAV exclusion rule by reflex.
 - [x] No entity constructor generates an id, a timestamp, or a random
       value: every `createXxxInput` above takes `id`/`createdAt` (and any
       random-derived field) as a required caller-supplied argument, so
-      the application layer's `RandomSource`/`Clock` ports remain the
-      only source of either, exactly as `createCalendar`/`createCaldavAccount`
-      already do
+      the application layer's `RandomSource`/`Clock` ports remain the only
+      source of either
 
 ## Progress Log
 
@@ -324,13 +306,11 @@ alphabetically-ordered block, appended after the existing declarations
 rather than fully re-sorting the pre-existing, non-alphabetical list (a
 full re-sort was judged out of scope / needlessly disruptive for this
 change). `api-key.ts` gained `Capability.ContactRead`/`ContactWrite`,
-`ContactCapability`, `CONTACT_CAPABILITIES`, `isContactCapability`,
-mirroring the calendar precedent exactly; the two new values are not in
-`GLOBAL_CAPABILITIES`. Created `address-book.ts` (mirrors `calendar.ts`)
-and `contact.ts` (mirrors `calendar-event.ts`'s link/mention validation
-style) with every invariant from the design doc. Created
-`carddav-account.ts` mirroring `caldav-account.ts`, including a duplicated
-(not shared) `normalizeCarddavServerUrl`. Colocated tests added for all
+`ContactCapability`, `CONTACT_CAPABILITIES`, `isContactCapability`; the two
+new values are not in `GLOBAL_CAPABILITIES`. Created `address-book.ts` and
+`contact.ts` with every invariant from the design doc. Created
+`carddav-account.ts`, including `normalizeCarddavServerUrl`. Colocated tests
+added for all
 five touched/new files. `bunx biome check packages/domain
 --diagnostic-level=warn`, `bun run typecheck` (in `packages/domain`), and
 `bunx vitest run packages/domain` all pass (31 test files, 490 tests). The

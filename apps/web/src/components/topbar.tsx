@@ -51,9 +51,6 @@ export function Topbar(props: {
       </form>
 
       <div class="topbar-actions">
-        <a href="/calendar" class="topbar-link">
-          Calendar
-        </a>
         <a href="/contacts" class="topbar-link">
           Contacts
         </a>

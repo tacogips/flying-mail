@@ -7,10 +7,9 @@ import type { GraphQLContext } from "../context";
  *
  * `AddressBook.mailAddress` and `Contact.addressBook` cross an ownership
  * edge that has no dedicated "get one by id" use case in `ContactUseCases`
- * (only `listAddressBooks`, scoped by mail address) -- unlike
- * `calendarEventResolvers.calendar`, which reaches `ctx.usecases.getCalendar`
- * directly. Both fields instead go through request-scoped loaders that read
- * the repository, exactly like `mailAddressResolvers.domain` ->
+ * (only `listAddressBooks`, scoped by mail address). Both fields therefore go
+ * through request-scoped loaders that read the repository, exactly like
+ * `mailAddressResolvers.domain` ->
  * `ctx.loaders.domainById`: the parent object (`AddressBook`/`Contact`) was
  * already returned by an authorized use case, so re-deriving that same
  * authorization decision here would be redundant, not a safety gap. Every

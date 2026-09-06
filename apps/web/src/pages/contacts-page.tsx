@@ -18,9 +18,8 @@ import { useStore } from "../store/store-context";
 /** The `/contacts` route.
  *
  * The contact store is created here rather than in the app-level store
- * context, same as `calendar-store.ts`: it is only ever needed behind this
- * lazy route, and mounting it globally would make every mailbox visitor pay
- * for state they never read. */
+ * context because it is only needed behind this lazy route. Mounting it
+ * globally would make every mailbox visitor pay for state they never read. */
 export default function ContactsPage(): JSX.Element {
   const appStore = useStore();
   const store = createContactStore();

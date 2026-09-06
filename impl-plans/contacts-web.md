@@ -35,7 +35,7 @@ extension-property UI, matching the domain's excluded scope.
   documents for every contact/address-book/CardDAV query and mutation in
   the SDL (`addressBooks`, `contacts`, `contact`, `contactsByEmail`,
   `carddavAccounts`, `carddavRemoteBooks`, and all eleven mutations),
-  following `calendar-documents.ts`'s naming convention
+  following the existing naming convention
   (`SCREAMING_SNAKE_CASE` constants ending `_QUERY`/`_MUTATION`).
 - `apps/web/src/api/contact-types.ts` (new): hand-written TS types
   mirroring the SDL (no codegen) -- `AddressBookView`, `ContactView`,
@@ -63,16 +63,13 @@ dialog state, and the CardDAV account/link lists; actions
 (re-fetches on `query`/selection change, cursor-appends on `loadMore`),
 `createAddressBook`/`updateAddressBook`/`deleteAddressBook`,
 `createContact`/`updateContact`/`deleteContact` (optimistic patch of the
-loaded page with rollback on failure, same pattern as
-`calendar-store.ts`'s event mutations), `lookupContactsByEmail(address)`
+loaded page with rollback on failure), `lookupContactsByEmail(address)`
 (a bare query call with no store-side caching -- the message-view hook in
 TASK-005 owns its own short-lived cache), `carddav` actions
 (`connectCarddavAccount`, `disconnectCarddavAccount`, `linkCarddavBook`,
 `unlinkCarddavBook`, `syncCarddavBook` surfacing `CarddavSyncSummaryView`
-via a toast, same as `calendar-store.ts`'s `SyncCalendarResult` toast).
-Per the calendar precedent (see `calendar-web.md`'s progress log: "the
-store is created by the lazy page rather than mounted globally"), this
-store is **not** registered in `app-store.ts` or `store-context.tsx`'s
+via a toast). This store is **not** registered in `app-store.ts` or
+`store-context.tsx`'s
 global provider -- it is instantiated by `contacts-page.tsx` itself, so a
 mailbox-only visitor does not pay for it.
 **Completion Criteria**:
@@ -84,9 +81,8 @@ mailbox-only visitor does not pay for it.
 **Status**: Completed
 **Parallelizable**: No (depends on TASK-002)
 **Deliverables**:
-- Route `/contacts` (`AuthGuard`, `lazy`) added to `apps/web/src/app.tsx`
-  next to the existing `/calendar` route; a topbar navigation entry added
-  next to the calendar link (`apps/web/src/components/topbar.tsx`).
+- Route `/contacts` (`AuthGuard`, `lazy`) added to `apps/web/src/app.tsx`;
+  a topbar navigation entry added in `apps/web/src/components/topbar.tsx`.
 - `apps/web/src/pages/contacts-page.tsx` (new): instantiates
   `contact-store.ts` (see TASK-002) and lays out the rail + list +
   detail/editor panes.
@@ -123,8 +119,7 @@ mailbox-only visitor does not pay for it.
   was opened from, or the target address's default book for a new
   contact created from "All contacts"). No photo field, no group/`MEMBER`
   field -- out of scope per the design doc.
-- `apps/web/src/components/contacts/carddav-settings.tsx` (new),
-  structurally mirroring `components/calendar/caldav-settings.tsx`:
+- `apps/web/src/components/contacts/carddav-settings.tsx` (new):
   connect account (server URL defaulting to `contacts.icloud.com`,
   Apple-ID username, app-specific password -- input never persisted
   client-side), list discovered remote address books, link/unlink to a
@@ -210,7 +205,7 @@ the store and pages built in TASK-002..004)
   `ContactView` to roll back from), CardDAV account/link actions. Pure
   helpers `groupAddressBooks` and `filterForSelection` are exported and
   unit-tested directly. The store is instantiated inside `contacts-page.tsx`,
-  not the global app store, matching the calendar precedent.
+  not the global app store.
 - The address-book rail is built entirely from the unfiltered `addressBooks`
   query grouped by mail address (`AddressBook.mailAddress`); there is no
   separate "list of readable mail addresses" endpoint available to a
@@ -221,10 +216,8 @@ the store and pages built in TASK-002..004)
   management at all" framing but is a real edge case worth flagging: the
   very first book on a fresh instance must come from `createContact` (or an
   agent/admin call), not from the CardDAV import UI.
-- `/contacts` route registered `lazy()` behind `AuthGuard` in `app.tsx`, a
-  "Contacts" link added to `topbar.tsx` next to "Calendar" (both pages are
-  standalone, without the `AppShell`/topbar wrapper, matching the existing
-  `/calendar` precedent).
+- `/contacts` route registered `lazy()` behind `AuthGuard` in `app.tsx`, with
+  a "Contacts" link added to `topbar.tsx`.
 - `UpdateContactInput` carries no `addressBookId`, so the contact dialog only
   offers the address-book select for a *new* contact; editing shows the
   existing book as read-only text.

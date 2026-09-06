@@ -22,12 +22,10 @@ import type { Viewer } from "../policies/viewer";
  * Authorization decisions live in `policies/authorization.ts`; this module
  * only *feeds* them -- it resolves the owner identity a decision needs (the
  * book's owning mail address, and that address's domain) and turns a denied
- * read into `NOT_FOUND`, preserving the same probe resistance mail and
- * calendar have.
- *
- * Unlike `CalendarAccessContext`, resolving an owner here needs no second
- * repository call: `MailAddress.domainId` is never null, so the mail
- * address record alone is `ContactBookOwnerRef`. */
+ * read into `NOT_FOUND`, preserving the same probe resistance as mail.
+ * Resolving an owner needs no second repository call because
+ * `MailAddress.domainId` is never null, so the mail address record alone is
+ * `ContactBookOwnerRef`. */
 
 /** Per-call memo. Listing a page of contacts across several books touches
  * the same handful of owning addresses repeatedly. */

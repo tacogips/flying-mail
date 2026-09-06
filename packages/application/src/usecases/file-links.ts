@@ -15,14 +15,10 @@ import {
   type MessageId,
 } from "@mailcal/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
-import { BadUserInputError, ForbiddenError, NotFoundError } from "../errors";
-import {
-  readableAddressPatterns,
-  requireAddressCapability,
-} from "../policies/authorization";
+import { BadUserInputError, NotFoundError } from "../errors";
+import { requireAddressCapability } from "../policies/authorization";
 import type { Viewer } from "../policies/viewer";
 import type { BlobObject } from "../ports/blob-store";
-import { loadReadableEvent } from "./calendar-access";
 import { loadReadableMessage } from "./messages";
 
 const TOKEN_BYTES = 32;
@@ -143,47 +139,6 @@ async function requireLinkableMessage(
   );
 }
 
-/** An event attachment has no message, and therefore no address, to hang
- * the per-address `FILE_LINK` scope on. The capability is still required --
- * a key without it must not be able to mint anything -- so it is checked at
- * its coarsest form: does this viewer hold `FILE_LINK` on *any* scope. A
- * user viewer holds it unconditionally, which is the same latitude the mail
- * path gives them. */
-function requireFileLinkCapability(viewer: Viewer): void {
-  const patterns = readableAddressPatterns(viewer, Capability.FileLink);
-  // `null` means unrestricted (a user viewer); an empty array means a key
-  // that carries no `FILE_LINK` scope at all.
-  if (patterns !== null && patterns.length === 0) {
-    throw new ForbiddenError(
-      `This credential is not permitted to perform ${Capability.FileLink} operations`,
-    );
-  }
-}
-
-/** Minting for an event attachment authorizes through the event that claimed
- * it, mirroring the download route's event branch: readable event plus
- * `FILE_LINK`. An attachment no event has claimed is a staged upload that
- * belongs to nothing yet, and reports as absent. */
-async function requireLinkableEventAttachment(
-  deps: AppDependencies,
-  viewer: Viewer,
-  attachmentId: AttachmentId,
-): Promise<void> {
-  const eventIds =
-    await deps.calendarEventRepository.findEventIdsByAttachment(attachmentId);
-  let readable = false;
-  for (const eventId of eventIds) {
-    if ((await loadReadableEvent(deps, viewer, eventId)) !== null) {
-      readable = true;
-      break;
-    }
-  }
-  if (!readable) {
-    throw new NotFoundError("Attachment", attachmentId);
-  }
-  requireFileLinkCapability(viewer);
-}
-
 export function createCreateAttachmentLinkUseCase(
   deps: AppDependencies,
 ): (
@@ -199,12 +154,10 @@ export function createCreateAttachmentLinkUseCase(
       throw new NotFoundError("Attachment", attachmentId);
     }
     if (attachment.messageId === null) {
-      // Either an event attachment -- authorized through its event -- or a
-      // staged upload that belongs to nothing yet, which reports as absent.
-      await requireLinkableEventAttachment(deps, viewer, attachmentId);
-    } else {
-      await requireLinkableMessage(deps, viewer, attachment.messageId);
+      // An upload is not linkable until a message claims it.
+      throw new NotFoundError("Attachment", attachmentId);
     }
+    await requireLinkableMessage(deps, viewer, attachment.messageId);
 
     const context = await prepareMint(deps, viewer, ttlSeconds, maxDownloads);
     const link = createAttachmentFileLink({
@@ -272,22 +225,9 @@ export function createRevokeFileLinkUseCase(
         : ((await deps.messageRepository.findAttachmentById(link.attachmentId))
             ?.messageId ?? null));
     if (messageId === null) {
-      // No owning message: revocable only when it is an event attachment
-      // link and the viewer could have minted it in the first place.
-      if (link.attachmentId === null) {
-        throw new NotFoundError("FileLink", id);
-      }
-      try {
-        await requireLinkableEventAttachment(deps, viewer, link.attachmentId);
-      } catch (error) {
-        // The link, not the attachment, is what the caller named.
-        throw error instanceof NotFoundError
-          ? new NotFoundError("FileLink", id)
-          : error;
-      }
-    } else {
-      await requireLinkableMessage(deps, viewer, messageId);
+      throw new NotFoundError("FileLink", id);
     }
+    await requireLinkableMessage(deps, viewer, messageId);
     await deps.fileLinkRepository.save(
       revokeFileLink(link, deps.clock.now().toISOString()),
     );

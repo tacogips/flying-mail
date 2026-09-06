@@ -109,6 +109,7 @@ describe("createMigrationRunner", () => {
       "0009_mail_addresses.sql",
       "0010_contacts.sql",
       "0011_external_mail.sql",
+      "0012_remove_calendar.sql",
     ]);
 
     const names = await tableNames(db);

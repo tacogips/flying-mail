@@ -104,8 +104,7 @@ export interface CarddavDeleteResult {
 }
 
 /** Raised by the adapter for transport-level problems, so the use case can
- * map them onto application errors without knowing about HTTP. Mirrors the
- * CalDAV pair's shape exactly. */
+ * map them onto application errors without knowing about HTTP. */
 export class CarddavAuthError extends Error {
   constructor(message: string) {
     super(message);

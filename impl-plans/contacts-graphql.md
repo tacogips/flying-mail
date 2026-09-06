@@ -22,12 +22,12 @@ GraphQL enum.
 wiring. The concrete adapter construction in
 `composition/build-dependencies.ts` (and, if needed,
 `composition/config.ts`) is owned here rather than in
-`contacts-application.md` -- same split as the calendar plans, where the
-*interface* (`AppDependencies`, `UseCases`) lives in the application plan
+`contacts-application.md`: the *interface* (`AppDependencies`, `UseCases`)
+lives in the application plan
 and the *concrete* wiring lives in the graphql/wiring plan.
 **Excluded**: web UI (`contacts-web.md`). No new hono routes; no CardDAV
 server endpoints -- mailcal remains a CardDAV client exposed only through
-`/graphql`, exactly as CalDAV is.
+`/graphql`.
 
 ---
 
@@ -38,8 +38,7 @@ server endpoints -- mailcal remains a CardDAV client exposed only through
 **Parallelizable**: Yes (contract-first)
 **Deliverables**:
 `packages/infrastructure/src/graphql/schema-contacts.graphql.ts` (new) --
-a separate typeDefs literal merged via `createSchema`'s array argument,
-following `schema-calendar.graphql.ts`'s precedent so
+a separate typeDefs literal merged via `createSchema`'s array argument so
 `schema.graphql.ts` does not grow. Per the design doc's "GraphQL" sketch:
 ```graphql
 type AddressBook {
@@ -181,25 +180,21 @@ extend type Mutation {
   syncCarddavBook(id: ID!): CarddavSyncSummary!
 }
 ```
-`Capability` GraphQL enum (in `schema.graphql.ts`, alongside the existing
-`CALENDAR_READ`/`CALENDAR_WRITE`/etc. values) gains `CONTACT_READ` and
+`Capability` GraphQL enum (in `schema.graphql.ts`) gains `CONTACT_READ` and
 `CONTACT_WRITE` -- a two-line addition to that file's existing enum, not a
 new type, so it does not meaningfully grow the file. `AddressBook.mailAddress`
 and `Contact.addressBook` are field resolvers (TASK-002), not columns.
 
 `packages/infrastructure/package.json` (extend `exports`): add
 `"./graphql/schema-contacts.graphql": "./src/graphql/schema-contacts.graphql.ts"`.
-This package's `exports` map lists each GraphQL SDL module explicitly
-(`./graphql/schema.graphql`, `./graphql/schema-calendar.graphql`) -- there
-is no wildcard for SDL files, only for `./graphql/resolvers/*` -- so the
-new SDL module needs its own entry the same way
-`schema-calendar.graphql.ts` got one; `contact-query.ts`/
+This package's `exports` map lists each GraphQL SDL module explicitly; there
+is no wildcard for SDL files, only for `./graphql/resolvers/*`, so the new
+SDL module needs its own entry. `contact-query.ts`/
 `contact-mutation.ts`/`contact-types.ts` in TASK-002 need no entry of
 their own because `./graphql/resolvers/*` already covers them.
 **Completion Criteria**:
 - [x] SDL merges cleanly (`extend type` on `Query`/`Mutation`)
-- [x] Doc comments on every field for agent consumers, matching
-      `schema-calendar.graphql.ts`'s density
+- [x] Doc comments on every field for agent consumers
 - [x] `Capability` enum's two new values added in `schema.graphql.ts`
       without otherwise touching that file
 - [x] `packages/infrastructure/package.json` gains exactly one new
@@ -212,29 +207,24 @@ their own because `./graphql/resolvers/*` already covers them.
 - `packages/infrastructure/src/graphql/resolvers/contact-query.ts` (new):
   `addressBooks`, `contacts`, `contact`, `contactsByEmail`,
   `carddavAccounts`, `carddavRemoteBooks` -- each a thin argument-mapping
-  call into `ctx.usecases.*`, following `calendar-query.ts`'s shape
-  exactly (`requireViewerOrThrow(ctx)` first argument, `createXxxId`
+  call into `ctx.usecases.*` (`requireViewerOrThrow(ctx)` first argument, `createXxxId`
   coercions on incoming string ids).
 - `packages/infrastructure/src/graphql/resolvers/contact-mutation.ts`
   (new): `createAddressBook`, `updateAddressBook`, `deleteAddressBook`,
   `createContact`, `updateContact`, `deleteContact`,
   `connectCarddavAccount`, `disconnectCarddavAccount`, `linkCarddavBook`,
-  `unlinkCarddavBook`, `syncCarddavBook` -- argument mapping only,
-  following `calendar-mutation.ts`'s null-dropping `...(x == null ? {} :
-  { x })` convention for every optional field.
+  `unlinkCarddavBook`, `syncCarddavBook` -- argument mapping only, using the
+  null-dropping `...(x == null ? {} : { x })` convention for optional fields.
 - `packages/infrastructure/src/graphql/resolvers/contact-types.ts` (new):
   field resolvers `AddressBook.mailAddress` (loads via
   `mailAddressRepository`/an existing loader), `AddressBook.contactCount`
   (via `addressBookRepository.countContacts`), `Contact.addressBook`
-  (loads the parent book) -- mirroring `calendar-types.ts`'s
-  `CalendarEvent.mentions`/`links`/`attachments` field-resolver shape.
+  (loads the parent book).
 - `packages/infrastructure/src/graphql/schema.ts` (extend): merge
   `contactTypeDefs` into the `typeDefs` array, spread
   `contactQueryResolvers`/`contactMutationResolvers` into `Query`/
   `Mutation`, add `AddressBook: addressBookResolvers, Contact:
-  contactResolvers` to the resolver map -- a small, additive hook only,
-  matching how `calendarTypeDefs`/`calendarQueryResolvers`/etc. were
-  merged.
+  contactResolvers` to the resolver map -- a small, additive hook only.
 - Error mapping reuses the existing `toGraphQLError`/`translateDomainError`
   path (six `extensions.code` values); no new error code is introduced.
 **Completion Criteria**:
@@ -256,16 +246,15 @@ their own because `./graphql/resolvers/*` already covers them.
   `carddavAccountRepository` (each `createXxxRepository(db)`),
   `carddavClient: createCarddavClient({ fetchImpl: fetch })`,
   `vcardCodec: createVcardCodec()`; add all five to the returned
-  `AppDependencies`. `credentialCipher` is **not** re-derived -- the
-  existing CalDAV cipher instance is reused verbatim for CardDAV
-  credentials, since both are AES-256-GCM under the same
+  `AppDependencies`. `credentialCipher` is **not** re-derived; the shared
+  instance is reused for CardDAV credentials under the same
   `MAILCAL_CREDENTIAL_KEY` (design doc: "reuses `CredentialCipher`").
 - `packages/infrastructure/src/composition/config.ts`: **no new
   configuration is expected** -- the design doc states "no new bindings
   (reuses `MAILCAL_CREDENTIAL_KEY`)". Add a config test asserting this
-  explicitly (boot with only the existing calendar/mail config produces a
-  working `carddavClient`/`vcardCodec` and a `credentialCipher` shared
-  with CalDAV) rather than skipping the task; if review turns up a case
+  explicitly (boot with the existing mail config produces a working
+  `carddavClient`/`vcardCodec` and shared `credentialCipher`) rather than
+  skipping the task; if review turns up a case
   the design doc missed, note it in the progress log before changing
   `config.ts`.
 - `apps/api/wrangler.toml`/`apps/api/src/server.ts`: no changes expected
@@ -273,14 +262,13 @@ their own because `./graphql/resolvers/*` already covers them.
   rather than assuming.
 **Completion Criteria**:
 - [x] Boot without `MAILCAL_CREDENTIAL_KEY`: address books and contacts
-      work, CardDAV mutations return `SERVICE_UNAVAILABLE` (app-level
-      test, mirroring the CalDAV `MAILCAL_CREDENTIAL_KEY`-unset test)
-- [x] Boot with `MAILCAL_CREDENTIAL_KEY` already set for CalDAV: CardDAV
-      account connect/sync also works with no additional configuration
+      work, CardDAV mutations return `SERVICE_UNAVAILABLE`
+- [x] Boot with `MAILCAL_CREDENTIAL_KEY` set: CardDAV account connect/sync
+      works with no additional configuration
       (proves the cipher reuse) -- proven at the composition-root level by
       `credentialCipher: createCredentialCipher(config.credentialKey ??
-      null)` being the single instance assigned to both `caldavClient`'s
-      and the CardDAV use cases' shared field; exercised end to end in
+      null)` being the single instance assigned to the CardDAV use cases;
+      exercised end to end in
       `schema-contacts.test.ts`'s "connects an account, links and syncs a
       book" test with no config beyond the one shared key
 - [x] `schema-contacts.test.ts` (new, `packages/infrastructure/src/graphql/`)
@@ -333,8 +321,8 @@ their own because `./graphql/resolvers/*` already covers them.
 **Notes**: Added `packages/infrastructure/src/graphql/schema-contacts.graphql.ts`
 with the full contacts SDL (AddressBook, Contact + child types,
 ContactFilter/ContactPage, CarddavAccount/RemoteAddressBook/
-CarddavSyncSummary, `extend type Query`/`Mutation`), matching
-`schema-calendar.graphql.ts`'s doc-comment density and not merged into
+CarddavSyncSummary, `extend type Query`/`Mutation`), with thorough doc
+comments and not merged into
 `schema.ts`/`createSchema` (that wiring belongs to TASK-002, which also owns
 the resolvers). Fixed the previously failing
 `packages/infrastructure/src/graphql/schema.test.ts` bootstrapAdmin test by
@@ -356,16 +344,14 @@ touched files.
 **Tasks Completed**: TASK-002 (resolvers), TASK-003 (composition wiring)
 **Notes**: Added `resolvers/contact-query.ts` (`addressBooks`, `contacts`,
 `contact`, `contactsByEmail`, `carddavAccounts`, `carddavRemoteBooks`),
-`resolvers/contact-mutation.ts` (all eleven contacts/CardDAV mutations, the
-calendar's `...(x == null ? {} : { x })` convention throughout), and
+`resolvers/contact-mutation.ts` (all eleven contacts/CardDAV mutations, using
+the `...(x == null ? {} : { x })` convention throughout), and
 `resolvers/contact-types.ts` (`AddressBook.mailAddress`/`.contactCount`,
 `Contact.addressBook`). Merged `contactTypeDefs`/`contactQueryResolvers`/
 `contactMutationResolvers`/`addressBookResolvers`/`contactResolvers` into
-`schema.ts`'s `createSchema` call, matching the calendar module's merge
-exactly. `AddressBook.mailAddress` and `Contact.addressBook` have no "get
-one by id" use case in `ContactUseCases` to reach through the way
-`calendarEventResolvers.calendar` reaches `ctx.usecases.getCalendar` --
-resolved instead via two new request-scoped loaders (`mailAddressById`,
+`schema.ts`'s `createSchema` call. `AddressBook.mailAddress` and
+`Contact.addressBook` have no "get one by id" use case in `ContactUseCases`,
+so they resolve through two new request-scoped loaders (`mailAddressById`,
 `addressBookById`, plus `contactCountByAddressBook`) added to `loaders.ts`,
 reading the repository directly the same way `mailAddressResolvers.domain`
 already does via `domainById`; safe because the parent object was already
@@ -373,7 +359,7 @@ returned by an authorized use case. `build-dependencies.ts` gains
 `addressBookRepository`/`contactRepository`/`carddavAccountRepository`
 (each `createXxxRepository(db)`), `vcardCodec: createVcardCodec()`, and
 `carddavClient: createCarddavClient({ fetchImpl: fetch })`; `credentialCipher`
-is the same instance CalDAV already uses, not re-derived. `config.ts`
+is shared and not re-derived. `config.ts`
 confirmed to need no changes, matching the plan's expectation.
 
 **Deviation from "TASK-001 is frozen"**: `CreateContactInput` had no

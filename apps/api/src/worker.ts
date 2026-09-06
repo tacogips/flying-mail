@@ -1,4 +1,7 @@
 import { createUseCases, type UseCases } from "@mailcal/application/usecases";
+import { drainBlobCleanupQueue } from "@mailcal/adapter/migrations/blob-cleanup";
+import type { BlobStore } from "@mailcal/application/ports/blob-store";
+import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
 import { buildDependencies } from "@mailcal/infrastructure/composition/build-dependencies";
 import {
   assertMailOriginConsistency,
@@ -66,6 +69,32 @@ type WorkerApp = Hono<{ Variables: AuthVariables }>;
 interface BuiltWorker {
   readonly app: WorkerApp;
   readonly usecases: UseCases;
+  readonly cleanupBlobs: () => Promise<void>;
+}
+
+function createBlobCleanupScheduler(
+  db: SqlDatabase,
+  blobs: BlobStore,
+): () => Promise<void> {
+  let complete = false;
+  let inFlight: Promise<void> | null = null;
+  return (): Promise<void> => {
+    if (complete) {
+      return Promise.resolve();
+    }
+    if (inFlight !== null) {
+      return inFlight;
+    }
+    const attempt = drainBlobCleanupQueue(db, blobs)
+      .then(() => {
+        complete = true;
+      })
+      .finally(() => {
+        inFlight = null;
+      });
+    inFlight = attempt;
+    return attempt;
+  };
 }
 
 /** Per-isolate cache keyed by the Workers `env` object, which is a stable
@@ -91,7 +120,11 @@ function getOrBuildWorker(env: Env): BuiltWorker {
     graphiql: false,
     onNotFound: (c) => env.ASSETS.fetch(c.req.raw),
   });
-  const built: BuiltWorker = { app, usecases };
+  const built: BuiltWorker = {
+    app,
+    usecases,
+    cleanupBlobs: createBlobCleanupScheduler(deps.db, deps.blobs),
+  };
   workerCache.set(env, built);
   return built;
 }
@@ -118,6 +151,14 @@ export default {
       console.error("Failed to build application dependencies", error);
       return Response.json({ error: "Internal server error" }, { status: 500 });
     }
+    ctx.waitUntil(
+      worker.cleanupBlobs().catch((error: unknown) => {
+        console.error(
+          "Failed to drain the post-migration blob cleanup queue",
+          error,
+        );
+      }),
+    );
     // Passing `env`/`ctx` through makes them available as hono's `c.env` and
     // `c.executionCtx`, which the auth middleware's expiry sweep needs so
     // the runtime does not cancel that cleanup once the response returns.
@@ -133,9 +174,17 @@ export default {
   async email(
     message: ForwardableEmailMessageLike,
     env: Env,
-    _ctx: ExecutionContextLike,
+    ctx: ExecutionContextLike,
   ): Promise<void> {
     const worker = getOrBuildWorker(env);
+    ctx.waitUntil(
+      worker.cleanupBlobs().catch((error: unknown) => {
+        console.error(
+          "Failed to drain the post-migration blob cleanup queue",
+          error,
+        );
+      }),
+    );
     try {
       const result = await worker.usecases.receiveMessage({
         envelopeFrom: message.from,

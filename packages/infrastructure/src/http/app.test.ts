@@ -100,7 +100,6 @@ async function createHarness(): Promise<Harness> {
       role: UserRole.Admin,
       permissions: [],
       templatePermissions: [],
-      calendarPermissions: [],
     },
     {
       name: "agent",
@@ -434,6 +433,36 @@ describe("app", () => {
       expect(response.headers.get("content-disposition")).toContain("inline");
     });
 
+    test("hides a message attachment from a key outside the mailbox scope", async () => {
+      const denied = await harness.usecases.createApiKey(
+        {
+          kind: "USER",
+          userId: createUserId("usr-1"),
+          role: UserRole.Admin,
+          permissions: [],
+          templatePermissions: [],
+        },
+        {
+          name: "other-mailbox",
+          scopes: [
+            {
+              capability: Capability.MailRead,
+              domainId,
+              addressPattern: "billing@example.com",
+            },
+          ],
+          expiresAt: null,
+        },
+      );
+
+      const response = await harness.app.request(
+        new Request(`${ORIGIN}/api/attachments/${attachmentId}`, {
+          headers: { authorization: `Bearer ${denied.secret}` },
+        }),
+      );
+      expect(response.status).toBe(404);
+    });
+
     test("?download=1 forces an attachment disposition", async () => {
       const response = await harness.app.request(
         new Request(`${ORIGIN}/api/attachments/${attachmentId}?download=1`, {
@@ -502,167 +531,6 @@ describe("app", () => {
       expect(response.status).toBe(404);
     });
 
-    describe("event-claimed attachments", () => {
-      const OWNER_VIEWER = {
-        kind: "USER",
-        userId: createUserId("usr-1"),
-        role: UserRole.Admin,
-        permissions: [],
-        templatePermissions: [],
-        calendarPermissions: [],
-      } as const;
-
-      /** Uploads a file as the session user and claims it for a new event,
-       * returning the attachment id and the event's calendar. */
-      async function stageClaimedAttachment(
-        mentions: readonly string[] = [],
-      ): Promise<string> {
-        const form = new FormData();
-        form.set(
-          "file",
-          new File(["agenda"], "agenda.pdf", { type: "application/pdf" }),
-        );
-        const uploaded = (await (
-          await harness.app.request(
-            new Request(`${ORIGIN}/api/attachments`, {
-              method: "POST",
-              headers: {
-                cookie: `${SESSION_COOKIE_NAME}=${harness.sessionToken}`,
-              },
-              body: form,
-            }),
-          )
-        ).json()) as { id: string };
-
-        const calendar = await harness.usecases.createCalendar(OWNER_VIEWER, {
-          name: "Work",
-        });
-        const event = await harness.usecases.createCalendarEvent(OWNER_VIEWER, {
-          calendarId: calendar.id,
-          title: "Review",
-          time: {
-            allDay: false,
-            startsAt: "2026-09-01T00:00:00.000Z",
-            endsAt: "2026-09-01T01:00:00.000Z",
-          },
-          mentions,
-        });
-        await harness.usecases.attachFileToEvent(
-          OWNER_VIEWER,
-          event.id,
-          createAttachmentId(uploaded.id),
-        );
-        return uploaded.id;
-      }
-
-      function download(id: string, headers: Record<string, string>) {
-        return harness.app.request(
-          new Request(`${ORIGIN}/api/attachments/${id}`, { headers }),
-        );
-      }
-
-      test("the calendar owner downloads it", async () => {
-        const id = await stageClaimedAttachment();
-        const response = await download(id, {
-          cookie: `${SESSION_COOKIE_NAME}=${harness.sessionToken}`,
-        });
-        expect(response.status).toBe(200);
-        expect(await response.text()).toBe("agenda");
-      });
-
-      test("a mentioned user downloads it", async () => {
-        const mentioned = createUser({
-          id: createUserId("usr-mentioned"),
-          email: createEmailAddress("guest@example.com"),
-          name: "Guest",
-          role: UserRole.Member,
-          createdAt: NOW,
-        });
-        harness.fake.stores.users.set(mentioned.id, mentioned);
-        const mentionedToken = "mentioned-session";
-        harness.fake.stores.sessions.set(
-          "ses-mentioned",
-          createSession({
-            id: createSessionId("ses-mentioned"),
-            tokenHash: `hash(${mentionedToken})`,
-            userId: mentioned.id,
-            expiresAt: "2026-09-23T00:00:00.000Z",
-            createdAt: NOW,
-          }),
-        );
-
-        const id = await stageClaimedAttachment(["guest@example.com"]);
-        const response = await download(id, {
-          cookie: `${SESSION_COOKIE_NAME}=${mentionedToken}`,
-        });
-        expect(response.status).toBe(200);
-      });
-
-      test("an unrelated user gets 404, never 403", async () => {
-        const stranger = createUser({
-          id: createUserId("usr-stranger"),
-          email: createEmailAddress("stranger@example.com"),
-          name: "Stranger",
-          role: UserRole.Member,
-          createdAt: NOW,
-        });
-        harness.fake.stores.users.set(stranger.id, stranger);
-        const strangerToken = "stranger-session";
-        harness.fake.stores.sessions.set(
-          "ses-stranger",
-          createSession({
-            id: createSessionId("ses-stranger"),
-            tokenHash: `hash(${strangerToken})`,
-            userId: stranger.id,
-            expiresAt: "2026-09-23T00:00:00.000Z",
-            createdAt: NOW,
-          }),
-        );
-
-        const id = await stageClaimedAttachment();
-        const response = await download(id, {
-          cookie: `${SESSION_COOKIE_NAME}=${strangerToken}`,
-        });
-        expect(response.status).toBe(404);
-      });
-
-      test("a mail-only scoped key gets 404", async () => {
-        const id = await stageClaimedAttachment();
-        const response = await download(id, {
-          authorization: `Bearer ${harness.apiKeySecret}`,
-        });
-        expect(response.status).toBe(404);
-      });
-
-      test("an unclaimed staged upload stays undownloadable", async () => {
-        const form = new FormData();
-        form.set("file", new File(["data"], "notes.txt"));
-        const uploaded = (await (
-          await harness.app.request(
-            new Request(`${ORIGIN}/api/attachments`, {
-              method: "POST",
-              headers: {
-                cookie: `${SESSION_COOKIE_NAME}=${harness.sessionToken}`,
-              },
-              body: form,
-            }),
-          )
-        ).json()) as { id: string };
-        const response = await download(uploaded.id, {
-          cookie: `${SESSION_COOKIE_NAME}=${harness.sessionToken}`,
-        });
-        expect(response.status).toBe(404);
-      });
-
-      test("message attachments are unregressed", async () => {
-        const response = await download(attachmentId, {
-          authorization: `Bearer ${harness.apiKeySecret}`,
-        });
-        expect(response.status).toBe(200);
-        expect(await response.text()).toBe("hello");
-      });
-    });
-
     test("upload requires authentication", async () => {
       const form = new FormData();
       form.set("file", new File(["data"], "notes.txt"));
@@ -711,7 +579,6 @@ describe("app", () => {
           role: UserRole.Admin,
           permissions: [],
           templatePermissions: [],
-          calendarPermissions: [],
         },
         attachmentId,
         900,

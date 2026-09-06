@@ -59,10 +59,9 @@ export interface LinkRemoteAddressBookInput {
   readonly mode: LinkRemoteAddressBookMode;
   /** Required for `BIND_EXISTING`. */
   readonly addressBookId?: AddressBookId;
-  /** Required for `IMPORT_NEW`: unlike a CalDAV-linked `Calendar` (owned by
-   * a user), an `AddressBook` is owned by a *mail address* with no default
-   * to fall back on -- `AddressBook.mailAddressId` is never optional. This
-   * field has no CalDAV analogue for exactly that reason. */
+  /** Required for `IMPORT_NEW`: an `AddressBook` is owned by a *mail
+   * address* with no default to fall back on, so
+   * `AddressBook.mailAddressId` is never optional. */
   readonly mailAddressId?: MailAddressId;
   readonly displayName?: string | null;
 }
@@ -135,8 +134,7 @@ export function createConnectCarddavAccountUseCase(
       );
     }
 
-    // Validated *before* the credential is put on the wire -- see
-    // `createConnectCaldavAccountUseCase`'s identical reasoning.
+    // Validate before putting the credential on the wire.
     let serverUrl: string;
     try {
       serverUrl = normalizeCarddavServerUrl(input.serverUrl);
@@ -197,9 +195,8 @@ async function loadOwnedAccount(
 }
 
 /** The collection a link points at must belong to the account it is being
- * linked through -- same reasoning as CalDAV's
- * `requireAccountCollectionUrl`: every later sync sends the account's
- * app-specific password to this URL. */
+ * linked through because every later sync sends the account's app-specific
+ * password to this URL. */
 function requireAccountCollectionUrl(
   account: CarddavAccount,
   remoteUrl: string,

@@ -14,8 +14,7 @@ design-docs/specs/design-user-mail-permissions.md)
 
 ### Summary
 Ports, authorization, use cases, and in-memory test fakes for address
-books, contacts, and CardDAV client sync orchestration. Unlike calendars
-(which introduced a dedicated per-user permission table), contact
+books, contacts, and CardDAV client sync orchestration. Contact
 authorization introduces **no second permission system**: `CONTACT_READ`/
 `CONTACT_WRITE` are derived from the *existing* mail-permission machinery
 (`MAIL_READ`/`MAIL_MANAGE` on the address book's owning mail address) for
@@ -29,8 +28,7 @@ test-support), `AppDependencies` extension, `UseCases` aggregation hook.
 (also `contacts-adapter.md`), GraphQL, web. `dependencies.ts` (the
 `AppDependencies` *interface*) and the `usecases.ts` aggregation spread are
 owned here; the *concrete* wiring in
-`composition/build-dependencies.ts` is `contacts-graphql.md` TASK-003 --
-same split as the calendar plans.
+`composition/build-dependencies.ts` is `contacts-graphql.md` TASK-003.
 
 ---
 
@@ -67,8 +65,7 @@ interface ContactRepository {
   findById(id: ContactId): Promise<Contact | null>;
   findByUid(addressBookId: AddressBookId, uid: string): Promise<Contact | null>;
   /** Atomic write of the contact row plus its emails/phones/postal
-   * addresses/urls child rows, mirroring
-   * `CalendarEventRepository.createEvent`/`updateEvent`'s one-batch shape. */
+   * addresses/urls child rows in one batch. */
   createContact(contact: Contact): Promise<void>;
   updateContact(contact: Contact): Promise<void>;
   deleteContact(id: ContactId): Promise<void>;
@@ -94,8 +91,7 @@ interface ContactPage {
   readonly totalCount: number;
 }
 ```
-- `packages/application/src/ports/carddav.ts` (new), modeled on
-  `ports/caldav.ts` with parallel, CardDAV-specific names:
+- `packages/application/src/ports/carddav.ts` (new), with CardDAV-specific names:
 ```typescript
 interface CarddavAccountRepository {
   findAccountById(id: CarddavAccountId): Promise<CarddavAccount | null>;
@@ -155,8 +151,8 @@ interface ParsedVcardContact {
   /** Every unsupported line (PHOTO, X-*, item1.-grouped, ...) verbatim,
    * folded/unfolded but otherwise untouched, for round-trip fidelity. */
   readonly extraVcardLines: string | null;
-  /** True only when the vCard could not be parsed at all -- unlike ICS,
-   * a partially-modeled vCard is NOT flagged here; it imports what it can
+  /** True only when the vCard could not be parsed at all. A
+   * partially-modeled vCard is NOT flagged here; it imports what it can
    * and keeps the rest in extraVcardLines. */
   readonly unparsable: boolean;
 }
@@ -168,12 +164,11 @@ interface VcardCodec {
 - `packages/application/src/dependencies.ts` (extend): add
   `addressBookRepository`, `contactRepository`, `carddavAccountRepository`,
   `carddavClient`, `vcardCodec` to `AppDependencies`. `credentialCipher` is
-  **reused** as-is (already present for CalDAV) -- no new field.
+  **reused** as-is -- no new field.
 **Completion Criteria**:
 - [x] Ports contain no adapter imports; typecheck passes
-- [x] `CarddavAuthError`/`CarddavTransportError` mirror the CalDAV pair's
-      shape exactly, so `translateCarddavError` (TASK-004) can copy
-      `translateCaldavError`'s structure
+- [x] `CarddavAuthError`/`CarddavTransportError` have stable shapes for
+      `translateCarddavError` (TASK-004)
 
 ### TASK-002: Authorization rules
 **Status**: Completed
@@ -206,29 +201,28 @@ function contactPermissionListFilter(viewer: Viewer, capability: ContactCapabili
 the **existing** `authorizesAnyAddress(viewer, mailCapabilityForContact(capability), owner.domainId, [owner.address])`
 -- this is the concrete mechanism behind the design doc's "no second
 permission system" claim, and it is why this task has no dependency on a
-new per-resource permission table the way `resolveUserCalendarCapability`
-does. For an `API_KEY` viewer it is `scopesAuthorize(viewer.scopes, {
+new per-resource permission table. For an `API_KEY` viewer it is
+`scopesAuthorize(viewer.scopes, {
 capability, domainId: owner.domainId, address: owner.address })` -- an
 explicit `CONTACT_READ`/`CONTACT_WRITE` scope, exactly like a mail scope.
-CardDAV *account* management stays `requireCaldavAccountUser`-shaped: add
-`requireCarddavAccountUser(viewer): UserId` (USER-viewer-only, same
-reasoning as CalDAV -- an API key must not exfiltrate a person's iCloud
-credential).
+CardDAV *account* management adds
+`requireCarddavAccountUser(viewer): UserId` (USER-viewer-only: an API key
+must not exfiltrate a person's iCloud credential).
 **Completion Criteria**:
 - [x] Matrix unit tests: ADMIN (baseline, all books minus DENY),
       MEMBER (ALLOW-scoped read+write), VIEWER (ALLOW-scoped read only,
       never write), DENY-beats-ADMIN, API-key with CONTACT_READ only,
       API-key with CONTACT_WRITE, mail-only API-key (no contact access at
       all), unauthorized read -> caller reports NOT_FOUND (this function
-      itself is non-throwing for reads, matching `authorizesCalendarRead`)
-- [x] No change to existing mail/calendar/template authorization tests
+      itself is non-throwing for reads)
+- [x] No change to existing mail/template authorization tests
 
 ### TASK-003: Address book + contact use cases
 **Status**: Completed
 **Parallelizable**: No (depends on TASK-002)
 **Deliverables**:
-- `packages/application/src/usecases/contact-access.ts` (new), modeled on
-  `usecases/calendar-access.ts`: resolves a book's owning mail address into
+- `packages/application/src/usecases/contact-access.ts` (new): resolves a
+  book's owning mail address into
   a `ContactBookOwnerRef` (via `mailAddressRepository.findById` +
   `mailDomainRepository` for `domainId`), memoized per call; exports
   `createContactAccessContext()`, `resolveAddressBookOwner`,
@@ -240,8 +234,7 @@ credential).
   (requires contact write on the owning address; enforces the "one default
   per address" rule by catching the repository's `CONFLICT` on the
   partial-unique-index violation, translated via `translateDomainError`),
-  `updateAddressBook`, `deleteAddressBook` (hard delete, cascades contacts
-  -- same posture as `deleteCalendar`).
+  `updateAddressBook`, `deleteAddressBook` (hard delete, cascades contacts).
 - `packages/application/src/usecases/contacts.ts` (new):
 ```typescript
 interface ListContactsInput {
@@ -276,15 +269,13 @@ function createLookupContactsByEmailUseCase(deps): (viewer: Viewer, email: strin
       CONFLICT on a second explicit default, cross-address merged listing,
       cascade delete, tombstone recorded only for CardDAV-linked contacts,
       viewer-scoped `lookupContactsByEmail`
-- [x] IDs generated at the application layer (random port), never in the
-      domain, same as calendar
+- [x] IDs generated at the application layer (random port), never in the domain
 
 ### TASK-004: CardDAV use cases
 **Status**: Completed
 **Parallelizable**: No (depends on TASK-003)
 **Deliverables**:
-- `packages/application/src/usecases/carddav.ts` (new), modeled on
-  `usecases/caldav.ts`:
+- `packages/application/src/usecases/carddav.ts` (new):
 ```typescript
 interface ConnectCarddavAccountInput { readonly serverUrl: string; readonly username: string; readonly appPassword: string }
 interface ConnectCarddavAccountResult { readonly account: CarddavAccount; readonly addressBooks: readonly CarddavDiscoveredAddressBook[] }
@@ -297,7 +288,7 @@ interface LinkRemoteAddressBookInput {
   readonly displayName?: string | null;
 }
 function translateCarddavError(error: unknown): never;   // CarddavAuthError -> BAD_USER_INPUT, CarddavTransportError -> SERVICE_UNAVAILABLE
-function requireCipher(deps): void;                        // reused check, same message shape as CalDAV's
+function requireCipher(deps): void;                        // shared credential availability check
 function loadCarddavCredentials(deps, account: CarddavAccount): Promise<CarddavCredentials>;
 function createListCarddavAccountsUseCase(deps): (viewer: Viewer) => Promise<readonly CarddavAccount[]>;
 function createConnectCarddavAccountUseCase(deps): (viewer: Viewer, input: ConnectCarddavAccountInput) => Promise<ConnectCarddavAccountResult>;
@@ -306,8 +297,8 @@ function createLinkRemoteAddressBookUseCase(deps): (viewer: Viewer, input: LinkR
 function createUnlinkRemoteAddressBookUseCase(deps): (viewer: Viewer, id: CarddavBookId) => Promise<boolean>;
 function createDisconnectCarddavAccountUseCase(deps): (viewer: Viewer, id: CarddavAccountId) => Promise<boolean>;
 ```
-  Same doctrine as CalDAV throughout: discovery runs before persistence;
-  the server URL is validated (https-only) *before* the credential goes on
+  Discovery runs before persistence; the server URL is validated
+  (https-only) *before* the credential goes on
   the wire; a `BIND_EXISTING` `remoteUrl` is constrained to the connected
   account's own origin; disconnecting an account leaves local address
   books and contacts untouched.
@@ -322,14 +313,12 @@ interface SyncCarddavBookResult {
   readonly truncated: boolean;
   readonly warnings: readonly string[];
 }
-const MAX_OBJECTS_PER_SYNC = 500;    // same request-budget cap as caldav-sync.ts
+const MAX_OBJECTS_PER_SYNC = 500;    // request-budget cap
 function createSyncCarddavBookUseCase(deps): (viewer: Viewer, carddavBookId: CarddavBookId) => Promise<SyncCarddavBookResult>;
 ```
-  Pull/push structure mirrors `caldav-sync.ts`'s `pull`/`push`/
-  `pushDeletions`/`resolveRemoteWins` internals, with two contacts-specific
-  differences the design doc calls out: (1) there is no "resource grouping"
-  step -- a vCard is always one contact, one href, unlike a CalDAV
-  calendar object that may bundle a master with its overrides; (2) a
+  Pull/push structure uses `pull`/`push`/`pushDeletions`/
+  `resolveRemoteWins` internals. A vCard is always one contact and one href;
+  a
   partially-modeled vCard (`ParsedVcardContact.unparsable === false` but
   carrying `extraVcardLines`) still imports **and is still pushed** --
   only `unparsable === true` is counted in `skipped` and excluded from
@@ -352,12 +341,11 @@ the full use-case surface to aggregate)
   in-memory `fakeAddressBookRepository`, `fakeContactRepository`,
   `fakeCarddavAccountRepository`, `scriptedCarddavClient(script)`,
   `identityVcardCodec` (or a minimal real codec passthrough sufficient for
-  use-case tests, same posture as `identityIcsCodec`).
+  deterministic use-case tests).
 - `packages/application/src/test-support/fakes.ts` (extend):
   `createFakeDependencies()` includes the five new fakes plus
   `vcardCodec`.
-- `packages/application/src/usecases/contact-usecases.ts` (new), mirrors
-  `usecases/calendar-usecases.ts`:
+- `packages/application/src/usecases/contact-usecases.ts` (new):
 ```typescript
 interface ContactUseCases {
   readonly listAddressBooks: (viewer: Viewer, mailAddressId?: MailAddressId) => Promise<readonly AddressBook[]>;
@@ -380,13 +368,11 @@ interface ContactUseCases {
 }
 function createContactUseCases(deps: AppDependencies): ContactUseCases;
 ```
-- `packages/application/src/usecases.ts` (extend): `interface UseCases
-  extends CalendarUseCases, ContactUseCases {}`; `createUseCases` spreads
-  `...createContactUseCases(deps)` alongside the existing calendar spread.
+- `packages/application/src/usecases.ts` (extend): add `ContactUseCases` to
+  `UseCases`; `createUseCases` spreads `...createContactUseCases(deps)`.
 **Completion Criteria**:
-- [x] Fakes honor authz-relevant shapes (address/domain fields present),
-      same as `calendar-fakes.ts`
-- [x] Existing fake consumers (calendar/mail/template tests) unaffected
+- [x] Fakes honor authz-relevant shapes (address/domain fields present)
+- [x] Existing fake consumers (mail/template tests) unaffected
 - [x] `usecases.ts` gains one spread line and one `extends` clause, no
       inline duplication of the contact surface
 
@@ -442,26 +428,23 @@ function createContactUseCases(deps: AppDependencies): ContactUseCases;
   re-exported from `policies/index.ts`. No new permission table -- USER
   viewers derive through the existing mail-permission machinery, API keys
   through explicit `CONTACT_READ`/`CONTACT_WRITE` scopes.
-- `usecases/contact-access.ts`, `usecases/address-books.ts`,
-  `usecases/contacts.ts` implemented, mirroring `calendar-access.ts`/
-  `calendars.ts`. Simplification vs. the plan text: `resolveAddressBookOwner`
+- `usecases/contact-access.ts`, `usecases/address-books.ts`, and
+  `usecases/contacts.ts` implemented. Simplification vs. the plan text:
+  `resolveAddressBookOwner`
   needs only `mailAddressRepository.findById` (not `mailDomainRepository`
-  too) because `MailAddress.domainId` is never null, unlike a calendar
-  owner's derived-from-email domain.
-- `usecases/carddav.ts`, `usecases/carddav-sync.ts` implemented, mirroring
-  `caldav.ts`/`caldav-sync.ts`. Deviation from the plan's literal
+  too) because `MailAddress.domainId` is never null.
+- `usecases/carddav.ts`, `usecases/carddav-sync.ts` implemented. Deviation
+  from the plan's literal
   `LinkRemoteAddressBookInput` shape: added a `mailAddressId` field
   (required for `IMPORT_NEW`) because `AddressBook.mailAddressId` has no
-  default the way a CalDAV-linked `Calendar.ownerUserId` does (the CalDAV
-  account's own user); the plan's snippet omitted this, which would leave
+  default; the plan's snippet omitted this, which would leave
   `IMPORT_NEW` unable to pick a target mail address.
 - `test-support/contact-fakes.ts` (fakes + `scriptedCarddavClient` +
-  `identityVcardCodec`, a JSON-round-trip codec mirroring
-  `caldav-sync.test.ts`'s local `jsonIcsCodec` but made a reusable default
-  since it has no failure mode to guard against), `test-support/fakes.ts`
+  `identityVcardCodec`, a JSON-round-trip codec made a reusable default since
+  it has no failure mode to guard against), `test-support/fakes.ts`
   extended, `usecases/contact-usecases.ts` (+ `usecases.ts` `extends`/spread)
   added. Also added `test-support/contact-fixtures.ts` (not separately
-  listed in the plan, mirroring `calendar-fixtures.ts`) to share seeding
+  listed in the plan) to share seeding
   across the four new use-case test files without duplication.
 - Tests added: `policies/authorization.test.ts` (contact capability
   matrix, +12 tests), `usecases/address-books.test.ts` (15),

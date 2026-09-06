@@ -27,8 +27,7 @@ function groupByContactId<T extends { readonly contact_id: string }>(
 
 export function createContactRepository(db: SqlDatabase): ContactRepository {
   /** Loads the four child tables for a page of contacts in four queries
-   * rather than four per contact, mirroring
-   * `calendar-event-repository.ts`'s `hydrate`. */
+   * rather than four queries per contact. */
   async function hydrate(
     rows: readonly ContactRow[],
   ): Promise<readonly Contact[]> {

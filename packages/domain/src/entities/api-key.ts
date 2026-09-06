@@ -25,34 +25,13 @@ export enum Capability {
   TemplateCreate = "TEMPLATE_CREATE",
   TemplateUpdate = "TEMPLATE_UPDATE",
   TemplateDelete = "TEMPLATE_DELETE",
-  CalendarRead = "CALENDAR_READ",
-  CalendarWrite = "CALENDAR_WRITE",
   ContactRead = "CONTACT_READ",
   ContactWrite = "CONTACT_WRITE",
 }
 
-/** The two calendar capabilities, as a narrowed type: a per-user calendar
- * rule may only name one of these, and the compiler should say so rather
- * than the CHECK constraint. */
-export type CalendarCapability =
-  | Capability.CalendarRead
-  | Capability.CalendarWrite;
-
-export const CALENDAR_CAPABILITIES: readonly CalendarCapability[] = [
-  Capability.CalendarRead,
-  Capability.CalendarWrite,
-];
-
-export function isCalendarCapability(
-  capability: Capability,
-): capability is CalendarCapability {
-  return (CALENDAR_CAPABILITIES as readonly Capability[]).includes(capability);
-}
-
-/** The two contact capabilities, narrowed the same way as
- * {@link CalendarCapability}. Like mail capabilities (and unlike templates),
- * these are per-address rather than instance-wide -- see
- * `GLOBAL_CAPABILITIES` below. */
+/** The two contact capabilities, narrowed as a dedicated type. Like mail
+ * capabilities (and unlike templates), these are per-address rather than
+ * instance-wide -- see `GLOBAL_CAPABILITIES` below. */
 export type ContactCapability =
   | Capability.ContactRead
   | Capability.ContactWrite;

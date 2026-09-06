@@ -1,10 +1,8 @@
 import { createSignal, For, type JSX, onMount, Show } from "solid-js";
 import {
-  ADD_USER_CALENDAR_PERMISSION_MUTATION,
   ADD_USER_MAIL_PERMISSION_MUTATION,
   ADD_USER_TEMPLATE_PERMISSION_MUTATION,
   CREATE_USER_MUTATION,
-  REMOVE_USER_CALENDAR_PERMISSION_MUTATION,
   REMOVE_USER_MAIL_PERMISSION_MUTATION,
   REMOVE_USER_TEMPLATE_PERMISSION_MUTATION,
   SET_USER_ACTIVE_MUTATION,
@@ -13,7 +11,6 @@ import {
 } from "../../api/documents";
 import { graphqlRequest } from "../../api/graphql-client";
 import type {
-  CalendarCapability,
   MailDomainView,
   TemplateCapability,
   UserPermissionEffect,
@@ -57,11 +54,6 @@ function UserRow(props: {
     effect: UserPermissionEffect,
   ) => void;
   readonly onRemoveTemplateRule: (id: string) => void;
-  readonly onAddCalendarRule: (
-    capability: CalendarCapability,
-    effect: UserPermissionEffect,
-  ) => void;
-  readonly onRemoveCalendarRule: (id: string) => void;
 }): JSX.Element {
   const [form, setForm] = createSignal<AddRuleFormState>(EMPTY_RULE_FORM);
   const [adding, setAdding] = createSignal(false);
@@ -196,14 +188,6 @@ function UserRow(props: {
         onAdd={props.onAddTemplateRule}
         onRemove={props.onRemoveTemplateRule}
       />
-
-      <CapabilityRules
-        title="Calendar permission rules"
-        capabilities={CALENDAR_CAPABILITIES}
-        rules={props.user.calendarPermissions}
-        onAdd={props.onAddCalendarRule}
-        onRemove={props.onRemoveCalendarRule}
-      />
     </div>
   );
 }
@@ -215,16 +199,7 @@ const TEMPLATE_CAPABILITIES: readonly TemplateCapability[] = [
   "TEMPLATE_DELETE",
 ];
 
-const CALENDAR_CAPABILITIES: readonly CalendarCapability[] = [
-  "CALENDAR_READ",
-  "CALENDAR_WRITE",
-];
-
-/** Template and calendar rules share a shape -- a capability plus an
- * ALLOW/DENY effect -- so one editor serves both rather than two near-copies
- * that would drift. A calendar rule's owner axis is deliberately not exposed
- * here: the common case is "all owners", and per-owner scoping remains
- * available through the API. */
+/** Edits rules that pair a template capability with an ALLOW/DENY effect. */
 function CapabilityRules<T extends string>(props: {
   readonly title: string;
   readonly capabilities: readonly T[];
@@ -436,18 +411,18 @@ export default function UsersPage(): JSX.Element {
     await reload();
   }
 
-  /** Template and calendar rules take the same `(userId, input)` shape, so
-   * one helper drives both mutations rather than four near-identical ones. */
-  async function addCapabilityRule(
-    document: string,
+  async function addTemplateRule(
     userId: string,
-    capability: string,
+    capability: TemplateCapability,
     effect: UserPermissionEffect,
   ): Promise<void> {
     const result = await graphqlRequest<
       Record<string, unknown>,
       Record<string, unknown>
-    >(document, { userId, input: { capability, effect } });
+    >(ADD_USER_TEMPLATE_PERMISSION_MUTATION, {
+      userId,
+      input: { capability, effect },
+    });
     if (!result.ok) {
       pushToast("error", describeErrors(result.errors));
       return;
@@ -455,14 +430,11 @@ export default function UsersPage(): JSX.Element {
     await reload();
   }
 
-  async function removeCapabilityRule(
-    document: string,
-    id: string,
-  ): Promise<void> {
+  async function removeTemplateRule(id: string): Promise<void> {
     const result = await graphqlRequest<
       Record<string, unknown>,
       Record<string, unknown>
-    >(document, { id });
+    >(REMOVE_USER_TEMPLATE_PERMISSION_MUTATION, { id });
     if (!result.ok) {
       pushToast("error", describeErrors(result.errors));
       return;
@@ -537,33 +509,9 @@ export default function UsersPage(): JSX.Element {
                   onAddRule={(form) => addRuleFor(user, form)}
                   onRemoveRule={(id) => void removeRule(id)}
                   onAddTemplateRule={(capability, effect) =>
-                    void addCapabilityRule(
-                      ADD_USER_TEMPLATE_PERMISSION_MUTATION,
-                      user.id,
-                      capability,
-                      effect,
-                    )
+                    void addTemplateRule(user.id, capability, effect)
                   }
-                  onRemoveTemplateRule={(id) =>
-                    void removeCapabilityRule(
-                      REMOVE_USER_TEMPLATE_PERMISSION_MUTATION,
-                      id,
-                    )
-                  }
-                  onAddCalendarRule={(capability, effect) =>
-                    void addCapabilityRule(
-                      ADD_USER_CALENDAR_PERMISSION_MUTATION,
-                      user.id,
-                      capability,
-                      effect,
-                    )
-                  }
-                  onRemoveCalendarRule={(id) =>
-                    void removeCapabilityRule(
-                      REMOVE_USER_CALENDAR_PERMISSION_MUTATION,
-                      id,
-                    )
-                  }
+                  onRemoveTemplateRule={(id) => void removeTemplateRule(id)}
                 />
               )}
             </For>

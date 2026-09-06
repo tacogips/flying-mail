@@ -1,11 +1,7 @@
 import type { MailTemplateContentInput } from "@mailcal/application/usecases";
 import type { SendTemplatedMessageInput } from "@mailcal/application/usecases/mail-template-send";
-import type { UserCalendarPermissionInput } from "@mailcal/application/usecases/user-calendar-permissions";
 import type { UserTemplatePermissionInput } from "@mailcal/application/usecases/user-template-permissions";
-import type {
-  CalendarCapability,
-  TemplateCapability,
-} from "@mailcal/domain/entities/api-key";
+import type { TemplateCapability } from "@mailcal/domain/entities/api-key";
 import type {
   MailTemplate,
   TemplateVariableType,
@@ -18,7 +14,6 @@ import {
   createMessageId,
   createTagId,
   createUserId,
-  createUserCalendarPermissionId,
   createUserTemplatePermissionId,
 } from "@mailcal/domain/value-objects/ids";
 import type { GraphQLContext } from "../context";
@@ -246,46 +241,6 @@ export const templateMutationResolvers = {
     return ctx.usecases.removeUserTemplatePermission(
       requireViewerOrThrow(ctx),
       createUserTemplatePermissionId(args.id),
-    );
-  },
-
-  async addUserCalendarPermission(
-    _parent: unknown,
-    args: {
-      readonly userId: string;
-      readonly input: {
-        readonly capability: CalendarCapability;
-        readonly effect: UserPermissionEffect;
-        readonly ownerUserId?: string | null;
-      };
-    },
-    ctx: GraphQLContext,
-  ) {
-    const input: UserCalendarPermissionInput = {
-      capability: args.input.capability,
-      effect: args.input.effect,
-      // An absent owner is the all-owners rule, not "not supplied": the
-      // two are the same thing on this input.
-      ownerUserId:
-        args.input.ownerUserId == null
-          ? null
-          : createUserId(args.input.ownerUserId),
-    };
-    return ctx.usecases.addUserCalendarPermission(
-      requireViewerOrThrow(ctx),
-      createUserId(args.userId),
-      input,
-    );
-  },
-
-  async removeUserCalendarPermission(
-    _parent: unknown,
-    args: { readonly id: string },
-    ctx: GraphQLContext,
-  ) {
-    return ctx.usecases.removeUserCalendarPermission(
-      requireViewerOrThrow(ctx),
-      createUserCalendarPermissionId(args.id),
     );
   },
 };

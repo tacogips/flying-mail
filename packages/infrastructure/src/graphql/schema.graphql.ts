@@ -3,15 +3,14 @@
  * `design-docs/specs/design-graphql-api.md#schema`.
  *
  * This document owns `Query` and `Mutation`; the feature modules
- * (`schema-calendar.graphql.ts`, `schema-templates.graphql.ts`) `extend`
- * them, and `schema.ts` merges all three through `createSchema`. The split
+ * (`schema-contacts.graphql.ts`, `schema-external-mail.graphql.ts`, and
+ * `schema-templates.graphql.ts`) `extend` them, and `schema.ts` merges the
+ * documents through `createSchema`. The split
  * exists because a single document had reached the repository's 1000-line
  * ceiling -- see `.agents/skills/ts-coding-standards`.
  *
- * The admin user-management surface stays here in full, feature capabilities
- * included: `Capability`, `CalendarCapability`, `TemplateCapability`, the
- * three `User*Permission` types and their mutations belong to user
- * administration rather than to the features they name.
+ * The admin user-management surface stays here in full, including template
+ * capabilities and its permission type and mutations.
  */
 export const typeDefs = /* GraphQL */ `
   """
@@ -93,20 +92,8 @@ export const typeDefs = /* GraphQL */ `
     TEMPLATE_CREATE
     TEMPLATE_UPDATE
     TEMPLATE_DELETE
-    CALENDAR_READ
-    CALENDAR_WRITE
     CONTACT_READ
     CONTACT_WRITE
-  }
-
-  """
-  The two calendar capabilities, as a per-user rule may name them. A
-  narrowed enum rather than Capability, so a rule cannot name a mail
-  capability through the calendar permission surface.
-  """
-  enum CalendarCapability {
-    CALENDAR_READ
-    CALENDAR_WRITE
   }
 
   "The mail-template capabilities, narrowed the same way."
@@ -504,34 +491,6 @@ export const typeDefs = /* GraphQL */ `
     effect: UserPermissionEffect!
   }
 
-  """
-  An admin-assigned grant or denial of one calendar capability, scoped to a
-  calendar owner.
-
-  This is what makes an admin's default access to every calendar revocable:
-  a DENY is consulted first, so an admin may administer permissions on a
-  calendar it cannot itself read.
-  """
-  type UserCalendarPermission {
-    id: ID!
-    capability: CalendarCapability!
-    effect: UserPermissionEffect!
-    "Null means every calendar owner, the holder's own included."
-    ownerUserId: ID
-    createdByUserId: ID!
-    createdAt: DateTime!
-  }
-
-  input UserCalendarPermissionInput {
-    capability: CalendarCapability!
-    effect: UserPermissionEffect!
-    """
-    Null means every calendar owner. A specific owner narrows the rule to
-    that person's calendars.
-    """
-    ownerUserId: ID
-  }
-
   type User {
     id: ID!
     email: String!
@@ -551,11 +510,6 @@ export const typeDefs = /* GraphQL */ `
     applies.
     """
     templatePermissions: [UserTemplatePermission!]!
-    """
-    Explicit calendar grants and denials. Empty means the role default
-    applies: an ADMIN reaches every calendar, everyone else only their own.
-    """
-    calendarPermissions: [UserCalendarPermission!]!
     createdAt: DateTime!
     updatedAt: DateTime!
   }
@@ -883,16 +837,5 @@ export const typeDefs = /* GraphQL */ `
     ): UserTemplatePermission!
     "Admin only."
     removeUserTemplatePermission(id: ID!): Boolean!
-    """
-    Admin only. Gated on the ADMIN role and never on whether the granting
-    admin can itself read the calendar: an admin denied access to a
-    calendar keeps the power to grant that calendar to somebody else.
-    """
-    addUserCalendarPermission(
-      userId: ID!
-      input: UserCalendarPermissionInput!
-    ): UserCalendarPermission!
-    "Admin only."
-    removeUserCalendarPermission(id: ID!): Boolean!
   }
 `;

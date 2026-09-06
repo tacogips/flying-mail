@@ -46,9 +46,8 @@ export interface BuildDependenciesConfig {
   readonly spamThreshold?: number;
   readonly spamPhrases?: readonly string[];
   readonly fileLinkMaxTtlSeconds?: number;
-  /** base64-encoded 32-byte AES key for stored CalDAV credentials. Absent
-   * means CalDAV is simply disabled; the rest of the calendar feature works
-   * without it. */
+  /** Base64-encoded 32-byte AES key for stored CardDAV and external-mail
+   * credentials. Absent means credential-dependent operations are disabled. */
   readonly credentialKey?: string;
   /** Selects the `TcpDialer` external mail's POP3/SMTP clients use. Absent
    * means feature-detect the runtime instead -- see `resolveTcpDialer` in
@@ -74,8 +73,8 @@ export class PublicOriginConfigurationError extends Error {
 
 /** A set-but-invalid `MAILCAL_CREDENTIAL_KEY`. Same reasoning as
  * {@link PublicOriginConfigurationError}: an operator who set the secret
- * meant CalDAV to work, and quietly running without encryption would be
- * worse than refusing to start. */
+ * meant encrypted third-party credentials to work, and quietly running
+ * without encryption would be worse than refusing to start. */
 export class CredentialKeyConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -118,9 +117,9 @@ export function resolvePublicOrigin(env: EnvLike): string | undefined {
   return url.origin;
 }
 
-/** Returns `undefined` when unset -- which disables CalDAV mutations with a
- * clear `SERVICE_UNAVAILABLE` -- and throws for a value that is set but not
- * a base64-encoded 32-byte key. */
+/** Returns `undefined` when unset -- which disables CardDAV and external-mail
+ * credential operations with a clear `SERVICE_UNAVAILABLE` -- and throws for
+ * a value that is set but not a base64-encoded 32-byte key. */
 export function resolveCredentialKey(env: EnvLike): string | undefined {
   const raw = env["MAILCAL_CREDENTIAL_KEY"];
   if (raw === undefined || raw.trim().length === 0) {

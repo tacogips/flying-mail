@@ -2,18 +2,11 @@ import type { GraphQLSchema } from "graphql";
 import { createSchema, createYoga } from "graphql-yoga";
 import type { GraphQLContext } from "./context";
 import { useDepthLimit } from "./depth-limit";
-import { calendarTypeDefs } from "./schema-calendar.graphql";
 import { contactTypeDefs } from "./schema-contacts.graphql";
 import { externalMailTypeDefs } from "./schema-external-mail.graphql";
 import { templateTypeDefs } from "./schema-templates.graphql";
 import { typeDefs } from "./schema.graphql";
 import { toGraphQLError } from "./errors";
-import { calendarMutationResolvers } from "./resolvers/calendar-mutation";
-import { calendarQueryResolvers } from "./resolvers/calendar-query";
-import {
-  calendarEventResolvers,
-  eventOccurrenceResolvers,
-} from "./resolvers/calendar-types";
 import { contactMutationResolvers } from "./resolvers/contact-mutation";
 import { contactQueryResolvers } from "./resolvers/contact-query";
 import {
@@ -66,14 +59,11 @@ import { useSelectionLimit } from "./selection-limit";
  * loader-based, mirroring `ApiKey.scopes`. */
 export function buildGraphQLSchema(): GraphQLSchema {
   return createSchema<GraphQLContext>({
-    // Five SDL documents, merged by `createSchema`: the mail and admin
-    // contract, which defines Query/Mutation, plus the calendar, contacts,
-    // external-mail and template modules that `extend` them. No file has to
-    // carry another feature's shapes, and none of them approaches the size
-    // ceiling.
+    // Four SDL documents, merged by `createSchema`: the mail and admin
+    // contract, which defines Query/Mutation, plus the contacts,
+    // external-mail and template modules that `extend` them.
     typeDefs: [
       typeDefs,
-      calendarTypeDefs,
       contactTypeDefs,
       externalMailTypeDefs,
       templateTypeDefs,
@@ -83,7 +73,6 @@ export function buildGraphQLSchema(): GraphQLSchema {
         ...queryResolvers,
         ...mailAddressQueryResolvers,
         ...templateQueryResolvers,
-        ...calendarQueryResolvers,
         ...contactQueryResolvers,
         ...externalMailQueryResolvers,
       },
@@ -91,14 +80,11 @@ export function buildGraphQLSchema(): GraphQLSchema {
         ...mutationResolvers,
         ...mailAddressMutationResolvers,
         ...templateMutationResolvers,
-        ...calendarMutationResolvers,
         ...contactMutationResolvers,
         ...externalMailMutationResolvers,
       },
       MailAddress: mailAddressResolvers,
       MailTemplate: mailTemplateResolvers,
-      CalendarEvent: calendarEventResolvers,
-      EventOccurrence: eventOccurrenceResolvers,
       AddressBook: addressBookResolvers,
       Contact: contactResolvers,
       ExternalMailAccount: externalMailAccountResolvers,

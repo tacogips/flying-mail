@@ -18,6 +18,16 @@ function migrationsBeforeTemplates(): readonly MigrationFile[] {
   );
 }
 
+function templateMigration(): MigrationFile {
+  const migration = loadMigrationFiles().find(
+    (candidate) => candidate.name === TEMPLATE_MIGRATION,
+  );
+  if (migration === undefined) {
+    throw new Error(`${TEMPLATE_MIGRATION} is missing`);
+  }
+  return migration;
+}
+
 async function tableNames(db: SqlDatabase): Promise<readonly string[]> {
   const rows = await db.query<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
@@ -79,7 +89,7 @@ describe("0007_mail_templates.sql", () => {
       `SELECT ${columns} FROM api_key_scopes ORDER BY id`,
     );
 
-    const { applied } = await runner.apply(loadMigrationFiles());
+    const { applied } = await runner.apply([templateMigration()]);
     expect(applied).toContain(TEMPLATE_MIGRATION);
 
     const after = await db.query<Record<string, unknown>>(
@@ -91,7 +101,10 @@ describe("0007_mail_templates.sql", () => {
 
   test("widens the capability CHECK to admit template scopes", async () => {
     const db = createInMemoryDatabase();
-    await createMigrationRunner(db).apply(loadMigrationFiles());
+    await createMigrationRunner(db).apply([
+      ...migrationsBeforeTemplates(),
+      templateMigration(),
+    ]);
     await seedKeyWithScopes(db);
 
     for (const [id, capability] of [

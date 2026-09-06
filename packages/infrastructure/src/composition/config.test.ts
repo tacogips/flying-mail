@@ -211,7 +211,7 @@ describe("buildDependencies", () => {
     expect(deps.instanceConfig.spamThreshold).toBe(DEFAULT_SPAM_THRESHOLD);
     // External mail's whole port surface is wired even with no
     // MAILCAL_CREDENTIAL_KEY -- the cipher (not a missing field) is what
-    // gates its mutations, exactly like CalDAV.
+    // gates its credential-dependent operations.
     expect(deps.tcpDialer).toBeDefined();
     expect(deps.jmapClient).toBeDefined();
     expect(deps.pop3Client).toBeDefined();
@@ -356,9 +356,9 @@ describe("resolveCredentialKey", () => {
     );
   });
 
-  test("unset means CalDAV is simply disabled, not misconfigured", () => {
-    // The rest of the calendar feature has to keep working, so an absent key
-    // is `undefined` rather than a thrown error.
+  test("unset disables encrypted credential operations without misconfiguration", () => {
+    // CardDAV and external mail remain available at the schema level; their
+    // credential operations report unavailability through the shared cipher.
     expect(resolveCredentialKey({})).toBeUndefined();
     expect(
       resolveCredentialKey({ MAILCAL_CREDENTIAL_KEY: "" }),

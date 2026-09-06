@@ -2,15 +2,13 @@
  * The mail-template half of the GraphQL contract, mirroring
  * `design-docs/specs/design-mail-templates.md`.
  *
- * A separate SDL module rather than more lines in `schema.graphql.ts`, for
- * the same reason `schema-calendar.graphql.ts` is one: that file reached the
- * repository's 1000-line ceiling, and `createSchema` accepts an array of
- * documents, so the split costs nothing at runtime.
+ * A separate SDL module keeps the template contract cohesive while
+ * `createSchema` merges it with the other feature documents at runtime.
  *
  * `TemplateCapability`, `UserTemplatePermission` and
  * `User.templatePermissions` deliberately stay in `schema.graphql.ts` beside
- * their mail and calendar counterparts -- they are part of the admin
- * user-management surface, not of the template surface itself.
+ * the mail permission contract -- they are part of the admin user-management
+ * surface, not of the template surface itself.
  */
 export const templateTypeDefs = /* GraphQL */ `
   enum TemplateVariableType {

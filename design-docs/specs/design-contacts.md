@@ -3,23 +3,22 @@
 mailcal gains contacts: address books owned by provisioned mail addresses,
 contacts referenceable both per mail address and merged across every mail
 address the viewer is authorized for, and CardDAV *client* sync with an
-external server (in practice iCloud), mirroring the existing CalDAV client
-design in `design-calendar.md`. Everything is exposed through the existing
-`/graphql` endpoint so agents and the SolidJS client share one API.
+external server (in practice iCloud). Everything is exposed through the
+existing `/graphql` endpoint so agents and the SolidJS client share one API.
 
 Explicitly out of scope (by request and by design):
 
 - Acting as a CardDAV *server*. mailcal is a CardDAV *client* (discovery,
-  multiget, etag sync). No new hono protocol endpoints. This matches the
-  calendar decision: mailcal syncs with iCloud, it does not serve DAV.
+  multiget, etag sync). No new hono protocol endpoints: mailcal syncs with
+  iCloud, it does not serve DAV.
 - Contact groups (`KIND:group` / `MEMBER`), vCard photos (`PHOTO`), and
   free-form extension properties (`X-*`). Unsupported properties found in a
   remote vCard are preserved verbatim for round-tripping (see "vCard
   fidelity") but are not modeled, queried, or editable.
 - Auto-harvesting contacts from message traffic. A follow-up "add sender to
   contacts" action can build on this model; ingest never writes contacts.
-- Scheduled background sync. Sync is an on-demand mutation, same as CalDAV;
-  a cron trigger is a later follow-up for both.
+- Scheduled background sync. Sync is an on-demand mutation; a cron trigger is
+  a later follow-up.
 
 ## Ownership model: per mail address, visible across addresses
 
@@ -44,13 +43,13 @@ migration `0009`), not the user. Requirements this satisfies:
 | API key | `CONTACT_READ` scope, scoped by the key's address patterns | `CONTACT_WRITE` scope, same scoping |
 
 Two new capabilities, `CONTACT_READ` and `CONTACT_WRITE`, join the
-`Capability` enum the same way `CALENDAR_READ`/`CALENDAR_WRITE` did. For
+`Capability` enum. For
 interactive users they are *derived*: `MAIL_READ` on the owning address
 grants `CONTACT_READ`; `MAIL_MANAGE` grants `CONTACT_WRITE`. For API keys
 they are explicit scopes so an agent key can be contacts-only.
 
-CardDAV accounts are the exception: like `CaldavAccount`, a
-`CarddavAccount` belongs to a *user* (it holds that user's iCloud
+CardDAV accounts are the exception: a `CarddavAccount` belongs to a *user*
+(it holds that user's iCloud
 credential). Which local book a remote book maps to is per-link, and
 mutating a link requires contact write on the local book.
 
@@ -60,22 +59,21 @@ mutating a link requires contact write on the local book.
 |-------|-----------|
 | domain | `AddressBook`, `Contact` (+ `ContactEmail`, `ContactPhone`, `ContactPostalAddress`), `CarddavAccount`/`CarddavBookLink`/`CarddavContactState`/`CarddavDeletion`, IDs `AddressBookId`, `ContactId`, `CarddavAccountId`, `CarddavBookId`, capabilities `CONTACT_READ`/`CONTACT_WRITE` |
 | application | ports `AddressBookRepository`, `ContactRepository`, `CarddavAccountRepository`, `CarddavClient`, `VcardCodec` (reuses `CredentialCipher`); use cases in `usecases/address-books.ts`, `usecases/contacts.ts`, `usecases/carddav.ts`, `usecases/carddav-sync.ts`; `authorizesContactCapability` in `policies/authorization.ts`; fakes in `test-support/` |
-| adapter | D1 repositories `address-book-repository.ts`, `contact-repository.ts`, `carddav-account-repository.ts`; `vcard/vcard-codec.ts` (RFC 6350 subset, 3.0 + 4.0 input, 3.0 output for iCloud); `carddav/carddav-client.ts` reusing `caldav/xml.ts` multistatus parsing (extracted to a shared `dav/` module if needed) |
+| adapter | D1 repositories `address-book-repository.ts`, `contact-repository.ts`, `carddav-account-repository.ts`; `vcard/vcard-codec.ts` (RFC 6350 subset, 3.0 + 4.0 input, 3.0 output for iCloud); `carddav/carddav-client.ts` with shared WebDAV multistatus parsing |
 | infrastructure | `graphql/schema-contacts.graphql.ts` SDL module + `resolvers/contact-query.ts` / `contact-mutation.ts` / `contact-types.ts`; composition wiring in `build-dependencies.ts` |
 | apps/api | migration `0010_contacts.sql`; no new bindings (reuses `MAILCAL_CREDENTIAL_KEY`) |
 | apps/web | `/contacts` route: book-filterable, cross-address merged list, contact editor dialog, CardDAV account/link management; `api/contact-documents.ts`, `api/contact-types.ts`, `store/contact-store.ts` |
 
-As with calendar, no near-limit file grows inline: every addition is a new
+No near-limit file grows inline: every addition is a new
 module merged at the existing composition points (`createSchema` typeDef /
 resolver arrays, `createUseCases` spread, web store mount). Any touched
 file at 1000+ lines is split per `ts-coding-standards`.
 
 ## Domain model
 
-IDs in `value-objects/ids.ts`, same `Brand` + `createXxxId` pattern,
-caller-supplied: `AddressBookId`, `ContactId`, `CarddavAccountId` exists
-already for CalDAV -- CardDAV gets its own `CarddavAccountId` and
-`CarddavBookId` brands (do not reuse the CalDAV brands; the tables differ).
+IDs in `value-objects/ids.ts`, using the existing `Brand` + `createXxxId`
+pattern, are caller-supplied: `AddressBookId`, `ContactId`,
+`CarddavAccountId`, and `CarddavBookId`.
 
 `AddressBook`:
 
@@ -86,8 +84,8 @@ already for CalDAV -- CardDAV gets its own `CarddavAccountId` and
 
 Every provisioned mail address can hold zero or more books. The first book
 created for an address (typically by `createContact` with no explicit book,
-see below) is `isDefault`. Deleting a book hard-deletes its contacts, same
-cascade posture as calendars. At most one default book per address
+see below) is `isDefault`. Deleting a book hard-deletes its contacts. At most
+one default book per address
 (invariant enforced by repository unique index, surfaced as `CONFLICT`).
 
 `Contact`:
@@ -155,15 +153,14 @@ carddav_deletions(carddav_book_id, href, etag, deleted_at)
 ```
 
 Emails/phones/addresses/urls are child tables rather than JSON because the
-cross-address view needs an indexed reverse lookup by email; the calendar
-mentions precedent (JSON-ish storage) does not need that. NOTE: the
+cross-address view needs an indexed reverse lookup by email. NOTE: the
 migration runner splits on the statement terminator with no comment
 awareness -- the `0009` caveat about that character applies here too.
 
 The migration also performs the `api_key_scopes` recreate dance
 (`api_key_scopes_new` -> copy -> rename) to admit `CONTACT_READ` /
-`CONTACT_WRITE` into the capability `CHECK`, exactly as `0006` and `0007`
-did for calendar and template capabilities -- SQLite cannot alter a CHECK
+`CONTACT_WRITE` into the capability `CHECK`, as earlier capability migrations
+did -- SQLite cannot alter a CHECK
 in place.
 
 ## Use cases
@@ -200,12 +197,12 @@ addressbook home set via `PROPFIND` well-known + `current-user-principal`),
 to a local book, creating the local book if asked), `unlinkRemoteAddressBook`,
 `disconnectCarddavAccount`. Credentials pass through `CredentialCipher`
 (AES-256-GCM under `MAILCAL_CREDENTIAL_KEY`); the entity stores ciphertext
-only, plaintext lives only inside connect/sync for one request, identical
-posture to `CaldavAccount`. Unset key ⇒ CardDAV mutations fail
-`SERVICE_UNAVAILABLE`; contacts themselves keep working.
+only, and plaintext lives only inside connect/sync for one request. Unset key
+⇒ CardDAV mutations fail `SERVICE_UNAVAILABLE`; contacts themselves keep
+working.
 
 `usecases/carddav-sync.ts`: `syncCarddavBook(viewer, carddavBookId)`,
-on-demand, two phases like `caldav-sync.ts`:
+on-demand, in two phases:
 
 1. **Pull**: compare `ctag`; if changed, `addressbook-query`/`sync-collection`
    list of `(href, etag)`, diff against `carddav_contact_states`, fetch
@@ -220,7 +217,7 @@ on-demand, two phases like `caldav-sync.ts`:
    tombstones are `DELETE`d then cleared.
 
 Sync returns a summary `{ pulled, pushed, deleted, skipped, conflicts }`
-for the UI/agent to display, same as CalDAV sync.
+for the UI/agent to display.
 
 ## vCard codec (`adapter/vcard/vcard-codec.ts`, port `VcardCodec`)
 
@@ -264,7 +261,7 @@ Error codes reuse the standard table (`FORBIDDEN`, `NOT_FOUND` for
 out-of-scope ids, `CONFLICT` for duplicate default book / uid,
 `SERVICE_UNAVAILABLE` for missing credential key). `CarddavAccount` never
 exposes ciphertext or plaintext; `connect` takes the password as an input
-field and returns the account without it, same as CalDAV.
+field and returns the account without it.
 
 New API-key scope values `CONTACT_READ` / `CONTACT_WRITE` join the
 `Capability` GraphQL enum; existing keys are unaffected (no scope = no
@@ -272,7 +269,7 @@ contact access), and `createApiKey` accepts them like any other scope.
 
 ## Web client
 
-`/contacts` route in the SolidJS app, mounted like `/calendar`:
+`/contacts` route in the SolidJS app:
 
 - Left rail: "All contacts" (cross-address merged view) plus one entry per
   readable mail address (its books nested when more than one).
@@ -281,7 +278,7 @@ contact access), and `createApiKey` accepts them like any other scope.
 - Settings section for CardDAV: connect account (server URL defaulting to
   iCloud's, Apple-ID username, app-specific password), list remote books,
   link/unlink to a local book, per-link "Sync now" button showing the
-  summary. Mirrors the calendar CalDAV settings UI.
+  summary.
 - Message view hook: sender/recipient addresses resolve through
   `contactsByEmail`; a match shows the contact name and links to it.
 
@@ -293,8 +290,8 @@ from `createContact` (or an admin/agent call). A follow-up
 `readableMailAddresses` query scoped by the viewer's mail permissions
 would lift this.
 
-`store/contact-store.ts` is a separate store mounted beside the calendar
-store; `api/contact-documents.ts` holds the GraphQL documents.
+`store/contact-store.ts` is mounted in the application store;
+`api/contact-documents.ts` holds the GraphQL documents.
 
 ## Testing
 

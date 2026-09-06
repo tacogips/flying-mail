@@ -51,7 +51,7 @@ describe("parseXml", () => {
 describe("parseMultistatus", () => {
   test("ignores properties reported in a 404 propstat", () => {
     const xml =
-      "<multistatus><response><href>/a.ics</href>" +
+      "<multistatus><response><href>/a.vcf</href>" +
       '<propstat><prop><getetag>"e"</getetag></prop><status>HTTP/1.1 200 OK</status></propstat>' +
       "<propstat><prop><getctag/></prop><status>HTTP/1.1 404 Not Found</status></propstat>" +
       "</response></multistatus>";
@@ -59,14 +59,14 @@ describe("parseMultistatus", () => {
     if (response === undefined) {
       throw new Error("expected one response");
     }
-    expect(response.href).toBe("/a.ics");
+    expect(response.href).toBe("/a.vcf");
     expect(findOkPropText(response, "getetag")).toBe('"e"');
     expect(findOkPropText(response, "getctag")).toBeNull();
   });
 
   test("reads the collection sync-token but not one nested in a response", () => {
     const xml =
-      "<multistatus><response><href>/a.ics</href>" +
+      "<multistatus><response><href>/a.vcf</href>" +
       "<propstat><prop><sync-token>inner</sync-token></prop>" +
       "<status>HTTP/1.1 200 OK</status></propstat></response>" +
       "<sync-token>outer</sync-token></multistatus>";

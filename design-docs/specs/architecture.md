@@ -60,8 +60,8 @@ layering as the reference project `xxip`. The dependency rule points inward:
 
 | Store | Binding | Contents |
 |-------|---------|----------|
-| D1 | `DB` | mail: `domains`, `messages`, `message_recipients`, `attachments`, `tags`, `message_tags`, `message_fetch_states`, `api_keys`, `api_key_scopes`, `file_links`, `users`, `sessions`, `email_auth_challenges`; templates: `mail_templates`, `user_template_permissions`; calendar: `calendars`, `calendar_events`, `event_mentions`, `event_links`, `event_attachments`, `user_calendar_permissions`, and the CalDAV sync tables `caldav_accounts`, `caldav_calendars`, `caldav_event_states`, `caldav_deletions` |
-| R2 | `BLOB` | `raw/<messageId>.eml` (full MIME source), `att/<attachmentId>/<fileName>` (decoded attachment bodies, shared by mail and calendar-event attachments) |
+| D1 | `DB` | mail: `domains`, `messages`, `message_recipients`, `attachments`, `tags`, `message_tags`, `message_fetch_states`, `api_keys`, `api_key_scopes`, `file_links`, `users`, `sessions`, `email_auth_challenges`; templates: `mail_templates`, `user_template_permissions`; contacts: address books, contacts, contact details, and CardDAV account/sync state; external mail: account, mailbox, and fetch state |
+| R2 | `BLOB` | `raw/<messageId>.eml` (full MIME source), `att/<attachmentId>/<fileName>` (decoded message attachment bodies) |
 
 Both are reached only through the `SqlDatabase` and `BlobStore` ports, so the
 same code runs on Workers (D1 + R2), locally under Bun/Node (libsql file +
@@ -113,33 +113,6 @@ default message listings.
 
 See `design-domain-model.md#tags`.
 
-## Calendar and CalDAV
-
-Calendars and events live beside mail in the same D1 database and reuse the
-same R2 attachment layout: an event claims a staged `POST /api/attachments`
-upload through `event_attachments`, so there is one upload path and one
-download route for both features. Occurrence expansion is a pure domain
-function over an RFC 5545 subset; the repository narrows candidate rows in
-SQL using the denormalized `range_start_utc` / `recurrence_until_utc`
-columns and the domain decides which occurrences actually fall in range.
-
-mailcal is a CalDAV **client** only -- it serves no CalDAV endpoint. Sync is
-an on-demand mutation: discovery, `sync-collection` with an etag-PROPFIND
-fallback, chunked `calendar-multiget`, and conditional `PUT`/`DELETE`, with
-conflicts resolved deterministically remote-wins. The unit of push is the
-calendar object resource (a series master together with its `RECURRENCE-ID`
-overrides in one `VCALENDAR`), because RFC 4791 stores every component
-sharing a UID in one resource. iCloud app-specific passwords are held as
-AES-256-GCM ciphertext keyed by `MAILCAL_CREDENTIAL_KEY`; without that secret
-CalDAV reports `SERVICE_UNAVAILABLE` and the rest of the calendar works.
-
-Attendance is deliberately absent: no RSVP, `PARTSTAT` or `ATTENDEE` state
-exists in the domain, D1, GraphQL or the UI. Mentions are plain addresses
-carried as `X-MAILCAL-MENTION`, and an inbound `ATTENDEE` is reduced to an
-address with its status parameters dropped.
-
-See `design-calendar.md`.
-
 ## Mail templates
 
 Templates are instance-wide reusable bodies with declared variables, rendered
@@ -157,8 +130,7 @@ can hold address books whose contacts are visible to whoever holds mail
 permissions on that address, and the cross-address view is the merged set
 over every address the viewer can read -- no separate contact permission
 system exists. CardDAV support is client-side sync with an external server
-(iCloud in practice), mirroring the CalDAV client decision; mailcal never
-serves DAV.
+(iCloud in practice); mailcal never serves DAV.
 
 See `design-contacts.md`.
 
@@ -194,7 +166,6 @@ See `design-deployment.md`.
 | `design-graphql-api.md` | Schema, errors, fetch state, pagination |
 | `design-storage-and-file-links.md` | D1 schema, R2 layout, temp file links |
 | `design-web-client.md` | SolidJS mail client structure |
-| `design-calendar.md` | Calendars, events, recurrence, mentions, CalDAV sync |
 | `design-mail-templates.md` | Template model, rendering, send flow |
 | `design-contacts.md` | Address books, contacts, cross-address view, CardDAV sync |
 | `design-external-mail.md` | External accounts, JMAP/POP3 fetch, SMTP relay |

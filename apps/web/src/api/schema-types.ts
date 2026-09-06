@@ -43,8 +43,6 @@ export type Capability =
   | "TEMPLATE_CREATE"
   | "TEMPLATE_UPDATE"
   | "TEMPLATE_DELETE"
-  | "CALENDAR_READ"
-  | "CALENDAR_WRITE"
   | "CONTACT_READ"
   | "CONTACT_WRITE";
 
@@ -53,8 +51,6 @@ export type TemplateCapability =
   | "TEMPLATE_CREATE"
   | "TEMPLATE_UPDATE"
   | "TEMPLATE_DELETE";
-
-export type CalendarCapability = "CALENDAR_READ" | "CALENDAR_WRITE";
 
 export type TemplateVariableType =
   | "TEXT"
@@ -157,15 +153,6 @@ export interface UserTemplatePermissionView {
   readonly id: string;
   readonly capability: TemplateCapability;
   readonly effect: "ALLOW" | "DENY";
-  readonly createdByUserId: string;
-  readonly createdAt: string;
-}
-
-export interface UserCalendarPermissionView {
-  readonly id: string;
-  readonly capability: CalendarCapability;
-  readonly effect: "ALLOW" | "DENY";
-  readonly ownerUserId: string | null;
   readonly createdByUserId: string;
   readonly createdAt: string;
 }
@@ -316,7 +303,6 @@ export interface UserView {
   readonly active: boolean;
   readonly permissions: readonly UserMailPermissionView[];
   readonly templatePermissions: readonly UserTemplatePermissionView[];
-  readonly calendarPermissions: readonly UserCalendarPermissionView[];
   readonly createdAt: string;
   readonly updatedAt: string;
 }

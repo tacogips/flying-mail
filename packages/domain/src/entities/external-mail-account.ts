@@ -17,7 +17,7 @@ export enum ExternalAccountStatus {
  * never carry a stray POP3 port and vice versa.
  *
  * `sessionUrl` must be absolute `https` (`http` allowed for `localhost`
- * only, the same rule `caldav-account.ts` uses for `serverUrl`). `port` must
+ * only). `port` must
  * be `995`: POP3's only supported dial is implicit TLS, because a
  * STARTTLS-on-110 downgrade is exactly the attack a hostile network wants --
  * see {@link validatePop3Endpoint}. */
@@ -59,8 +59,7 @@ export interface SmtpSubmissionConfig {
  *
  * The entity holds **ciphertext only** for every credential: plaintext
  * passwords exist solely inside the connect/fetch/send use cases, for the
- * duration of one request -- see `CredentialCipher`, the same posture
- * `CaldavAccount` uses. */
+ * duration of one request -- see `CredentialCipher`. */
 export interface ExternalMailAccount {
   readonly id: ExternalAccountId;
   readonly mailAddressId: MailAddressId;
@@ -88,7 +87,7 @@ export interface CreateExternalMailAccountInput {
  * resource would carry the password (via `AUTH PLAIN`/Basic) in clear text
  * on the wire; `http` is allowed only for `localhost`, so integration
  * testing against a local server stays possible without weakening the real
- * rule. Mirrors `normalizeCaldavServerUrl`. */
+ * rule. */
 export function normalizeJmapSessionUrl(value: string): string {
   const trimmed = value.trim();
   let url: URL;

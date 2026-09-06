@@ -6,7 +6,6 @@
   "exports": {
     "./graphql/schema": "./src/graphql/schema.ts",
     "./graphql/schema.graphql": "./src/graphql/schema.graphql.ts",
-    "./graphql/schema-calendar.graphql": "./src/graphql/schema-calendar.graphql.ts",
     "./graphql/schema-contacts.graphql": "./src/graphql/schema-contacts.graphql.ts",
     "./graphql/schema-external-mail.graphql": "./src/graphql/schema-external-mail.graphql.ts",
     "./graphql/context": "./src/graphql/context.ts",

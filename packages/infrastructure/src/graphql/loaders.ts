@@ -11,7 +11,6 @@ import type { SpamMark } from "@mailcal/domain/entities/spam-mark";
 import type { Tag } from "@mailcal/domain/entities/tag";
 import type { ApiKeyScope } from "@mailcal/domain/entities/api-key";
 import type { UserMailPermission } from "@mailcal/domain/entities/user-mail-permission";
-import type { UserCalendarPermission } from "@mailcal/domain/entities/user-calendar-permission";
 import type { UserTemplatePermission } from "@mailcal/domain/entities/user-template-permission";
 import {
   type AddressBookId,
@@ -99,10 +98,6 @@ export interface RequestLoaders {
   readonly templatePermissionsByUser: BatchLoader<
     UserId,
     readonly UserTemplatePermission[]
-  >;
-  readonly calendarPermissionsByUser: BatchLoader<
-    UserId,
-    readonly UserCalendarPermission[]
   >;
   readonly mailAddressById: BatchLoader<MailAddressId, MailAddress | null>;
   readonly addressBookById: BatchLoader<AddressBookId, AddressBook | null>;
@@ -222,14 +217,6 @@ export function createRequestLoaders(
       readonly UserTemplatePermission[]
     >(
       async (ids) => deps.userTemplatePermissionRepository.listByUserIds(ids),
-      () => EMPTY_ARRAY,
-    ),
-
-    calendarPermissionsByUser: createBatchLoader<
-      UserId,
-      readonly UserCalendarPermission[]
-    >(
-      async (ids) => deps.userCalendarPermissionRepository.listByUserIds(ids),
       () => EMPTY_ARRAY,
     ),
 

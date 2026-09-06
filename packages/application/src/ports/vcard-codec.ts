@@ -33,14 +33,14 @@ export interface ParsedVcardContact {
    * verbatim, folded/unfolded but otherwise untouched, for round-trip
    * fidelity. */
   readonly extraVcardLines: string | null;
-  /** True only when the vCard could not be parsed at all -- unlike ICS, a
-   * partially-modeled vCard is NOT flagged here; it imports what it can and
-   * keeps the rest in `extraVcardLines`. */
+  /** True only when the vCard could not be parsed at all. A partially
+   * modeled vCard is not flagged here; it imports what it can and keeps the
+   * rest in `extraVcardLines`. */
   readonly unparsable: boolean;
 }
 
-/** RFC 6350 subset codec. Mirrors the `IcsCodec` port precedent: the
- * application layer states the contract, the adapter owns the grammar. */
+/** RFC 6350 subset codec. The application layer states the contract and the
+ * adapter owns the grammar. */
 export interface VcardCodec {
   /** `null` when the vCard could not be parsed at all. */
   parseVcard(vcard: string): ParsedVcardContact | null;

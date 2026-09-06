@@ -18,14 +18,9 @@ import type { Clock, RandomSource, TokenHasher } from "./ports/runtime-ports";
 import type { SqlDatabase } from "./ports/sql-database";
 import type { TagRepository } from "./ports/tag-repository";
 import type { UserMailPermissionRepository } from "./ports/user-mail-permission-repository";
-import type { CaldavAccountRepository, CaldavClient } from "./ports/caldav";
-import type { CalendarEventRepository } from "./ports/calendar-event-repository";
-import type { CalendarRepository } from "./ports/calendar-repository";
 import type { CredentialCipher } from "./ports/credential-cipher";
-import type { IcsCodec } from "./ports/ics-codec";
 import type { MailTemplateRepository } from "./ports/mail-template-repository";
 import type { TemplateRenderer } from "./ports/template-renderer";
-import type { UserCalendarPermissionRepository } from "./ports/user-calendar-permission-repository";
 import type { UserTemplatePermissionRepository } from "./ports/user-template-permission-repository";
 import type { AddressBookRepository } from "./ports/address-book-repository";
 import type { ContactRepository } from "./ports/contact-repository";
@@ -90,8 +85,6 @@ export interface AppDependencies {
   readonly mimeBuilder: MimeBuilder;
   readonly mailSender: MailSender;
   readonly templateRenderer: TemplateRenderer;
-  readonly icsCodec: IcsCodec;
-  readonly caldavClient: CaldavClient;
   readonly vcardCodec: VcardCodec;
   readonly carddavClient: CarddavClient;
   readonly jmapClient: JmapClient;
@@ -100,8 +93,7 @@ export interface AppDependencies {
   /** Underlies the POP3 and SMTP submission clients; the JMAP client needs
    * no raw socket since it speaks plain `fetch`. */
   readonly tcpDialer: TcpDialer;
-  /** Shared as-is with CalDAV and CardDAV: one deployment key encrypts every
-   * third-party credential kind. */
+  /** One deployment key encrypts every third-party credential kind. */
   readonly credentialCipher: CredentialCipher;
 
   readonly mailDomainRepository: MailDomainRepository;
@@ -119,10 +111,6 @@ export interface AppDependencies {
   readonly emailAuthChallengeRepository: EmailAuthChallengeRepository;
   readonly mailTemplateRepository: MailTemplateRepository;
   readonly userTemplatePermissionRepository: UserTemplatePermissionRepository;
-  readonly calendarRepository: CalendarRepository;
-  readonly calendarEventRepository: CalendarEventRepository;
-  readonly caldavAccountRepository: CaldavAccountRepository;
-  readonly userCalendarPermissionRepository: UserCalendarPermissionRepository;
   readonly addressBookRepository: AddressBookRepository;
   readonly contactRepository: ContactRepository;
   readonly carddavAccountRepository: CarddavAccountRepository;

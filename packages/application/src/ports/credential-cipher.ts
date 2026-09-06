@@ -1,5 +1,4 @@
-/** Symmetric encryption for stored third-party credentials -- today only
- * CalDAV app-specific passwords.
+/** Symmetric encryption for stored third-party credentials.
  *
  * `available` is `false` when the deployment has no key configured. Callers
  * check it and fail with `SERVICE_UNAVAILABLE` before doing any work, rather

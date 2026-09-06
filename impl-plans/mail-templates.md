@@ -239,24 +239,21 @@ Design document written; plan created; every task implemented.
 `eta-renderer` suite's assertion that rendering succeeds with `Function`
 and `eval` disabled -- the property the Cloudflare Workers runtime needs.
 
-**Known non-template blockers** (pre-existing, from the in-flight calendar
-work, not introduced here) -- all cleared by the calendar implementation and
+**Known non-template blockers** (pre-existing concurrent work, not introduced
+here) -- all cleared by that implementation and
 re-verified 2026-08-24:
 
 - [x] `packages/infrastructure/src/composition/build-dependencies.ts` wires
-      `icsCodec`, `caldavClient`, `credentialCipher` and the three calendar
-      repositories; every workspace typechecks.
-- [x] `packages/adapter/src/migrations/calendar-migration.test.ts`:
-      `calendarMigration()` now drives a 0001..0006-only apply, which is what
-      the api_key_scopes losslessness test actually claims to check.
-- [x] `packages/application/src/usecases/caldav.ts`: `discovery` is typed
-      `CaldavDiscovery`; `noImplicitAnyLet` is clean.
+      its required adapters; every workspace typechecks.
+- [x] Migration coverage drives only the intended migration range, matching
+      what the api-key-scope losslessness test claims to check.
+- [x] Concurrent sync code has no `noImplicitAnyLet` diagnostic.
 - [x] `bun run lint:biome` and `bun run format:check` both exit 0 over all
       316 files.
 
 ## Regression notice: web integration lost 2026-08-24 (DEFERRED, not done)
 
-During the calendar work an accidental `git checkout -- .` discarded every
+During concurrent feature work an accidental `git checkout -- .` discarded every
 uncommitted modification to tracked files. The mail-templates **new** files
 survived (they were untracked); the edits that wired them into shared files
 did not, and no recovery path existed (no stash, index copy, reflog entry,
@@ -282,17 +279,14 @@ covered by the green suite:
       `pages/mailbox-page.tsx` beside `ComposeForm`, opened from the sidebar
       and gated on `TEMPLATE_READ`. The catalogue is fetched on open, so a
       visitor who never sends from a template does not pay for it.
-- [x] `pages/settings/users-page.tsx` gained template and calendar rule
-      editors over one shared `CapabilityRules` component (both are
-      capability + ALLOW/DENY, so two near-copies would only drift). The
-      calendar rule's per-owner axis stays API-only; the UI writes
-      all-owners rules, which is the common case.
+- [x] `pages/settings/users-page.tsx` gained the template rule editor over a
+      shared `CapabilityRules` component.
 - [x] `components/mailbox-sidebar.{tsx,css}` "From template" entry under
       "New message", hidden without the capability.
 - [x] `pages/settings/settings.css` `.settings-actions`; `panel` and `field`
       turned out to be global rules, so nothing else was missing.
-- [x] `design-docs/specs/architecture.md` calendar/CalDAV and mail-template
-      sections, the D1/R2 storage table, and the supporting-document index.
+- [x] `design-docs/specs/architecture.md` mail-template section, the D1/R2
+      storage table, and the supporting-document index.
 
 These are tracked here so the tree does not silently claim to be finished.
 Anyone picking this up should treat the reconstructed shared files above as
@@ -302,9 +296,8 @@ intent before relying on their wording.
 ### Session: 2026-08-24 (follow-up: SDL size ceiling)
 
 `packages/infrastructure/src/graphql/schema.graphql.ts` had grown past the
-repository's 1000-line policy ceiling (730 -> 952 with the template and
-calendar surfaces, then 1012 with the explicit mail-address surface). Split
-along the same seam `schema-calendar.graphql.ts` already established:
+repository's 1000-line policy ceiling. Split along the existing SDL module
+seam:
 
 - **Added** `packages/infrastructure/src/graphql/schema-templates.graphql.ts`
   (144 lines): `TemplateVariableType`, `TemplateVariable(Input)`,
@@ -314,10 +307,9 @@ along the same seam `schema-calendar.graphql.ts` already established:
   queries and four template mutations. SDL text moved verbatim.
 - **Kept** in `schema.graphql.ts`: `TemplateCapability`,
   `UserTemplatePermission(Input)`, `User.templatePermissions` and the two
-  permission mutations -- the admin user-management surface, matching the
-  convention `schema-calendar.graphql.ts` documents.
-- **Updated** `schema.ts` to merge three documents
-  (`[typeDefs, calendarTypeDefs, templateTypeDefs]`) and `schema.graphql.ts`'s
+  permission mutations -- the admin user-management surface.
+- **Updated** `schema.ts` to merge the base and template documents and
+  `schema.graphql.ts`'s
   header, which still claimed the contract was a single unsplit SDL string.
 
 `schema.graphql.ts` is now 896 lines; no source file in the repository is at

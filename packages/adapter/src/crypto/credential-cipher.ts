@@ -57,8 +57,8 @@ async function unavailable(): Promise<never> {
 /** AES-256-GCM over WebCrypto, available on both Bun and workerd.
  *
  * `keyBase64 === null` yields a cipher that reports `available: false` and
- * throws on use, which is what lets the rest of the calendar feature run in
- * a deployment that has no CalDAV secret configured.
+ * throws on use, which lets features that do not require stored external
+ * credentials run in a deployment where the shared secret is not configured.
  *
  * The `CryptoKey` import is done lazily and memoized: constructing the
  * cipher is synchronous (composition root wiring), while `importKey` is

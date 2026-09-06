@@ -15,14 +15,14 @@
 The `0010_contacts.sql` migration, D1/libsql repositories for address
 books and contacts (with child-row batch writes for
 emails/phones/postal-addresses/urls), a vCard codec (RFC 6350 4.0 + RFC
-2426 3.0 input, 3.0 output), and a CardDAV client reusing the existing
-CalDAV multistatus XML reader.
+2426 3.0 input, 3.0 output), and a CardDAV client using the shared WebDAV
+multistatus XML reader.
 
 ### Scope
 **Included**: `apps/api/migrations/0010_contacts.sql`, `packages/adapter`
 additions, `package.json` export map entries. The migration is
-deliberately scoped to this plan rather than `contacts-domain.md` --
-unlike the calendar precedent -- so the adapter tasks that consume its
+deliberately scoped to this plan rather than `contacts-domain.md` so the
+adapter tasks that consume its
 column shape stay in one plan.
 **Excluded**: ports (`contacts-application.md`), composition wiring
 (`contacts-graphql.md`).
@@ -66,8 +66,8 @@ design doc's "Storage" section:
 
   CREATE INDEX idx_api_key_scopes_key ON api_key_scopes(api_key_id);
   ```
-  Every existing scope row (mail, calendar, and template capabilities
-  alike) is copied verbatim -- this migration only widens the `CHECK`, it
+  Every existing scope row is copied verbatim -- this migration only widens
+  the `CHECK`, it
   changes no data. The 14-value list above must match
   `contacts-domain.md` TASK-002's `Capability` enum literals exactly, in
   the same order the existing migrations grew the list (append, never
@@ -89,7 +89,7 @@ design doc's "Storage" section:
   (`ContactRepository.listByEmail`).
 - `carddav_accounts` (id PK, `user_id` -> `users` ON DELETE CASCADE,
   `server_url`, username, `password_ciphertext`, `principal_url`,
-  `home_set_url`, timestamps) -- same shape as `caldav_accounts`.
+  `home_set_url`, timestamps).
 - `carddav_book_links` (id PK, `account_id` -> `carddav_accounts` ON
   DELETE CASCADE, `address_book_id` -> `address_books` ON DELETE CASCADE,
   `remote_url`, `display_name`, ctag, `sync_token`, `last_synced_at`),
@@ -140,9 +140,7 @@ design doc's "Storage" section:
 function createAddressBookRepository(db: SqlDatabase): AddressBookRepository;
 ```
   Private `AddressBookRow` (snake_case columns) + `rowToAddressBook`
-  mapper, following `calendar-repository.ts`'s exact shape (a private
-  `CalendarRow` interface and a `rowToCalendar` function above the
-  factory). `listReadable` renders
+  mapper above the factory. `listReadable` renders
   `allowedPatterns`/`mailPermissionFilter` into a `WHERE` fragment over a
   `mail_addresses` join (`address_books.mail_address_id =
   mail_addresses.id`), reusing the exact predicate-building approach in
@@ -154,8 +152,8 @@ function createAddressBookRepository(db: SqlDatabase): AddressBookRepository;
   `message-repository-queries.ts` cannot be imported directly from a
   contacts repository without creating an import cycle; otherwise import
   its exported functions as-is. `save` is the same
-  `INSERT ... ON CONFLICT(id) DO UPDATE` upsert shape as
-  `calendar-repository.ts`, and violating the partial unique index (a
+  `INSERT ... ON CONFLICT(id) DO UPDATE` upsert shape, and violating the
+  partial unique index (a
   second explicit default) surfaces as the driver's constraint error,
   translated to `CONFLICT` by the use case's `translateDomainError`.
 - `packages/adapter/src/repositories/contact-repository.ts` (new):
@@ -168,8 +166,7 @@ function createContactRepository(db: SqlDatabase): ContactRepository;
   private-interface-plus-mapper convention as every other repository in
   this package. `createContact`/`updateContact` write
   the contact row plus its four child tables (delete-then-insert per
-  child table) in one `db.batch`, mirroring
-  `calendar-event-repository.ts`'s atomic write. `listByEmail` queries the
+  child table) in one atomic `db.batch`. `listByEmail` queries the
   `contact_emails.address` index directly. `listPage` builds a cursor
   query the same shape as `message-repository.ts`'s pagination (opaque
   cursor via `decodeCursor`/an encode counterpart from `sql-helpers.ts`),
@@ -200,26 +197,23 @@ function createContactRepository(db: SqlDatabase): ContactRepository;
 ### TASK-003: CardDAV account repository
 **Status**: Done
 **Parallelizable**: Yes (needs TASK-001, `contacts-application` TASK-001)
-**Deliverables**: `packages/adapter/src/repositories/caldav-account-repository.ts`
-gets a parallel sibling
+**Deliverables**:
 `packages/adapter/src/repositories/carddav-account-repository.ts` (new):
 ```typescript
 function createCarddavAccountRepository(db: SqlDatabase): CarddavAccountRepository;
 ```
-implements `CarddavAccountRepository`, structurally identical to the
-CalDAV one -- private `CarddavAccountRow`/`CarddavBookLinkRow`/
+implements `CarddavAccountRepository` with private
+`CarddavAccountRow`/`CarddavBookLinkRow`/
 `CarddavContactStateRow`/`CarddavDeletionRow` interfaces and their
 `rowToX` mappers (accounts, book links, contact states, tombstones; same
 upsert-with-`ON CONFLICT` shape; `boolToSql`/`sqlToBool` for
 `remote_unsupported`).
 **Completion Criteria**:
-- [x] Real-SQL tests mirroring `calendar-repositories.test.ts`'s CalDAV
-      account coverage: account CRUD, book-link CRUD incl. the two unique
+- [x] Real-SQL tests cover account CRUD, book-link CRUD incl. the two unique
       indexes, contact-state upsert/lookup by href, tombstone add/list/
       remove
 - [x] Deleting an account cascades book links (and through them contact
-      states and tombstones) but leaves the local address books and
-      contacts untouched -- same non-destructive-disconnect test as CalDAV
+      states and tombstones) but leaves the local address books and contacts untouched
 - [x] `package.json` export map: this file is also covered by the
       existing `./repositories/*` wildcard -- no new entry needed
 
@@ -229,11 +223,11 @@ upsert-with-`ON CONFLICT` shape; `boolToSql`/`sqlToBool` for
 `contacts-application` TASK-001)
 **Deliverables**: `packages/adapter/src/vcard/vcard-codec.ts` (+
 `packages/adapter/src/vcard/vcard-format.ts` for line-folding/escaping
-helpers if needed to stay modular, mirroring the `ics-codec.ts`/
-`ics-format.ts` split): implements the `VcardCodec` port. `parseVcard`:
-tolerant unfold (RFC 6350 section 3.2 continuation-line rule, same style
-as the ICS unfolder); accepts both vCard 4.0 (`VERSION:4.0`) and vCard 3.0
-(`VERSION:3.0`) input; recognizes `UID FN N NICKNAME ORG TITLE EMAIL TEL
+helpers if needed to keep those formatting concerns modular): implements
+the `VcardCodec` port. `parseVcard`: tolerant unfold using the RFC 6350
+section 3.2 continuation-line rule; accepts both vCard 4.0
+(`VERSION:4.0`) and vCard 3.0 (`VERSION:3.0`) input; recognizes
+`UID FN N NICKNAME ORG TITLE EMAIL TEL
 ADR URL NOTE BDAY REV`; `\,`/`\;`/`\n` unescaping and parameter-quote
 handling; every unrecognized line (`PHOTO`, `X-*`, `item1.`-grouped
 properties, `KIND:group`/`MEMBER`) is retained verbatim, folded back
@@ -247,8 +241,7 @@ emits vCard 3.0 (`VERSION:3.0`), 75-octet folding, CRLF line endings,
 - `packages/adapter/package.json` (extend `exports`): add
   `"./vcard/vcard-codec": "./src/vcard/vcard-codec.ts"`. This package has
   no barrel file and no wildcard covering `vcard/`, so the new subpath
-  must be listed explicitly (same as `"./ics/ics-codec"` was for the
-  calendar feature) or `@mailcal/adapter/vcard/vcard-codec` will not
+  must be listed explicitly or `@mailcal/adapter/vcard/vcard-codec` will not
   resolve for `build-dependencies.ts` in `contacts-graphql.md` TASK-003.
 **Completion Criteria**:
 - [x] Round-trip tests: own-output stability (`formatVcard` then
@@ -265,33 +258,22 @@ emits vCard 3.0 (`VERSION:3.0`), 75-octet folding, CRLF line endings,
 
 ### TASK-005: CardDAV client
 **Status**: Done
-**Parallelizable**: No (depends on `contacts-application` TASK-001; reuses
-`caldav/xml.ts`, so must land after or alongside any extraction of that
-module)
+**Parallelizable**: No (depends on `contacts-application` TASK-001)
 **Deliverables**:
-- If `caldav/xml.ts`'s multistatus reader is imported as-is by the new
-  client without an import-graph problem, leave it in place and import
-  directly from `packages/adapter/src/caldav/xml.ts`. If (per the design
-  doc's suggestion) sharing across `caldav/` and the new `carddav/`
-  directory reads awkwardly, extract it verbatim to
-  `packages/adapter/src/dav/xml.ts` and update `caldav/caldav-client.ts`'s
-  import accordingly -- a pure move, no behavior change, covered by the
-  existing `xml.test.ts` (relocated alongside it). Decide and record which
-  approach was taken in the progress log; both are acceptable, but pick
-  one and do not leave two copies.
+- Use the shared WebDAV multistatus reader from
+  `packages/adapter/src/webdav/xml.ts`.
 - `packages/adapter/src/carddav/carddav-client.ts` (new): fetch-based
   `createCarddavClient({ fetchImpl })` implementing `CarddavClient`.
   Discovery: `PROPFIND` `current-user-principal` at
-  `/.well-known/carddav` (RFC 6764), following cross-host redirects (same
-  https/localhost-only credential-transmission guard `caldav-client.ts`
-  applies before attaching the Basic auth header) -> `addressbook-home-set`
+  `/.well-known/carddav` (RFC 6764), following cross-host redirects with an
+  HTTPS/localhost-only credential-transmission guard before attaching the
+  Basic auth header -> `addressbook-home-set`
   -> `Depth: 1` listing filtering `addressbook` resourcetype collections;
   captures `displayname`, `getctag`, `sync-token`. `listChanges`: RFC 6578
   `sync-collection` REPORT with automatic fallback to a `Depth: 1`
-  `getetag` PROPFIND diff on an invalid-token/unsupported-report response,
-  same fallback contract as `CaldavClient.listChanges`. `multigetContacts`:
-  `addressbook-multiget` REPORT, chunked (50 hrefs, matching the CalDAV
-  client's chunk size). `putContact`: `PUT` with `If-Match`/
+  `getetag` PROPFIND diff on an invalid-token/unsupported-report response.
+  `multigetContacts`: `addressbook-multiget` REPORT, chunked to 50 hrefs.
+  `putContact`: `PUT` with `If-Match`/
   `If-None-Match: *`, `Content-Type: text/vcard; charset=utf-8`, 412 ->
   `CONFLICT`. `deleteContact`: `DELETE` `If-Match`, 404 treated as success.
   Basic auth header built per request; password held only in call
@@ -299,19 +281,14 @@ module)
 - `packages/adapter/package.json` (extend `exports`): add
   `"./carddav/carddav-client": "./src/carddav/carddav-client.ts"` --
   explicit, same reasoning as the vCard codec entry (no wildcard covers
-  `carddav/`). If `caldav/xml.ts` was extracted to `dav/xml.ts` in this
-  task, `dav/` needs no export entry of its own (it is an internal
-  implementation detail imported by both clients within the package, not
-  a subpath any other package imports directly).
+  `carddav/`). The internal WebDAV helper needs no export entry.
 **Completion Criteria**:
 - [x] Fixture tests: iCloud-prefix and generic-DAV-prefix multistatus
       bodies, discovery redirect chain, `sync-collection`, fallback diff,
-      multiget chunking, 412, 404-on-delete -- same coverage shape as
-      `caldav-client.test.ts`
+      multiget chunking, 412, and 404-on-delete
 - [x] No real network in tests (injected `fetchImpl`)
 - [x] Credential-transmission safety test: a plain-http or foreign-host
-      redirect hop does not receive the Basic auth header (same guard and
-      same test shape as the CalDAV client's)
+      redirect hop does not receive the Basic auth header
 
 ## Module Status
 
@@ -379,9 +356,8 @@ tasks in this plan)
 - TASK-002: `packages/adapter/src/repositories/address-book-repository.ts`
   and `contact-repository.ts` (+ `contact-rows.ts` for the row
   interfaces/mappers/`contactWriteStatements` and `contact-queries.ts` for
-  `buildContactListQuery`, split out the same way
-  `calendar-event-repository.ts`/`calendar-event-rows.ts` and
-  `message-repository.ts`/`message-repository-queries.ts` already are).
+  `buildContactListQuery`, split out like
+  `message-repository.ts`/`message-repository-queries.ts`).
   `message-repository-queries.ts`'s condition builders are hardwired to
   `messages`' sender-plus-recipients-join shape (a message has several
   candidate addresses; a book has exactly one owning address), so it could
@@ -397,13 +373,11 @@ tasks in this plan)
   left untouched to avoid any risk to its existing, heavily-tested
   behavior. Added a `seedMailAddress` helper to
   `repositories/test-support.ts` for the new tests.
-- TASK-003: `packages/adapter/src/repositories/carddav-account-repository.ts`,
-  a structural copy of `caldav-account-repository.ts` for the CardDAV
-  tables from migration `0010`.
+- TASK-003: `packages/adapter/src/repositories/carddav-account-repository.ts`
+  for the CardDAV tables from migration `0010`.
 - TASK-004: `packages/adapter/src/vcard/vcard-codec.ts` +
-  `vcard/vcard-format.ts` (folding/escaping/content-line tokenizing, kept
-  as its own copy rather than importing `ics-format.ts` -- the grammars
-  coincide but the two codecs are otherwise unrelated). One deviation from
+  `vcard/vcard-format.ts` (folding/escaping/content-line tokenizing kept
+  in a dedicated vCard formatting module). One deviation from
   the port's `ParsedVcardContact.unparsable` field as originally sketched:
   the port method signature is `parseVcard(vcard: string): ParsedVcardContact
   | null`, so this implementation always returns `null` for a fully
@@ -416,15 +390,12 @@ tasks in this plan)
   a `group.` prefix (`item1.EMAIL`, `item1.X-ABLabel`, ...) is treated as
   unmodeled regardless of property name, matching the design doc's
   iCloud-fidelity requirement.
-- TASK-005: `packages/adapter/src/carddav/carddav-client.ts`. Reused
-  `caldav/xml.ts` directly (it matches purely on local element name, so it
-  needed no CardDAV-specific change) and `resolveHref` from
-  `caldav/caldav-client.ts`, rather than extracting a `dav/` module --
-  no signature conflict forced a move. Discovery failure (no
+- TASK-005: `packages/adapter/src/carddav/carddav-client.ts`. The XML and URL
+  helpers are protocol-generic and shared through the WebDAV module.
+  Discovery failure (no
   `current-user-principal`/`addressbook-home-set` found) throws
   `CarddavTransportError` rather than returning a discovery result with
-  null fields, matching `caldav-client.ts`'s actual behavior exactly even
-  though both ports declare those fields nullable.
+  null fields, even though the port declares those fields nullable.
 - `packages/adapter/package.json` gained exactly the two exports entries
   the plan specifies; the three new repository files needed no export
   edit (already covered by the `./repositories/*` wildcard).

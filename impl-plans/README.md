@@ -87,6 +87,7 @@ Large features are split into multiple related plans with cross-references.
 | `app-web-client.md` | 5 | Completed | `design-web-client.md` |
 | `app-cli.md` | 5 | Completed | `command.md` |
 | `user-mail-permissions.md` | 6 | Completed | `design-user-mail-permissions.md` |
+| `remove-calendar.md` | 11 | Completed | Feature retirement change record |
 
 Note: `app-api-migrations.md` is assigned to Phase 1 because its TASK-001
 (the D1 schema) has no dependencies and is needed early by the adapter
@@ -112,7 +113,12 @@ Only plans from eligible phases should be read to minimize context loading.
 | 3 | COMPLETED | Phase 2 |
 | 4 | COMPLETED | Phase 3 |
 | 5 | COMPLETED | Phase 4 |
-| 6 | READY | Phase 5 |
+| 6 | COMPLETED | Phase 5 |
+| 7 | COMPLETED | Phase 6 |
+| 8 | COMPLETED | Phase 7 |
+| 9 | COMPLETED | Phase 8 |
+| 10 | COMPLETED | Phase 9 |
+| 11 | COMPLETED | Phase 10 (calendar implementation already completed in phase 7) |
 
 ### Phase to Plans Mapping
 
@@ -141,6 +147,9 @@ PHASE_TO_PLANS = {
   ],
   6: [
     "user-mail-permissions.md",
+  ],
+  11: [
+    "remove-calendar.md",
   ]
 }
 ```
@@ -183,17 +192,14 @@ PHASE_TO_PLANS = {
 - **Always keep PROGRESS.json in sync** with plan file statuses
 - [Spam table, mail status, events, rules](completed/spam-table-status-events-rules.md) - Completed 2026-08-23
 
-## Calendar and CalDAV (phase 7)
+## Calendar removal (phase 11)
 
 | Plan | Status |
 |------|--------|
-| [calendar-domain.md](calendar-domain.md) | Completed |
-| [calendar-application.md](calendar-application.md) | Completed |
-| [calendar-adapter.md](calendar-adapter.md) | Completed |
-| [calendar-graphql.md](calendar-graphql.md) | Completed |
-| [calendar-web.md](calendar-web.md) | Completed |
+| [remove-calendar.md](remove-calendar.md) | Completed |
 
-Design reference: `design-docs/specs/design-calendar.md`.
+This plan removes the phase-7 calendar and CalDAV feature while preserving
+mail, contacts/CardDAV, generic attachments, and shared credential encryption.
 
 Mail templates (`mail-templates.md`) remains **In Progress**: the backend and
 the `/settings/templates` catalogue are done, but the web integration listed

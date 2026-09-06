@@ -134,7 +134,7 @@ export interface SmtpSubmissionClient {
   send(credentials: SmtpCredentials, envelope: SmtpEnvelope): Promise<void>;
 }
 
-/** Rejected credential -> `BAD_USER_INPUT`, mirrors `CaldavAuthError`. */
+/** A rejected credential maps to `BAD_USER_INPUT`. */
 export class ExternalMailAuthError extends Error {
   constructor(message: string) {
     super(message);
@@ -142,8 +142,7 @@ export class ExternalMailAuthError extends Error {
   }
 }
 
-/** Unreachable host, malformed reply, non-2xx -- mirrors
- * `CaldavTransportError`. */
+/** Unreachable host, malformed reply, or non-2xx response. */
 export class ExternalMailTransportError extends Error {
   constructor(
     message: string,

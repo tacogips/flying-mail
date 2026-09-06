@@ -1,17 +1,5 @@
 import type { AppDependencies, InstanceConfig } from "../dependencies";
 import {
-  createFakeCalendarStores,
-  type FakeCalendarStores,
-  fakeCaldavAccountRepository,
-  fakeCalendarEventRepository,
-  fakeCalendarRepository,
-  fakeUserCalendarPermissionRepository,
-  plainCredentialCipher,
-  type ScriptedCaldavClient,
-  scriptedCaldavClient,
-  unusedIcsCodec,
-} from "./calendar-fakes";
-import {
   createFakeContactStores,
   type FakeContactStores,
   fakeAddressBookRepository,
@@ -73,6 +61,7 @@ import {
   fixedClock,
   type MemoryBlobStore,
   memoryBlobStore,
+  plainCredentialCipher,
   plainTokenHasher,
   type RecordingMailSender,
   fakeDnsResolver,
@@ -85,7 +74,6 @@ import {
   unusedSqlDatabase,
 } from "./runtime-fakes";
 
-export * from "./calendar-fakes";
 export * from "./contact-fakes";
 export * from "./external-mail-fakes";
 export * from "./message-repository-fake";
@@ -109,10 +97,8 @@ export interface FakeDependencies {
   readonly messageStores: FakeMessageStores;
   readonly eventStores: FakeEventStores;
   readonly ruleStores: FakeRuleStores;
-  readonly calendarStores: FakeCalendarStores;
   readonly templateStores: FakeTemplateStores;
   readonly contactStores: FakeContactStores;
-  readonly caldavClient: ScriptedCaldavClient;
   readonly carddavClient: ScriptedCarddavClient;
   readonly externalMailStores: FakeExternalMailStores;
   readonly jmapClient: ScriptedJmapClient;
@@ -131,11 +117,6 @@ export interface CreateFakeDependenciesOptions {
   readonly idPrefix?: string;
   /** Seeds the system tags, as the migrations do. Defaults to true. */
   readonly seedSystemTags?: boolean;
-  /** Replaces the failing default ICS codec for tests that exercise CalDAV
-   * sync end to end. */
-  readonly icsCodec?: AppDependencies["icsCodec"];
-  /** Scripts the fake CalDAV client's canned responses. */
-  readonly caldav?: Parameters<typeof scriptedCaldavClient>[0];
   /** Scripts the fake CardDAV client's canned responses. */
   readonly carddav?: Parameters<typeof scriptedCarddavClient>[0];
   /** Scripts the fake JMAP client's canned responses. */
@@ -158,17 +139,8 @@ export function createFakeDependencies(
   const messageStores = createFakeMessageStores();
   const eventStores = createFakeEventStores();
   const ruleStores = createFakeRuleStores();
-  // Shares the message stores' attachment map, so an attachment staged via
-  // `messageRepository` is the same object an event can claim -- exactly as
-  // the two tables share `attachments` in D1.
-  const calendarStores = createFakeCalendarStores(messageStores.attachments);
   const templateStores = createFakeTemplateStores();
   const contactStores = createFakeContactStores();
-  const calendarPermissions = new Map<
-    string,
-    import("@mailcal/domain/entities/user-calendar-permission").UserCalendarPermission
-  >();
-  const caldavClient = scriptedCaldavClient(options.caldav);
   const carddavClient = scriptedCarddavClient(options.carddav);
   const externalMailStores = createFakeExternalMailStores();
   const jmapClient = scriptedJmapClient(options.jmap);
@@ -193,8 +165,6 @@ export function createFakeDependencies(
     mimeParser,
     mimeBuilder: stubMimeBuilder(),
     mailSender,
-    icsCodec: options.icsCodec ?? unusedIcsCodec(),
-    caldavClient,
     vcardCodec: identityVcardCodec(),
     carddavClient,
     credentialCipher: plainCredentialCipher({
@@ -219,11 +189,6 @@ export function createFakeDependencies(
     mailTemplateRepository: fakeMailTemplateRepository(templateStores),
     userTemplatePermissionRepository:
       fakeUserTemplatePermissionRepository(templateStores),
-    userCalendarPermissionRepository:
-      fakeUserCalendarPermissionRepository(calendarPermissions),
-    calendarRepository: fakeCalendarRepository(calendarStores),
-    calendarEventRepository: fakeCalendarEventRepository(calendarStores),
-    caldavAccountRepository: fakeCaldavAccountRepository(calendarStores),
     addressBookRepository: fakeAddressBookRepository(
       contactStores,
       stores.mailAddresses,
@@ -252,10 +217,8 @@ export function createFakeDependencies(
     messageStores,
     eventStores,
     ruleStores,
-    calendarStores,
     templateStores,
     contactStores,
-    caldavClient,
     carddavClient,
     externalMailStores,
     jmapClient,

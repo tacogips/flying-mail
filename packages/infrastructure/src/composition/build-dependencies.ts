@@ -6,14 +6,12 @@ import {
   createSha256TokenHasher,
 } from "@mailcal/adapter/crypto";
 import { createAddressBookRepository } from "@mailcal/adapter/repositories/address-book-repository";
-import { createCaldavClient } from "@mailcal/adapter/caldav/caldav-client";
 import { createCarddavAccountRepository } from "@mailcal/adapter/repositories/carddav-account-repository";
 import { createCarddavClient } from "@mailcal/adapter/carddav/carddav-client";
 import { createContactRepository } from "@mailcal/adapter/repositories/contact-repository";
 import { createVcardCodec } from "@mailcal/adapter/vcard/vcard-codec";
 import { createCredentialCipher } from "@mailcal/adapter/crypto/credential-cipher";
 import { createDohResolver } from "@mailcal/adapter/dns/doh-resolver";
-import { createIcsCodec } from "@mailcal/adapter/ics/ics-codec";
 import { createCloudflareEmailApiSender } from "@mailcal/adapter/mail/cloudflare-email-api";
 import {
   createCloudflareMailSender,
@@ -27,12 +25,8 @@ import {
   createSessionRepository,
   createUserRepository,
 } from "@mailcal/adapter/repositories/auth-repository";
-import { createCaldavAccountRepository } from "@mailcal/adapter/repositories/caldav-account-repository";
-import { createCalendarEventRepository } from "@mailcal/adapter/repositories/calendar-event-repository";
-import { createCalendarRepository } from "@mailcal/adapter/repositories/calendar-repository";
 import { createClassificationRuleRepository } from "@mailcal/adapter/repositories/classification-rule-repository";
 import { createMailTemplateRepository } from "@mailcal/adapter/repositories/mail-template-repository";
-import { createUserCalendarPermissionRepository } from "@mailcal/adapter/repositories/user-calendar-permission-repository";
 import { createUserTemplatePermissionRepository } from "@mailcal/adapter/repositories/user-template-permission-repository";
 import { createEtaTemplateRenderer } from "@mailcal/adapter/templates/eta-renderer";
 import { createExternalMailAccountRepository } from "@mailcal/adapter/repositories/external-mail-account-repository";
@@ -200,21 +194,15 @@ export function buildDependencies(
     // Parses Eta rather than compiling it: this same object runs inside a
     // Cloudflare Worker, where `new Function` is not available at all.
     templateRenderer: createEtaTemplateRenderer(),
-    // CalDAV: without `MAILCAL_CREDENTIAL_KEY` the cipher reports
-    // `available: false` and the CalDAV use cases fail with
-    // SERVICE_UNAVAILABLE, while calendars and events keep working.
-    icsCodec: createIcsCodec(),
-    caldavClient: createCaldavClient(),
-    // CardDAV shares the same cipher instance as CalDAV, not a re-derived
-    // one: both are AES-256-GCM under the one `MAILCAL_CREDENTIAL_KEY`, so
-    // an unset key degrades both features identically rather than needing
-    // two independent checks.
+    // CardDAV and external mail share one AES-256-GCM cipher derived from
+    // `MAILCAL_CREDENTIAL_KEY`. When the key is absent, the cipher reports
+    // `available: false` and credential-dependent operations fail with
+    // SERVICE_UNAVAILABLE while the rest of the server remains usable.
     credentialCipher: createCredentialCipher(config.credentialKey ?? null),
     vcardCodec: createVcardCodec(),
     carddavClient: createCarddavClient({ fetchImpl: fetch }),
-    // External mail shares the same cipher instance too: one deployment key
-    // covers every third-party credential kind, CalDAV/CardDAV/JMAP/POP3/SMTP
-    // alike.
+    // One deployment key covers every retained third-party credential kind:
+    // CardDAV, JMAP, POP3, and SMTP.
     jmapClient: createJmapClient({ fetchImpl: fetch }),
     pop3Client: createPop3Client(tcpDialer),
     smtpSubmissionClient: createSmtpSubmissionClient(tcpDialer),
@@ -234,11 +222,6 @@ export function buildDependencies(
     mailTemplateRepository: createMailTemplateRepository(db),
     userTemplatePermissionRepository:
       createUserTemplatePermissionRepository(db),
-    userCalendarPermissionRepository:
-      createUserCalendarPermissionRepository(db),
-    calendarRepository: createCalendarRepository(db),
-    calendarEventRepository: createCalendarEventRepository(db),
-    caldavAccountRepository: createCaldavAccountRepository(db),
     addressBookRepository: createAddressBookRepository(db),
     contactRepository: createContactRepository(db),
     carddavAccountRepository: createCarddavAccountRepository(db),

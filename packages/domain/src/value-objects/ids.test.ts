@@ -5,18 +5,12 @@ import {
   createApiKeyId,
   createApiKeyScopeId,
   createAttachmentId,
-  createCaldavAccountId,
-  createCaldavCalendarId,
-  createCalendarEventId,
-  createCalendarId,
   createCarddavAccountId,
   createCarddavBookId,
   createContactId,
-  createEventLinkId,
   createExternalAccountId,
   createMailAddressId,
   createMailTemplateId,
-  createUserCalendarPermissionId,
   createUserTemplatePermissionId,
   createDomainId,
   createEmailAuthChallengeId,
@@ -66,16 +60,10 @@ describe("branded id constructors", () => {
   );
 });
 
-describe("calendar and template ids", () => {
+describe("mail and template ids", () => {
   const constructors = [
-    ["calendarId", createCalendarId],
-    ["calendarEventId", createCalendarEventId],
-    ["eventLinkId", createEventLinkId],
-    ["caldavAccountId", createCaldavAccountId],
-    ["caldavCalendarId", createCaldavCalendarId],
     ["mailAddressId", createMailAddressId],
     ["mailTemplateId", createMailTemplateId],
-    ["userCalendarPermissionId", createUserCalendarPermissionId],
     ["userTemplatePermissionId", createUserTemplatePermissionId],
   ] as const;
 

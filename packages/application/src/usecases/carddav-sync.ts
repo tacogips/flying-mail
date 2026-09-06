@@ -25,14 +25,12 @@ import { loadWritableAddressBook } from "./contact-access";
 
 /** On-demand, request-scoped CardDAV sync.
  *
- * Mirrors `caldav-sync.ts` closely, with two contacts-specific differences
- * the design doc calls out: (1) there is no "resource grouping" step -- a
- * vCard is always one contact, one href, unlike a CalDAV calendar object
- * that may bundle a master with its overrides; (2) a partially-modeled
+ * A vCard is always one contact and one href, so there is no resource
+ * grouping step. A partially modeled
  * vCard (`extraVcardLines` non-null but `unparsable: false`) still imports
  * **and is still pushed** -- only a wholly `unparsable` vCard is excluded
- * from both directions and counted in `skipped`. Conflicts are resolved
- * **remote wins**, deterministically, exactly as CalDAV sync does. */
+ * from both directions and counted in `skipped`. Conflicts deterministically
+ * resolve as **remote wins**. */
 
 export interface SyncCarddavBookResult {
   readonly pulled: number;
@@ -137,9 +135,8 @@ async function upsertParsed(
     href,
     etag,
     lastSyncedAt: context.now,
-    // Carried for observability only -- unlike CalDAV's
-    // `remoteUnsupported`, this never excludes the contact from push (see
-    // the module doc): `extraVcardLines` round-trips losslessly.
+    // Carried for observability only. This never excludes the contact from
+    // push because `extraVcardLines` round-trips losslessly.
     remoteUnsupported: contact.extraVcardLines !== null,
   });
   return existing === null ? "created" : "updated";

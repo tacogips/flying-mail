@@ -1,4 +1,5 @@
 import type { BlobObject, BlobStore } from "../ports/blob-store";
+import type { CredentialCipher } from "../ports/credential-cipher";
 import type { MailSender, OutboundMail } from "../ports/mail-sender";
 import type {
   BuildMimeInput,
@@ -59,6 +60,33 @@ export function plainTokenHasher(): TokenHasher {
   return {
     async hash(value: string): Promise<string> {
       return `hash(${value})`;
+    },
+  };
+}
+
+/** A `CredentialCipher` that only marks its input, so a test can assert that
+ * a stored value went through the cipher without needing WebCrypto. Never
+ * used outside tests. */
+export function plainCredentialCipher(
+  options: { readonly available?: boolean } = {},
+): CredentialCipher {
+  const available = options.available ?? true;
+  return {
+    available,
+    async encrypt(plaintext) {
+      if (!available) {
+        throw new Error("credential cipher unavailable");
+      }
+      return `fake:${plaintext}`;
+    },
+    async decrypt(ciphertext) {
+      if (!available) {
+        throw new Error("credential cipher unavailable");
+      }
+      if (!ciphertext.startsWith("fake:")) {
+        throw new Error("ciphertext was not produced by this cipher");
+      }
+      return ciphertext.slice("fake:".length);
     },
   };
 }

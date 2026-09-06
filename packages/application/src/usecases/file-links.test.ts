@@ -13,15 +13,7 @@ import {
   createThreadId,
 } from "@mailcal/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
-import { BadUserInputError, ForbiddenError, NotFoundError } from "../errors";
-import {
-  CALENDAR_ID,
-  type CalendarFixture,
-  calendarKeyViewer,
-  mailOnlyKeyViewer,
-  NOW as CALENDAR_NOW,
-  seedCalendarFixture,
-} from "../test-support/calendar-fixtures";
+import { BadUserInputError, NotFoundError } from "../errors";
 import {
   createFakeDependencies,
   type FakeDependencies,
@@ -39,7 +31,6 @@ import {
   createRevokeFileLinkUseCase,
   MIN_FILE_LINK_TTL_SECONDS,
 } from "./file-links";
-import { createUseCases, type UseCases } from "../usecases";
 
 const NOW = "2026-08-23T00:00:00.000Z";
 const domainId = createDomainId("dom-1");
@@ -160,6 +151,29 @@ describe("createAttachmentLink", () => {
     const mint = createCreateAttachmentLinkUseCase(fake.deps);
     await expect(
       mint(adminViewer(), createAttachmentId("nope")),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  test("rejects an unattached staged upload", async () => {
+    const stagedAttachmentId = createAttachmentId("att-staged-1");
+    fake.messageStores.attachments.set(
+      stagedAttachmentId,
+      createAttachment({
+        id: stagedAttachmentId,
+        messageId: null,
+        fileName: "staged.pdf",
+        contentType: "application/pdf",
+        size: 3,
+        blobKey: `att/${stagedAttachmentId}/staged.pdf`,
+        contentId: null,
+        inline: false,
+        createdAt: NOW,
+      }),
+    );
+
+    const mint = createCreateAttachmentLinkUseCase(fake.deps);
+    await expect(
+      mint(adminViewer(), stagedAttachmentId),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
@@ -333,124 +347,5 @@ describe("revokeFileLink and listFileLinks", () => {
     await expect(
       revoke(adminViewer(), createFileLinkId("nope")),
     ).rejects.toBeInstanceOf(NotFoundError);
-  });
-});
-
-/** File links on an event attachment. An event attachment carries no
- * `messageId` -- it is a staged upload an event claimed -- so it authorizes
- * through the claiming event rather than through a message, mirroring the
- * event branch of `GET /api/attachments/:id`. */
-describe("file links on an event attachment", () => {
-  const eventAttachmentId = createAttachmentId("att-event-1");
-  const orphanAttachmentId = createAttachmentId("att-orphan-1");
-
-  let fake: FakeDependencies;
-  let usecases: UseCases;
-  let fixture: CalendarFixture;
-
-  async function stageUpload(id: typeof eventAttachmentId): Promise<void> {
-    const attachment = createAttachment({
-      id,
-      messageId: null,
-      fileName: "agenda.pdf",
-      contentType: "application/pdf",
-      size: 3,
-      blobKey: `att/${id}/agenda.pdf`,
-      contentId: null,
-      inline: false,
-      createdAt: CALENDAR_NOW,
-    });
-    fake.messageStores.attachments.set(attachment.id, attachment);
-    await fake.deps.blobs.put(attachment.blobKey, new Uint8Array([1, 2, 3]), {
-      contentType: "application/pdf",
-    });
-  }
-
-  beforeEach(async () => {
-    fake = createFakeDependencies({ now: CALENDAR_NOW });
-    usecases = createUseCases(fake.deps);
-    fixture = await seedCalendarFixture(fake);
-    const event = await usecases.createCalendarEvent(fixture.ownerViewer, {
-      calendarId: CALENDAR_ID,
-      title: "Planning",
-      time: {
-        allDay: false,
-        startsAt: "2026-09-01T00:00:00.000Z",
-        endsAt: "2026-09-01T01:00:00.000Z",
-        timeZone: "UTC",
-      },
-    });
-    await stageUpload(eventAttachmentId);
-    await stageUpload(orphanAttachmentId);
-    await usecases.attachFileToEvent(
-      fixture.ownerViewer,
-      event.id,
-      eventAttachmentId,
-    );
-  });
-
-  test("the event owner may mint, and the token serves the bytes", async () => {
-    const mint = createCreateAttachmentLinkUseCase(fake.deps);
-    const created = await mint(fixture.ownerViewer, eventAttachmentId, 900, 1);
-    expect(created.link.attachmentId).toBe(eventAttachmentId);
-
-    const resolve = createResolveFileLinkUseCase(fake.deps);
-    const download = await resolve(created.token);
-    expect(download?.fileName).toBe("agenda.pdf");
-    expect(await new Response(download?.blob.body).text()).toHaveLength(3);
-  });
-
-  test("a viewer that cannot read the claiming event is told it is absent", async () => {
-    const mint = createCreateAttachmentLinkUseCase(fake.deps);
-    await expect(
-      mint(fixture.otherViewer, eventAttachmentId),
-    ).rejects.toBeInstanceOf(NotFoundError);
-  });
-
-  test("a mail-only key cannot reach an event attachment", async () => {
-    const mint = createCreateAttachmentLinkUseCase(fake.deps);
-    await expect(
-      mint(mailOnlyKeyViewer(), eventAttachmentId),
-    ).rejects.toBeInstanceOf(NotFoundError);
-  });
-
-  test("reading the event is not enough without FILE_LINK", async () => {
-    const mint = createCreateAttachmentLinkUseCase(fake.deps);
-    const readOnly = calendarKeyViewer([Capability.CalendarRead]);
-    await expect(mint(readOnly, eventAttachmentId)).rejects.toBeInstanceOf(
-      ForbiddenError,
-    );
-  });
-
-  test("a calendar key holding FILE_LINK may mint", async () => {
-    const mint = createCreateAttachmentLinkUseCase(fake.deps);
-    const viewer = calendarKeyViewer([
-      Capability.CalendarRead,
-      Capability.FileLink,
-    ]);
-    await expect(mint(viewer, eventAttachmentId)).resolves.toMatchObject({
-      link: { attachmentId: eventAttachmentId },
-    });
-  });
-
-  test("an unclaimed staged upload is still not linkable", async () => {
-    const mint = createCreateAttachmentLinkUseCase(fake.deps);
-    await expect(
-      mint(fixture.adminViewer, orphanAttachmentId),
-    ).rejects.toBeInstanceOf(NotFoundError);
-  });
-
-  test("the link can be revoked through the same event authorization", async () => {
-    const mint = createCreateAttachmentLinkUseCase(fake.deps);
-    const created = await mint(fixture.ownerViewer, eventAttachmentId, 900, 1);
-
-    const revoke = createRevokeFileLinkUseCase(fake.deps);
-    await expect(
-      revoke(fixture.otherViewer, created.link.id),
-    ).rejects.toBeInstanceOf(NotFoundError);
-    expect(await revoke(fixture.ownerViewer, created.link.id)).toBe(true);
-
-    const resolve = createResolveFileLinkUseCase(fake.deps);
-    expect(await resolve(created.token)).toBeNull();
   });
 });

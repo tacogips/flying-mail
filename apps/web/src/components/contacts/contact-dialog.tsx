@@ -229,7 +229,7 @@ export function ContactDialog(props: {
 
   return (
     <div
-      class="calendar-dialog__backdrop"
+      class="contact-dialog__backdrop"
       role="dialog"
       aria-modal="true"
       aria-label={existing() === null ? "New contact" : "Edit contact"}
@@ -245,10 +245,10 @@ export function ContactDialog(props: {
         }
       }}
     >
-      <form class="calendar-dialog" onSubmit={(event) => void save(event)}>
+      <form class="contact-dialog" onSubmit={(event) => void save(event)}>
         <h2>{existing() === null ? "New contact" : "Edit contact"}</h2>
 
-        <div class="calendar-dialog__field">
+        <div class="contact-dialog__field">
           <label for="contact-display-name">Display name</label>
           <input
             id="contact-display-name"
@@ -258,7 +258,7 @@ export function ContactDialog(props: {
           />
         </div>
 
-        <div class="calendar-dialog__row">
+        <div class="contact-dialog__row">
           <div>
             <label for="contact-given-name">Given name</label>
             <input
@@ -285,7 +285,7 @@ export function ContactDialog(props: {
           </div>
         </div>
 
-        <div class="calendar-dialog__row">
+        <div class="contact-dialog__row">
           <div>
             <label for="contact-organization">Organization</label>
             <input
@@ -314,7 +314,7 @@ export function ContactDialog(props: {
         </div>
 
         {existing() === null ? (
-          <div class="calendar-dialog__field">
+          <div class="contact-dialog__field">
             <label for="contact-book">Address book</label>
             <select
               id="contact-book"
@@ -331,18 +331,18 @@ export function ContactDialog(props: {
             </select>
           </div>
         ) : (
-          <p class="calendar-dialog__hint">
+          <p class="contact-dialog__hint">
             Address book: {existing()?.addressBook.mailAddress.address} &mdash;{" "}
             {existing()?.addressBook.name}
           </p>
         )}
 
-        <div class="calendar-dialog__field">
-          <span class="calendar-dialog__grouplabel">Email</span>
-          <div class="calendar-dialog__list">
+        <div class="contact-dialog__field">
+          <span class="contact-dialog__grouplabel">Email</span>
+          <div class="contact-dialog__list">
             <For each={emails()}>
               {(email, index) => (
-                <div class="calendar-dialog__listrow">
+                <div class="contact-dialog__listrow">
                   <input
                     placeholder="name@example.com"
                     value={email.address}
@@ -393,12 +393,12 @@ export function ContactDialog(props: {
           </button>
         </div>
 
-        <div class="calendar-dialog__field">
-          <span class="calendar-dialog__grouplabel">Phone</span>
-          <div class="calendar-dialog__list">
+        <div class="contact-dialog__field">
+          <span class="contact-dialog__grouplabel">Phone</span>
+          <div class="contact-dialog__list">
             <For each={phones()}>
               {(phone, index) => (
-                <div class="calendar-dialog__listrow">
+                <div class="contact-dialog__listrow">
                   <input
                     placeholder="+1 555 0100"
                     value={phone.number}
@@ -449,12 +449,12 @@ export function ContactDialog(props: {
           </button>
         </div>
 
-        <div class="calendar-dialog__field">
-          <span class="calendar-dialog__grouplabel">Postal address</span>
-          <div class="calendar-dialog__list">
+        <div class="contact-dialog__field">
+          <span class="contact-dialog__grouplabel">Postal address</span>
+          <div class="contact-dialog__list">
             <For each={postalAddresses()}>
               {(address, index) => (
-                <div class="calendar-dialog__listrow">
+                <div class="contact-dialog__listrow">
                   <input
                     placeholder="123 Main St, Springfield"
                     value={address.formatted}
@@ -510,12 +510,12 @@ export function ContactDialog(props: {
           </button>
         </div>
 
-        <div class="calendar-dialog__field">
-          <span class="calendar-dialog__grouplabel">URLs</span>
-          <div class="calendar-dialog__list">
+        <div class="contact-dialog__field">
+          <span class="contact-dialog__grouplabel">URLs</span>
+          <div class="contact-dialog__list">
             <For each={urls()}>
               {(url, index) => (
-                <div class="calendar-dialog__listrow">
+                <div class="contact-dialog__listrow">
                   <input
                     placeholder="https://example.com"
                     value={url}
@@ -550,7 +550,7 @@ export function ContactDialog(props: {
           </button>
         </div>
 
-        <div class="calendar-dialog__field">
+        <div class="contact-dialog__field">
           <label for="contact-note">Notes</label>
           <textarea
             id="contact-note"
@@ -560,7 +560,7 @@ export function ContactDialog(props: {
           />
         </div>
 
-        <div class="calendar-dialog__actions">
+        <div class="contact-dialog__actions">
           <button type="button" onClick={props.onClose}>
             Cancel
           </button>

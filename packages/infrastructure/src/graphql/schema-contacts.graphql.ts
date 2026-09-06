@@ -2,16 +2,12 @@
  * The contacts and CardDAV half of the GraphQL contract, mirroring
  * `design-docs/specs/design-contacts.md#graphql`.
  *
- * A separate SDL module rather than more lines in `schema.graphql.ts`, for
- * the same reason `schema-calendar.graphql.ts` is one: that file is already
- * at the repository's size ceiling, and the modules are merged by
- * `createSchema` (which accepts an array), so the split costs nothing at
- * runtime.
+ * A separate SDL module keeps the contacts contract cohesive while
+ * `createSchema` merges it with the other feature documents at runtime.
  *
  * `Capability.CONTACT_READ`/`CONTACT_WRITE` live in `schema.graphql.ts`
- * beside the other capability values, not here -- same split as
- * `CalendarCapability`/`TemplateCapability`. `AddressBook.mailAddress` and
- * `Contact.addressBook` are field resolvers, not columns.
+ * beside the other capability values, not here. `AddressBook.mailAddress`
+ * and `Contact.addressBook` are field resolvers, not columns.
  */
 export const contactTypeDefs = /* GraphQL */ `
   """

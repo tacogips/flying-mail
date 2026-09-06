@@ -428,10 +428,9 @@ export function createContactStore(): ContactStore {
       const before = contacts();
       const existing = before.find((entry) => entry.id === id);
       if (existing !== undefined) {
-        // Patches in place immediately: unlike a calendar occurrence set, a
-        // contact's shown fields are exactly what the caller sent, so there
-        // is nothing left for the server to compute before it is safe to
-        // show.
+        // Patch in place immediately because a contact's shown fields are
+        // exactly what the caller sent, so there is nothing left for the
+        // server to compute before it is safe to show.
         setContacts((current) =>
           current.map((entry) =>
             entry.id === id ? applyUpdatePatch(entry, input) : entry,

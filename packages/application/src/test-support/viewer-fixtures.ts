@@ -18,21 +18,13 @@ import {
   type ApiKeyId,
   createApiKeyId,
   createApiKeyScopeId,
-  createUserCalendarPermissionId,
   createUserId,
   createUserMailPermissionId,
   createUserTemplatePermissionId,
   type DomainId,
   type UserId,
 } from "@mailcal/domain/value-objects/ids";
-import type {
-  CalendarCapability,
-  TemplateCapability,
-} from "@mailcal/domain/entities/api-key";
-import {
-  createUserCalendarPermission,
-  type UserCalendarPermission,
-} from "@mailcal/domain/entities/user-calendar-permission";
+import type { TemplateCapability } from "@mailcal/domain/entities/api-key";
 import {
   createUserTemplatePermission,
   type UserTemplatePermission,
@@ -45,7 +37,6 @@ export function adminViewer(
   userId = "usr-admin",
   permissions: readonly UserMailPermission[] = [],
   templatePermissions: readonly UserTemplatePermission[] = [],
-  calendarPermissions: readonly UserCalendarPermission[] = [],
 ): Viewer {
   return {
     kind: "USER",
@@ -53,7 +44,6 @@ export function adminViewer(
     role: UserRole.Admin,
     permissions,
     templatePermissions,
-    calendarPermissions,
   };
 }
 
@@ -61,7 +51,6 @@ export function memberViewer(
   userId = "usr-member",
   permissions: readonly UserMailPermission[] = [],
   templatePermissions: readonly UserTemplatePermission[] = [],
-  calendarPermissions: readonly UserCalendarPermission[] = [],
 ): Viewer {
   return {
     kind: "USER",
@@ -69,7 +58,6 @@ export function memberViewer(
     role: UserRole.Member,
     permissions,
     templatePermissions,
-    calendarPermissions,
   };
 }
 
@@ -77,7 +65,6 @@ export function viewerViewer(
   userId = "usr-viewer",
   permissions: readonly UserMailPermission[] = [],
   templatePermissions: readonly UserTemplatePermission[] = [],
-  calendarPermissions: readonly UserCalendarPermission[] = [],
 ): Viewer {
   return {
     kind: "USER",
@@ -85,7 +72,6 @@ export function viewerViewer(
     role: UserRole.Viewer,
     permissions,
     templatePermissions,
-    calendarPermissions,
   };
 }
 
@@ -190,30 +176,6 @@ export function buildTemplatePermissions(
       userId,
       capability: spec.capability,
       effect: spec.effect,
-      createdByUserId: createUserId("usr-admin"),
-      createdAt: DEFAULT_PERMISSION_CREATED_AT,
-    }),
-  );
-}
-
-/** Builds a `UserCalendarPermission[]` list with generated ids, so a test
- * declares only the `(capability, effect, ownerUserId)` triples it cares
- * about. `ownerUserId: null` means every calendar owner. */
-export function buildCalendarPermissions(
-  userId: UserId,
-  specs: readonly {
-    readonly capability: CalendarCapability;
-    readonly effect: UserPermissionEffect;
-    readonly ownerUserId?: UserId | null;
-  }[],
-): readonly UserCalendarPermission[] {
-  return specs.map((spec, index) =>
-    createUserCalendarPermission({
-      id: createUserCalendarPermissionId(`ucp-${index + 1}`),
-      userId,
-      capability: spec.capability,
-      effect: spec.effect,
-      ownerUserId: spec.ownerUserId ?? null,
       createdByUserId: createUserId("usr-admin"),
       createdAt: DEFAULT_PERMISSION_CREATED_AT,
     }),

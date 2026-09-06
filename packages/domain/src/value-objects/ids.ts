@@ -18,17 +18,8 @@ export type SessionId = Brand<string, "SessionId">;
 export type EmailAuthChallengeId = Brand<string, "EmailAuthChallengeId">;
 export type MessageEventId = Brand<string, "MessageEventId">;
 export type ClassificationRuleId = Brand<string, "ClassificationRuleId">;
-export type CalendarId = Brand<string, "CalendarId">;
-export type CalendarEventId = Brand<string, "CalendarEventId">;
-export type EventLinkId = Brand<string, "EventLinkId">;
-export type CaldavAccountId = Brand<string, "CaldavAccountId">;
-export type CaldavCalendarId = Brand<string, "CaldavCalendarId">;
 export type MailAddressId = Brand<string, "MailAddressId">;
 export type MailTemplateId = Brand<string, "MailTemplateId">;
-export type UserCalendarPermissionId = Brand<
-  string,
-  "UserCalendarPermissionId"
->;
 export type UserTemplatePermissionId = Brand<
   string,
   "UserTemplatePermissionId"
@@ -124,37 +115,8 @@ export function createClassificationRuleId(
   ) as ClassificationRuleId;
 }
 
-export function createCalendarId(value: string): CalendarId {
-  return requireNonEmptyId(value, "calendarId") as CalendarId;
-}
-
-export function createCalendarEventId(value: string): CalendarEventId {
-  return requireNonEmptyId(value, "calendarEventId") as CalendarEventId;
-}
-
-export function createEventLinkId(value: string): EventLinkId {
-  return requireNonEmptyId(value, "eventLinkId") as EventLinkId;
-}
-
-export function createCaldavAccountId(value: string): CaldavAccountId {
-  return requireNonEmptyId(value, "caldavAccountId") as CaldavAccountId;
-}
-
-export function createCaldavCalendarId(value: string): CaldavCalendarId {
-  return requireNonEmptyId(value, "caldavCalendarId") as CaldavCalendarId;
-}
-
 export function createMailTemplateId(value: string): MailTemplateId {
   return requireNonEmptyId(value, "mailTemplateId") as MailTemplateId;
-}
-
-export function createUserCalendarPermissionId(
-  value: string,
-): UserCalendarPermissionId {
-  return requireNonEmptyId(
-    value,
-    "userCalendarPermissionId",
-  ) as UserCalendarPermissionId;
 }
 
 export function createUserTemplatePermissionId(

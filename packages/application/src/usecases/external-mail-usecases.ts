@@ -20,8 +20,7 @@ import {
 import type { ReceiveMessageInput, ReceiveMessageResult } from "./ingest";
 
 /** The external-mail half of `UseCases`, assembled here so `usecases.ts`
- * gains a single spread rather than another feature's worth of entries --
- * mirrors `calendar-usecases.ts`. */
+ * gains a single spread rather than another feature's worth of entries. */
 export interface ExternalMailUseCases {
   readonly listExternalAccounts: (
     viewer: Viewer,

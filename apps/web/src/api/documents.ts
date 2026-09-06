@@ -395,14 +395,6 @@ const USER_FIELDS = `
     createdByUserId
     createdAt
   }
-  calendarPermissions {
-    id
-    capability
-    effect
-    ownerUserId
-    createdByUserId
-    createdAt
-  }
 `;
 
 export const USERS_QUERY = `
@@ -548,21 +540,6 @@ export const ADD_USER_TEMPLATE_PERMISSION_MUTATION = `
 export const REMOVE_USER_TEMPLATE_PERMISSION_MUTATION = `
   mutation RemoveUserTemplatePermission($id: ID!) {
     removeUserTemplatePermission(id: $id)
-  }
-`;
-
-export const ADD_USER_CALENDAR_PERMISSION_MUTATION = `
-  mutation AddUserCalendarPermission(
-    $userId: ID!
-    $input: UserCalendarPermissionInput!
-  ) {
-    addUserCalendarPermission(userId: $userId, input: $input) { id }
-  }
-`;
-
-export const REMOVE_USER_CALENDAR_PERMISSION_MUTATION = `
-  mutation RemoveUserCalendarPermission($id: ID!) {
-    removeUserCalendarPermission(id: $id)
   }
 `;
 

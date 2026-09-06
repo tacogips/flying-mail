@@ -2,12 +2,7 @@
  * escaping and content-line tokenizing.
  *
  * Kept apart from `vcard-codec.ts` so the codec reads as a property mapping
- * rather than as string surgery, mirroring the `ics-codec.ts`/
- * `ics-format.ts` split. vCard's folding and text-escaping rules are the
- * same grammar RFC 5545 (iCalendar) uses, but this module keeps its own
- * copy rather than importing `ics-format.ts`: the two codecs are otherwise
- * unrelated, and importing across feature boundaries for four small
- * functions is not a trade worth making. */
+ * rather than as string surgery. */
 
 const MAX_LINE_OCTETS = 75;
 

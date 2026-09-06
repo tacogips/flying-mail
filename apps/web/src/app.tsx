@@ -16,7 +16,6 @@ const TagsPage = lazy(() => import("./pages/settings/tags-page"));
 const RulesPage = lazy(() => import("./pages/settings/rules-page"));
 const UsersPage = lazy(() => import("./pages/settings/users-page"));
 const TemplatesPage = lazy(() => import("./pages/settings/templates-page"));
-const CalendarPage = lazy(() => import("./pages/calendar-page"));
 const ContactsPage = lazy(() => import("./pages/contacts-page"));
 
 export function App(): JSX.Element {
@@ -45,14 +44,6 @@ export function App(): JSX.Element {
           component={() => (
             <AuthGuard ready={ready()}>
               <MailboxPage />
-            </AuthGuard>
-          )}
-        />
-        <Route
-          path="/calendar"
-          component={() => (
-            <AuthGuard ready={ready()}>
-              <CalendarPage />
             </AuthGuard>
           )}
         />

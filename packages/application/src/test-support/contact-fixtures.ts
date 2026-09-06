@@ -18,10 +18,9 @@ import { apiKeyViewer } from "./viewer-fixtures";
 /** Shared contact seeding for use-case tests: one managed domain, two
  * provisioned mail addresses, and a default address book on the first.
  * Contact authorization derives entirely from `UserMailPermission` rules
- * evaluated against these addresses (see `design-user-mail-permissions.md`),
- * so -- unlike `calendar-fixtures.ts` -- no fixed "owner user" is needed:
- * any viewer built from `viewer-fixtures.ts` becomes authorized simply by
- * carrying a matching permission or scope. */
+ * evaluated against these addresses (see `design-user-mail-permissions.md`).
+ * No fixed owner user is needed: any viewer built from `viewer-fixtures.ts`
+ * becomes authorized by carrying a matching permission or scope. */
 
 export const NOW = "2026-08-24T00:00:00.000Z";
 export const DOMAIN_ID: DomainId = createDomainId("dom-1");

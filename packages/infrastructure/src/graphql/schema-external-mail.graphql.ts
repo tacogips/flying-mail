@@ -2,11 +2,8 @@
  * The external mail account half of the GraphQL contract, mirroring
  * `design-docs/specs/design-external-mail.md#graphql`.
  *
- * A separate SDL module rather than more lines in `schema.graphql.ts`, for
- * the same reason `schema-calendar.graphql.ts` is one: that file is already
- * at the repository's size ceiling, and the modules are merged by
- * `createSchema` (which accepts an array), so the split costs nothing at
- * runtime.
+ * A separate SDL module keeps the external-account contract cohesive while
+ * `createSchema` merges it with the other feature documents at runtime.
  *
  * `ExternalMailAccount` never exposes a secret, by type shape: there is no
  * `String` field named or typed for a plaintext password or a ciphertext,
@@ -103,7 +100,7 @@ export const externalMailTypeDefs = /* GraphQL */ `
   }
 
   extend type Query {
-    "Admin-only, mirrors caldavAccounts/domains."
+    "Admin-only, mirroring domains and other instance-wide settings."
     externalMailAccounts: [ExternalMailAccount!]!
   }
 

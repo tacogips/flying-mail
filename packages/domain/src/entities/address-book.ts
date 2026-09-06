@@ -4,8 +4,7 @@ import type { AddressBookId, MailAddressId } from "../value-objects/ids";
 /** A contacts rolodex owned by one provisioned mail address (not a user):
  * `support@example.com`'s contacts belong to that mailbox, independent of
  * who staffs it -- see design-docs/specs/design-contacts.md "Ownership
- * model". Deleting a book hard-deletes its contacts, same cascade posture
- * as `Calendar`. */
+ * model". Deleting a book hard-deletes its contacts. */
 export interface AddressBook {
   readonly id: AddressBookId;
   readonly mailAddressId: MailAddressId;

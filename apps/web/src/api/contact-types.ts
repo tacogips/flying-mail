@@ -2,8 +2,8 @@
  * Hand-written transport types for the contacts and CardDAV surface,
  * mirroring `schema-contacts.graphql.ts`.
  *
- * Kept apart from `schema-types.ts` for the same reason `calendar-types.ts`
- * is: neither file should have to carry two features' worth of shapes.
+ * Kept apart from `schema-types.ts` so neither file has to carry two
+ * features' worth of shapes.
  * There is no photo, group/`MEMBER`, or free-form extension-property field
  * here, by design.
  */
@@ -162,8 +162,7 @@ export interface CarddavDiscoveredAddressBookView {
   readonly syncToken: string | null;
 }
 
-/** An established local-to-remote link, as `carddavRemoteBooks` reports for
- * one account -- the contacts analogue of `CaldavCalendarView`. */
+/** An established local-to-remote link reported for one CardDAV account. */
 export interface CarddavBookLinkView {
   readonly id: string;
   readonly accountId: string;

@@ -12,8 +12,7 @@ interface GraphQLCall {
   readonly variables: Record<string, unknown>;
 }
 
-/** Records every GraphQL call and answers from a per-operation responder,
- * mirroring `calendar-store.test.ts`'s stub. */
+/** Records every GraphQL call and answers from a per-operation responder. */
 function stubGraphQL(
   responders: Record<string, (variables: Record<string, unknown>) => unknown>,
 ): GraphQLCall[] {

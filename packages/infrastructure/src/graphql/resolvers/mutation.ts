@@ -702,15 +702,13 @@ const authMutations = {
       result.token,
       new Date(result.session.expiresAt),
     );
-    // The three rule sets travel together, exactly as
+    // The two rule sets travel together, exactly as
     // `resolveViewerFromToken` loads them: a partially-loaded viewer would
     // under-authorize the very first request after sign-in.
-    const [permissions, templatePermissions, calendarPermissions] =
-      await Promise.all([
-        ctx.deps.userMailPermissionRepository.listByUserId(result.user.id),
-        ctx.deps.userTemplatePermissionRepository.listByUserId(result.user.id),
-        ctx.deps.userCalendarPermissionRepository.listByUserId(result.user.id),
-      ]);
+    const [permissions, templatePermissions] = await Promise.all([
+      ctx.deps.userMailPermissionRepository.listByUserId(result.user.id),
+      ctx.deps.userTemplatePermissionRepository.listByUserId(result.user.id),
+    ]);
     return {
       viewer: {
         viewer: {
@@ -719,7 +717,6 @@ const authMutations = {
           role: result.user.role,
           permissions,
           templatePermissions,
-          calendarPermissions,
         },
       },
       expiresAt: result.session.expiresAt,

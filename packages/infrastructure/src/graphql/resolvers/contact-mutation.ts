@@ -27,9 +27,8 @@ import type { GraphQLContext } from "../context";
 import { requireViewerOrThrow } from "./helpers";
 
 /** Every contacts mutation. Argument mapping only: authorization, domain
- * validation and persistence all live behind `ctx.usecases` -- mirrors
- * `calendar-mutation.ts` exactly, including its `...(x == null ? {} : { x
- * })` null-dropping convention for every optional field. */
+ * validation and persistence all live behind `ctx.usecases`. Optional fields
+ * use the `...(x == null ? {} : { x })` null-dropping convention. */
 
 interface CreateAddressBookArg {
   readonly mailAddressId: string;

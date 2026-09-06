@@ -23,8 +23,8 @@ in-memory test fakes. No adapter code, no D1, no sockets here.
 
 ### Scope
 **Included**: `packages/domain` entities and id brand; `packages/application`
-ports, use cases, `AppDependencies` extension, `UseCases` aggregation hook
-(mirroring `calendar-usecases.ts`), and test-support fakes.
+ports, use cases, `AppDependencies` extension, `UseCases` aggregation hook,
+and test-support fakes.
 **Excluded**: concrete adapters (`external-mail-adapter.md`), GraphQL and
 composition wiring of concrete adapters (`external-mail-graphql.md`). No
 new `Capability` enum value and no `api_key_scopes` change: TASK-004 reuses
@@ -33,10 +33,9 @@ new `Capability` enum value and no `api_key_scopes` change: TASK-004 reuses
 **Divergence from the assignment brief**: the brief listed `usecases.ts` and
 `dependencies.ts` as `external-mail-graphql.md` deliverables. This plan
 declares the `AppDependencies` fields and the `usecases.ts` "small hook"
-instead, matching this repo's precedent (`calendar-application.md` TASK-001/
-TASK-003 vs. `calendar-graphql.md`, which only touched
-`build-dependencies.ts` and `config.ts`) and avoiding a real cross-plan
-cycle: TASK-004/005/006 reference `deps.externalMailAccountRepository`,
+instead, keeping dependency contracts with the core feature and avoiding a
+real cross-plan cycle: TASK-004/005/006 reference
+`deps.externalMailAccountRepository`,
 which cannot type-check unless `AppDependencies` already declares it.
 
 ---
@@ -46,8 +45,8 @@ which cannot type-check unless `AppDependencies` already declares it.
 ### TASK-001: Domain entities
 **Status**: Completed · **Parallelizable**: Yes
 **Deliverables**: `packages/domain/src/value-objects/ids.ts` (extend):
-`ExternalAccountId` brand + `createExternalAccountId`, mirroring
-`createCaldavAccountId`. Plus `packages/domain/src/entities/external-mail-account.ts`:
+`ExternalAccountId` brand + `createExternalAccountId`. Plus
+`packages/domain/src/entities/external-mail-account.ts`:
 
 ```typescript
 export enum ExternalAccountStatus { Active = "ACTIVE", Disabled = "DISABLED" }
@@ -91,7 +90,7 @@ export interface CreateExternalMailAccountInput {
   readonly createdAt: string;
 }
 
-export function normalizeJmapSessionUrl(value: string): string; // https rule, as normalizeCaldavServerUrl
+export function normalizeJmapSessionUrl(value: string): string; // HTTPS, with localhost HTTP exception
 export function validatePop3Endpoint(host: string, port: number): void; // throws unless port === 995
 export function validateSmtpSubmissionConfig(config: SmtpSubmissionConfig): void; // throws unless port/security agree
 
@@ -203,11 +202,11 @@ export interface SmtpSubmissionClient {
   send(credentials: SmtpCredentials, envelope: SmtpEnvelope): Promise<void>; // non-2xx/3xx throws ExternalMailTransportError
 }
 
-/** Rejected credential -> BAD_USER_INPUT, mirrors CaldavAuthError. */
+/** Rejected credential -> BAD_USER_INPUT. */
 export class ExternalMailAuthError extends Error {
   constructor(message: string) { super(message); this.name = "ExternalMailAuthError"; }
 }
-/** Unreachable host, malformed reply, non-2xx -- mirrors CaldavTransportError. */
+/** Unreachable host, malformed reply, or non-2xx response. */
 export class ExternalMailTransportError extends Error {
   constructor(message: string, override readonly cause?: unknown) {
     super(message); this.name = "ExternalMailTransportError";
@@ -218,7 +217,7 @@ export class ExternalMailTransportError extends Error {
 Also extend `packages/application/src/dependencies.ts`: add
 `externalMailAccountRepository`, `externalMessageStateRepository`,
 `jmapClient`, `pop3Client`, `smtpSubmissionClient`, `tcpDialer` (ports only,
-no adapter imports, as `caldavClient`/`credentialCipher` already do). For
+no adapter imports). For
 TASK-005's atomic ledger write, also extend
 `ports/message-repository.ts`'s `InsertMessageInput` with
 `readonly extraStatements?: readonly SqlStatement[]` (appended to
@@ -301,8 +300,8 @@ export interface ExternalAccountTestResult {
 }
 
 // All admin-only: requireGlobalCapability(viewer, Capability.DomainAdmin),
-// as usecases/domains.ts. Every one calls requireCipher(deps) first (mirrors
-// usecases/caldav.ts): unset MAILCAL_CREDENTIAL_KEY -> SERVICE_UNAVAILABLE.
+// as usecases/domains.ts. Every one calls requireCipher(deps) first:
+// unset MAILCAL_CREDENTIAL_KEY -> SERVICE_UNAVAILABLE.
 export function createListExternalAccountsUseCase(deps: AppDependencies): (viewer: Viewer) => Promise<readonly ExternalMailAccount[]>;
 export function createCreateExternalAccountUseCase(deps: AppDependencies): (viewer: Viewer, input: CreateExternalAccountInput) => Promise<ExternalMailAccount>;
 // ConflictError if mailAddressId already has an ExternalMailAccount (unique index: one account per managed address).
@@ -411,13 +410,13 @@ bookkeeping and message-event recording; no duplicated logic.
 **Deliverables**:
 - `packages/application/src/usecases/external-mail-usecases.ts`: new
   `ExternalMailUseCases` interface + `createExternalMailUseCases(deps)`,
-  bundling all six use cases -- mirrors `calendar-usecases.ts`.
+  bundling all six use cases.
   `fetchExternalMail` is wired as
   `createFetchExternalMailUseCase(deps, receiveMessage)`, reusing the
   `receiveMessage` instance already built in `createUseCases`.
 - `packages/application/src/usecases.ts` (extend, small hook only): add
-  `ExternalMailUseCases` to `UseCases`'s existing `extends` clause (alongside
-  `CalendarUseCases`) and spread `...createExternalMailUseCases(deps)` into
+  `ExternalMailUseCases` to `UseCases`'s existing `extends` clause and spread
+  `...createExternalMailUseCases(deps)` into
   `createUseCases`'s return object.
 
 **Completion Criteria**:

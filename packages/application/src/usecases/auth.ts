@@ -33,22 +33,19 @@ export function createResolveViewerFromTokenUseCase(
       if (user === null || !isUserActive(user)) {
         return null;
       }
-      // The three rule sets are loaded together: authorization for mail,
-      // templates and calendars all consults the viewer snapshot, and a
+      // Both rule sets are loaded together: authorization for mail and
+      // templates consults the viewer snapshot, and a
       // partially-loaded viewer would silently under-authorize.
-      const [permissions, templatePermissions, calendarPermissions] =
-        await Promise.all([
-          deps.userMailPermissionRepository.listByUserId(user.id),
-          deps.userTemplatePermissionRepository.listByUserId(user.id),
-          deps.userCalendarPermissionRepository.listByUserId(user.id),
-        ]);
+      const [permissions, templatePermissions] = await Promise.all([
+        deps.userMailPermissionRepository.listByUserId(user.id),
+        deps.userTemplatePermissionRepository.listByUserId(user.id),
+      ]);
       return {
         kind: "USER",
         userId: user.id,
         role: user.role,
         permissions,
         templatePermissions,
-        calendarPermissions,
       };
     }
 

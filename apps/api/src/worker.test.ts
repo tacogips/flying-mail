@@ -8,7 +8,7 @@ import {
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import type {
   D1DatabaseLike,
   D1PreparedStatementLike,
@@ -181,11 +181,41 @@ async function seedActiveDomain(db: SqlDatabase): Promise<void> {
   );
 }
 
-const executionContext = {
-  waitUntil: () => undefined,
-  passThroughOnException: () => undefined,
-  props: {},
-};
+interface AwaitableExecutionContext {
+  readonly waitUntil: (promise: Promise<unknown>) => void;
+  readonly passThroughOnException: () => void;
+  readonly props: unknown;
+  readonly drain: () => Promise<void>;
+}
+
+function createExecutionContext(): AwaitableExecutionContext {
+  const scheduled: Promise<unknown>[] = [];
+  return {
+    waitUntil(promise) {
+      scheduled.push(promise);
+    },
+    passThroughOnException() {},
+    props: {},
+    async drain() {
+      while (scheduled.length > 0) {
+        await Promise.all(scheduled.splice(0));
+      }
+    },
+  };
+}
+
+async function seedBlobCleanup(
+  harness: WorkerHarness,
+  attachmentId: string,
+  blobKey: string,
+): Promise<void> {
+  await harness.db.execute(
+    `INSERT INTO blob_cleanup_queue (attachment_id, blob_key, enqueued_at)
+     VALUES (?, ?, '2026-09-06T00:00:00.000Z')`,
+    [attachmentId, blobKey],
+  );
+  await harness.env.BLOB.put(blobKey, new Uint8Array([1]));
+}
 
 function inboundMessage(options: {
   readonly from: string;
@@ -304,6 +334,7 @@ describe("worker fetch", () => {
   });
 
   test("serves GraphQL", async () => {
+    const executionContext = createExecutionContext();
     const response = await worker.fetch(
       new Request("https://mail.example.com/graphql", {
         method: "POST",
@@ -316,9 +347,11 @@ describe("worker fetch", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as { data: { viewer: null } };
     expect(body.data.viewer).toBeNull();
+    await executionContext.drain();
   });
 
   test("falls through to static assets for an unmatched path", async () => {
+    const executionContext = createExecutionContext();
     const response = await worker.fetch(
       new Request("https://mail.example.com/mailbox"),
       harness.env,
@@ -327,6 +360,7 @@ describe("worker fetch", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("spa");
     expect(harness.assetRequests).toHaveLength(1);
+    await executionContext.drain();
   });
 
   test("builds the app once per isolate", async () => {
@@ -343,8 +377,9 @@ describe("worker fetch", () => {
     };
     clearWorkerCacheForTesting(countingEnv);
 
-    const request = () =>
-      worker.fetch(
+    const request = async (): Promise<Response> => {
+      const executionContext = createExecutionContext();
+      const response = await worker.fetch(
         new Request("https://mail.example.com/graphql", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -353,6 +388,9 @@ describe("worker fetch", () => {
         countingEnv,
         executionContext,
       );
+      await executionContext.drain();
+      return response;
+    };
     await request();
     const afterFirst = prepareCalls;
     await request();
@@ -365,22 +403,162 @@ describe("worker fetch", () => {
     const { env } = await createWorkerEnv({
       MAILCAL_PUBLIC_ORIGIN: "not-a-url",
     });
+    const firstContext = createExecutionContext();
     const response = await worker.fetch(
       new Request("https://mail.example.com/graphql"),
       env,
-      executionContext,
+      firstContext,
     );
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "Internal server error" });
 
     // Not cached: a second request retries construction and fails the same
     // way rather than serving a wedged isolate.
+    await firstContext.drain();
+    const secondContext = createExecutionContext();
     const second = await worker.fetch(
       new Request("https://mail.example.com/graphql"),
       env,
-      executionContext,
+      secondContext,
     );
     expect(second.status).toBe(500);
+    await secondContext.drain();
+  });
+
+  test("deletes a queued blob and removes its durable queue row", async () => {
+    const blobKey = "att/att-worker-cleanup/file.bin";
+    await seedBlobCleanup(harness, "att-worker-cleanup", blobKey);
+    const executionContext = createExecutionContext();
+
+    await worker.fetch(
+      new Request("https://mail.example.com/mailbox"),
+      harness.env,
+      executionContext,
+    );
+    await executionContext.drain();
+
+    expect(await harness.env.BLOB.get(blobKey)).toBeNull();
+    expect(await harness.db.query("SELECT * FROM blob_cleanup_queue")).toEqual(
+      [],
+    );
+  });
+
+  test("retries cleanup on the next request after a transient failure", async () => {
+    const blobKey = "att/att-worker-retry/file.bin";
+    await seedBlobCleanup(harness, "att-worker-retry", blobKey);
+    const backing = harness.env.BLOB;
+    let deleteAttempts = 0;
+    const retryEnv: Env = {
+      ...harness.env,
+      BLOB: {
+        put: (key, value, options) => backing.put(key, value, options),
+        get: (key) => backing.get(key),
+        async delete(key) {
+          deleteAttempts += 1;
+          if (deleteAttempts === 1) {
+            throw new Error("transient R2 failure");
+          }
+          await backing.delete(key);
+        },
+      },
+    };
+    clearWorkerCacheForTesting(retryEnv);
+
+    const firstContext = createExecutionContext();
+    await worker.fetch(
+      new Request("https://mail.example.com/mailbox"),
+      retryEnv,
+      firstContext,
+    );
+    await firstContext.drain();
+    expect(
+      await harness.db.query("SELECT attachment_id FROM blob_cleanup_queue"),
+    ).toEqual([{ attachment_id: "att-worker-retry" }]);
+
+    const secondContext = createExecutionContext();
+    await worker.fetch(
+      new Request("https://mail.example.com/mailbox"),
+      retryEnv,
+      secondContext,
+    );
+    await secondContext.drain();
+
+    expect(deleteAttempts).toBe(2);
+    expect(await backing.get(blobKey)).toBeNull();
+    expect(await harness.db.query("SELECT * FROM blob_cleanup_queue")).toEqual(
+      [],
+    );
+  });
+
+  test("shares one cleanup attempt and stops scheduling work after completion", async () => {
+    const blobKey = "att/att-worker-single-flight/file.bin";
+    await seedBlobCleanup(harness, "att-worker-single-flight", blobKey);
+    const backing = harness.env.BLOB;
+    let deleteCalls = 0;
+    let cleanupSelects = 0;
+    let releaseDelete: (() => void) | undefined;
+    const deleteGate = new Promise<void>((resolve) => {
+      releaseDelete = resolve;
+    });
+    const gatedEnv: Env = {
+      ...harness.env,
+      DB: {
+        prepare(sql) {
+          if (
+            sql.trimStart().startsWith("SELECT") &&
+            sql.includes("FROM blob_cleanup_queue")
+          ) {
+            cleanupSelects += 1;
+          }
+          return harness.env.DB.prepare(sql);
+        },
+        batch: (statements) => harness.env.DB.batch(statements),
+      },
+      BLOB: {
+        put: (key, value, options) => backing.put(key, value, options),
+        get: (key) => backing.get(key),
+        async delete(key) {
+          deleteCalls += 1;
+          await deleteGate;
+          await backing.delete(key);
+        },
+      },
+    };
+    clearWorkerCacheForTesting(gatedEnv);
+    const firstContext = createExecutionContext();
+    const secondContext = createExecutionContext();
+
+    await Promise.all([
+      worker.fetch(
+        new Request("https://mail.example.com/first"),
+        gatedEnv,
+        firstContext,
+      ),
+      worker.fetch(
+        new Request("https://mail.example.com/second"),
+        gatedEnv,
+        secondContext,
+      ),
+    ]);
+    await vi.waitFor(() => expect(deleteCalls).toBe(1));
+    expect(cleanupSelects).toBe(1);
+    releaseDelete?.();
+    await Promise.all([firstContext.drain(), secondContext.drain()]);
+    const cleanupSelectsAfterCompletion = cleanupSelects;
+    expect(cleanupSelectsAfterCompletion).toBe(2);
+
+    const completedContext = createExecutionContext();
+    await worker.fetch(
+      new Request("https://mail.example.com/third"),
+      gatedEnv,
+      completedContext,
+    );
+    await completedContext.drain();
+    expect(deleteCalls).toBe(1);
+    expect(cleanupSelects).toBe(cleanupSelectsAfterCompletion);
+    expect(await harness.db.query("SELECT * FROM blob_cleanup_queue")).toEqual(
+      [],
+    );
   });
 });
 
@@ -399,7 +577,9 @@ describe("worker email", () => {
       raw: SAMPLE_EML,
     });
 
+    const executionContext = createExecutionContext();
     await worker.email(inbound.message, harness.env, executionContext);
+    await executionContext.drain();
 
     expect(inbound.rejections).toEqual([]);
     const rows = await harness.db.query<{ subject: string; id: string }>(
@@ -421,7 +601,9 @@ describe("worker email", () => {
       raw: SAMPLE_EML,
     });
 
+    const executionContext = createExecutionContext();
     await worker.email(inbound.message, harness.env, executionContext);
+    await executionContext.drain();
 
     expect(inbound.rejections).toEqual([
       "Recipient address is not served here",
@@ -440,7 +622,9 @@ describe("worker email", () => {
         to: "support@example.com",
         raw: SAMPLE_EML,
       });
+      const executionContext = createExecutionContext();
       await worker.email(inbound.message, harness.env, executionContext);
+      await executionContext.drain();
     }
     const rows = await harness.db.query<{ id: string }>(
       "SELECT id FROM messages",
@@ -455,7 +639,9 @@ describe("worker email", () => {
       to: "support@example.com",
       raw: SAMPLE_EML,
     });
+    const executionContext = createExecutionContext();
     await worker.email(inbound.message, harness.env, executionContext);
+    await executionContext.drain();
 
     const rows = await harness.db.query<{ raw_key: string }>(
       "SELECT raw_key FROM messages",

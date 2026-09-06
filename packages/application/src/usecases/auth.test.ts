@@ -103,7 +103,6 @@ describe("resolveViewerFromToken", () => {
       role: UserRole.Admin,
       permissions: [],
       templatePermissions: [],
-      calendarPermissions: [],
     });
   });
 
@@ -298,7 +297,6 @@ describe("getViewerUser", () => {
           role: user.role,
           permissions: [],
           templatePermissions: [],
-          calendarPermissions: [],
         })
       )?.id,
     ).toBe(user.id);
@@ -448,7 +446,7 @@ describe("bootstrapAdmin", () => {
       result.apiKey.id,
     ]);
     // One scope per capability, so a fresh deployment's root key can reach
-    // mail, templates and calendars alike.
+    // every supported capability.
     expect(scopes.get(result.apiKey.id)?.length).toBe(
       Object.values(Capability).length,
     );
