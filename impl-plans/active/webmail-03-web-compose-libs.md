@@ -1,6 +1,6 @@
 # Webmail 03: Web Compose Libraries (sanitizer, plain-text derivation, autosave, upload)
 
-**Status**: Ready
+**Status**: In Progress
 **planId**: webmail-03-web-compose-libs
 **Wave**: 1 (no dependencies)
 **Design Reference**: design-docs/specs/design-webmail-completion.md section 7 (Compose: compose sanitizer, HTML vs plain, Attachments, Autosave), D6, D7
@@ -205,11 +205,18 @@ export async function mapWithConcurrency<T, R>(items: readonly T[], limit: numbe
 
 ## Completion criteria
 
-- [ ] Three modules with the exact exported signatures above.
-- [ ] All listed tests pass.
+- [x] Three modules with the exact exported signatures above.
+- [x] All listed tests pass.
 - [ ] Typecheck and Biome are clean.
 
 ## Progress Log
 
-### Session: (not started)
-**Tasks Completed**: None
+### Session: 2026-10-07
+**Tasks Completed**: Implemented the three compose libraries and their focused tests; all 13 focused tests pass and selected-file Biome is clean.
+**Progress**: Typecheck remains unresolved because the shared web tree currently has a `replyTo` optionality mismatch in `apps/web/src/components/message-view.test.tsx:10`, outside this plan's `writePaths`.
+**Verification**:
+- `bun run --cwd apps/web test -- src/lib/compose-html.test.ts src/lib/draft-autosave.test.ts src/lib/upload.test.ts` -> exit 0, 13 passed; log `tmp/webmail-completion-s299/webmail-03/final-tests.log`.
+- `bun run --cwd apps/web typecheck` -> exit 2; only diagnostic is `apps/web/src/components/message-view.test.tsx:10` (`replyTo` optionality); log `tmp/webmail-completion-s299/webmail-03/final-typecheck.log`.
+- `bunx biome check apps/web/src/lib/compose-html.ts apps/web/src/lib/compose-html.test.ts apps/web/src/lib/draft-autosave.ts apps/web/src/lib/draft-autosave.test.ts apps/web/src/lib/upload.ts apps/web/src/lib/upload.test.ts --diagnostic-level=warn` -> exit 0, no diagnostics; log `tmp/webmail-completion-s299/webmail-03/final-biome.log`.
+**File digests after implementation**: `compose-html.ts` `fd639f17ee7d079b52885d132f0f0f5ef39de224dde015366a9c2a2304e27c0b`; `compose-html.test.ts` `1fada9576a7dc729b0fd14817f5f1cc8b315ab9e39f4c5ce5d125bd4ac991ee4`; `draft-autosave.ts` `323faf343dbcd6421d436f4585d166c72228da14057083fd916e7012cadb50da`; `draft-autosave.test.ts` `a80bc2b18c10767368d7126d53abf4e15103c9472b5969dd7ec13db8dd36caed`; `upload.ts` `5e90ccb46f9ef355724c09be000f2ffe22bad9bcfcf8bacd5a16940eb85822bf`; `upload.test.ts` `416999d1783777fb4b6fe304ac16f7c3ec3bfc5bf5e23cb4b69512ade6688d56`.
+**Edit evidence**: pre-edit snapshot `tmp/riela-fanout/A721EE5D-A9B5-4EE4-8B06-F047E21EDFD8/5D77809F-2AD9-4FB7-95D8-B6F805703C92.json`; per-edit intent and digest records under `tmp/webmail-completion-s299/webmail-03/`.

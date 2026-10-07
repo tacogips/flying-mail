@@ -55,7 +55,10 @@ The mailbox page renders the stub. webmail-10 replaces its body.
 - `apps/web/src/components/compose-host.tsx`
 - `impl-plans/active/webmail-05-web-api-contract.md` (checkboxes and Progress Log only)
 
-**sharedPaths**: none. Later owners: webmail-10 replaces the body of
+**sharedPaths**
+- `apps/web/src/components/message-view.test.tsx` -- intendedEdit: add `replyTo`, `forwardedFromMessageId`, `inReplyTo` (all `null`) to the `MessageDetailView` fixture only.
+
+Later owners: webmail-10 replaces the body of
 `compose-host.tsx`; webmail-11 edits the `MailboxView` usage in
 `app-store.ts`; webmail-12 re-verifies `schema-types.ts`. All three depend
 on this plan, so the edits are serialized.
@@ -191,14 +194,22 @@ mocks fetch:
 
 ## Completion criteria
 
-- [ ] Mirror types and documents match design section 3 field names
+- [x] Mirror types and documents match design section 3 field names
       exactly.
-- [ ] Store methods are added, with tests.
-- [ ] `compose-types.ts` and the `ComposeHost` stub exist with the exact
+- [x] Store methods are added, with tests.
+- [x] `compose-types.ts` and the `ComposeHost` stub exist with the exact
       signatures above.
 - [ ] Verification passes, with exit codes logged.
 
 ## Progress Log
 
-### Session: (not started)
-**Tasks Completed**: None
+### Session: 2026-10-07
+**Tasks Completed**: API mirror types and documents; compose store methods and save outcome mapper/tests; compose types and host stub.
+**Verification**:
+- `bun run --cwd apps/web typecheck` — exit 2; `tmp/webmail-completion-s299/webmail-05/typecheck.log`. Required `MessageDetailView` fields make the fixture at `apps/web/src/components/message-view.test.tsx:10-42` incomplete. That path is outside this plan's `writePaths`; exact mirror fields were retained.
+- `bun run --cwd apps/web test` — exit 0, 208 tests passed; `tmp/webmail-completion-s299/webmail-05/test.log`.
+- `bunx biome check apps/web/src/api apps/web/src/store apps/web/src/lib/compose-types.ts apps/web/src/components/compose-host.tsx --diagnostic-level=warn` — exit 0; `tmp/webmail-completion-s299/webmail-05/biome.log`.
+**Blocker**: Typecheck remains incomplete pending a write-path amendment for `apps/web/src/components/message-view.test.tsx`, then rerun the exact typecheck command.
+
+### Session: 2026-10-07 orchestrator serial reconciliation
+`apps/web/src/components/message-view.test.tsx` is now a sharedPath of this plan; the fixture sets `replyTo`, `forwardedFromMessageId`, `inReplyTo` to `null`. Verified: `bun run --cwd apps/web typecheck` exit 0; `bun run --cwd apps/web test` exit 0 (208 passed); `bun run typecheck` exit 0. webmail-11 re-reads and merges this file later.

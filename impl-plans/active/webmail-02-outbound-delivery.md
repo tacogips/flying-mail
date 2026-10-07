@@ -1,6 +1,6 @@
 # Webmail 02: Outbound Delivery Adapter, MIME Builder, Error Codes
 
-**Status**: Ready
+**Status**: In Progress
 **planId**: webmail-02-outbound-delivery
 **Wave**: 1 (no dependencies)
 **Design Reference**: design-docs/specs/design-webmail-completion.md section 8 (Port, Binding adapter, REST adapter, MIME builder, Error mapping), D9, D10
@@ -299,17 +299,25 @@ never put in the error.
 
 ## Completion criteria
 
-- [ ] Port types and `readDeliveryReason` are added.
-- [ ] `delivery-error.ts` is added with tests.
-- [ ] The binding adapter makes a single builder call with
+- [x] Port types and `readDeliveryReason` are added.
+- [x] `delivery-error.ts` is added with tests.
+- [x] The binding adapter makes a single builder call with
       cc/bcc/replyTo/attachments/In-Reply-To/References and a receipt, and
       never sends a Message-ID header.
-- [ ] The REST adapter has contentId, In-Reply-To/References, replyTo and
+- [x] The REST adapter has contentId, In-Reply-To/References, replyTo and
       code mapping, and never sends a Message-ID header.
-- [ ] The MIME builder emits no Bcc and does emit Reply-To.
+- [x] The MIME builder emits no Bcc and does emit Reply-To.
 - [ ] All verification passes, with exit codes logged.
 
 ## Progress Log
 
-### Session: (not started)
-**Tasks Completed**: None
+### Session: 2026-10-07
+**Tasks Completed**: Port and fake receipt contract; provider reason classifier and tests; one-call binding adapter; REST adapter threading, Reply-To, inline content id, provider receipt and error mapping; MIME Bcc suppression and Reply-To; focused tests and Biome.
+**Verification**:
+- `bunx vitest run packages/adapter/src/mail packages/adapter/src/mime packages/application/src/usecases/auth.test.ts packages/application/src/usecases/send.test.ts` -> exit 0, 155 passed, 0 failed on the final source. Log: `tmp/webmail-completion-s299/webmail-02-outbound-delivery/logs/focused-tests-source-final.log`.
+- `bunx biome check packages/adapter/src/mail packages/adapter/src/mime packages/application/src/ports/mail-sender.ts packages/application/src/ports/mime.ts packages/application/src/test-support/runtime-fakes.ts --diagnostic-level=warn` -> exit 0. Log: `tmp/webmail-completion-s299/webmail-02-outbound-delivery/logs/biome-source-final.log`.
+- `bun run typecheck` -> exit 2. `@flying-mail/application`, `@flying-mail/adapter`, `@flying-mail/infrastructure`, and `flying-mail-api` pass. `flying-mail-web` fails at `apps/web/src/components/message-view.test.tsx:10` because `replyTo` is optional in the fixture but required by `MessageDetailView`. That file is outside this plan's write paths. Log: `tmp/webmail-completion-s299/webmail-02-outbound-delivery/logs/typecheck-source-final.log`.
+- `rg -n "setBcc" packages/adapter/src/mime` -> exit 1, expected no matches. Log: `tmp/webmail-completion-s299/webmail-02-outbound-delivery/logs/bcc-search-source-final.log`.
+- Earlier attempts: focused tests attempt 1 and 2 exited 1 on the Reply-To implementation, attempt 3 exited 1 on its test expectation; final source passed on attempt 4. Initial Biome check exited 1 on formatting only; the declared changed files were formatted before final Biome passed. Initial root typecheck exited 2 with adapter diagnostics that were corrected; final root typecheck has only the web fixture mismatch above.
+**SHA-256 edit evidence**: pre-edit snapshots and per-edit intentions are in `tmp/webmail-completion-s299/webmail-02-outbound-delivery/edit-intent-*.json`. Final source hashes: `packages/application/src/ports/mail-sender.ts` `2d9552dda93223055e9dc7c3412fd8e51adb45a19f9117b24386e97433d07974`; `packages/application/src/ports/mime.ts` `6e0c7d93b2d0812a1d7bb08b2cb96a6ee820f23354e480cfbc3c39747c9aeee9`; `packages/application/src/test-support/runtime-fakes.ts` `f66a3de604cb77b85d67f8dd800cdcc4fbf094716627714b993fa4efa9439ac0`; `packages/adapter/src/mail/delivery-error.ts` `318f8688c7cfe6d3463009be550a2920e0076c6fde56c4688528ae089f9726cb`; `packages/adapter/src/mail/delivery-error.test.ts` `e13d5ae0236fc65f3d0d8e0a90cbd20c392a76a8599ddd4931df91a3dd81839b`; `packages/adapter/src/mail/cloudflare-email.ts` `3517fed6fa3c11cdd4fdd0f8779df13da0cbd76c22fd9ddfd2d7142e2e2ce3d1`; `packages/adapter/src/mail/cloudflare-email.test.ts` `a117a9edb607429be774360eda1b30e87c5828236b47df1e2647149fdeaca5ac`; `packages/adapter/src/mail/cloudflare-email-api.ts` `8eea7294ef9a330aae84e84314b44844ec641767d1212f71dbdccf8a4b78c10e`; `packages/adapter/src/mail/cloudflare-email-api.test.ts` `6ad371666073f14abb8fff81e4885b27b4556b0e13587e10adbc790ce90e5a0e`; `packages/adapter/src/mime/mime-builder.ts` `428041bf499f6ea36453a374260a5b1524f17bc9d1fbc169d36d2ddc043ada84`; `packages/adapter/src/mime/mime-builder.test.ts` `ac5a70df0ce301c4b897949a8e22e9f9b1854e6fe4e7db742ade725ac1624b41`.
+**Blocked completion criterion**: Root `bun run typecheck` remains required by this plan but needs a correction in `apps/web/src/components/message-view.test.tsx`, outside the declared write paths. Resume after the owning web plan updates the fixture or serial reconciliation authorizes the corresponding write.

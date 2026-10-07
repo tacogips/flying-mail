@@ -1,6 +1,6 @@
 # Webmail 04: Attachment REST Response and Mail Limits
 
-**Status**: Ready
+**Status**: In Progress
 **planId**: webmail-04-rest-attachments-limits
 **Wave**: 1 (no dependencies)
 **Design Reference**: design-docs/specs/design-webmail-completion.md section 4 (REST adjustments), section 3 (MailLimits)
@@ -115,12 +115,18 @@ Cases:
 
 ## Completion criteria
 
-- [ ] `mail-limits.ts` exists and is used by `attachments.ts`.
-- [ ] The 413 body carries `code` and `maxBytes`.
-- [ ] RFC 5987 and the content-type behavior are pinned by tests.
+- [x] `mail-limits.ts` exists and is used by `attachments.ts`.
+- [x] The 413 body carries `code` and `maxBytes`.
+- [x] RFC 5987 and the content-type behavior are pinned by tests.
 - [ ] Verification passes, with exit codes logged.
 
 ## Progress Log
 
-### Session: (not started)
-**Tasks Completed**: None
+### Session: 2026-10-07
+**Tasks Completed**: Shared upload limit module, structured 413 bodies, route tests for oversize uploads and safe attachment downloads.
+**Verification**:
+- `bunx vitest run packages/infrastructure/src/http packages/application/src/usecases/mail-limits.test.ts` -> exit 0; 3 test files, 51 tests passed. Current-source rerun log: `tmp/webmail-completion-s299/webmail-04-rest-attachments-limits/agent-check-vitest.log`.
+- `bunx biome check packages/infrastructure/src/http packages/application/src/usecases/mail-limits.ts packages/application/src/usecases/mail-limits.test.ts --diagnostic-level=warn` -> exit 0, no diagnostics. Current-source rerun log: `tmp/webmail-completion-s299/webmail-04-rest-attachments-limits/agent-check-biome.log`.
+- `bun run typecheck` -> exit 2; current-source rerun reports only `apps/web/src/components/message-view.test.tsx:10` missing required `replyTo`, outside this plan's writePaths. Application, adapter, infrastructure and API typechecks exited 0. Log: `tmp/webmail-completion-s299/webmail-04-rest-attachments-limits/agent-check-typecheck.log`. Earlier same-turn errors in application/adapter are preserved at `tmp/webmail-completion-s299/webmail-04-rest-attachments-limits/final-typecheck.log`; the webmail-11 owner must resolve the remaining web type error and rerun the root check. No out-of-scope edits made.
+- Source SHA-256 before -> after edits: `packages/infrastructure/src/http/attachments.ts` `dacc0b599ec3fee2bcc10d00b8548120e01af4487929fc59bd74ec0e1652944c` -> `0facdee61d5c7e5d01fc82e40372319a53b5a79b99ede4ffb898dbb05492b083`; `packages/application/src/usecases/mail-limits.ts` new `f955adf0d35a30c368ccb11b5637325bcae402df48779a4f16a29ca03f6ef09f`; `packages/application/src/usecases/mail-limits.test.ts` new `5b5e788a5184cf09996d4474691b44cbbfb605ceea42edb3a395419dd7e6a413`; `packages/infrastructure/src/http/attachments.test.ts` new `b61022717580cd7f4765b0f90d27322be574430bfdfbea23b529c55bf960f866`.
+- Plan SHA-256 before first progress update: `47a7a8b612ee50408e1db843ab418131de2d095ab7c6bd9b55efbd440eb767ab`; after that update: `1c5b4035975a3da297aab951f12c3ba3c06682308c636e24361922de8ecab1f5`. Later plan-edit hash transitions are recorded in `tmp/webmail-completion-s299/webmail-04-rest-attachments-limits/plan-hash-transition.txt` and the final hash in `final-source-sha256.txt`.

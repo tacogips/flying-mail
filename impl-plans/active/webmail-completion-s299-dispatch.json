@@ -4,7 +4,7 @@
   "implementationBranch": "main",
   "baseBranch": "main",
   "remote": "origin",
-  "originalHead": "ab74b60f23545b890d650a10b7634c1dccb47d32",
+  "originalHead": "8815b099c2b78623221bb1ae00cc0a130f96a005",
   "designDocPaths": [
     "design-docs/specs/design-webmail-completion.md",
     "design-docs/user-qa/pending-webmail-completion.md",
@@ -13,7 +13,7 @@
   ],
   "evidenceRoot": "tmp/webmail-completion-s299",
   "reviewContext": {
-    "issueReference": "workflowInput:opus-luna-design-and-implement-review-loop-session-297/comm-004763 (no GitHub issue URL or number supplied); design review step3, plan review step4 comm-004784 and comm-004786, plan review step5 comm-004787 (accepted, no findings)",
+    "issueReference": "workflowInput:opus-luna-design-and-implement-review-loop-session-297/comm-004763, resumed in opus-luna-design-and-implement-review-loop-session-302 (no GitHub issue URL or number supplied); design review step3, plan review step4 comm-004784 and comm-004786, plan review step5 comm-004787 (accepted, no findings), wave-1 resume plan review step5 comm-004803 (accepted, two low residual findings)",
     "userProblem": "flying-mail must become a production-ready multi-domain webmail: one account sends and receives for several managed domains (tacoserve.online, mutvar-test.online) from one unified UI, with compose (From/To/Cc/Bcc, rich HTML plus plain-text alternative, multiple attachments), reply/reply-all/forward with original attachments, drafts with autosave/reopen/discard, sandboxed HTML receive, correct outbound delivery, and every operation available through GraphQL (REST only for binary upload/download).",
     "requiredOutcomes": [
       "Compose supports From (any sendable address on any managed domain), To, Cc, Bcc, Subject, rich HTML body with plain-text alternative, and multiple file attachments with remove-before-send.",
@@ -94,7 +94,8 @@
     "knownDocumentationNotes": [
       "design-docs/specs/design-mail-pipeline.md and design-docs/specs/design-web-client.md carry 2026-10-07 webmail pointer sections but their uncommitted diffs are entangled with the uncommitted rename, so they are not part of this checkpoint commit; design-webmail-completion.md is authoritative and wins on conflict (its section header states this).",
       "The design-mail-pipeline.md Outbound pointer still lists a Message-ID header; this is superseded by design-webmail-completion.md section 8 and D9 (Message-ID is never sent as a binding or REST header).",
-      "design-docs/user-qa/pending-webmail-completion.md item 2.1 is stale but answered later in the same file."
+      "design-docs/user-qa/pending-webmail-completion.md item 2.1 is stale but answered later in the same file.",
+      "impl-plans/README.md (webmail wave table) and impl-plans/PROGRESS.json (webmail phase 12-15 entries) were reviewed in comm-004803 but their uncommitted diffs also carry the uncommitted rename-flying-mail index entries, so they stay out of the checkpoint commit; PROGRESS.json drift from the plan files (webmail-01..05 still Ready/Not Started) is expected and resolved by serial reconciliation after each wave joins."
     ],
     "residualRisks": [
       "Wave 3: webmail-11 and webmail-12 both touch apps/web only if webmail-12 must fix schema-types.ts drift; mitigated by sha256 re-read/merge, conditional web typecheck, and webmail-13 final gates.",
@@ -123,7 +124,8 @@
       "impl-plans/active/webmail-11-web-mailbox-ui.md",
       "impl-plans/active/webmail-12-graphql-compose-api.md",
       "impl-plans/active/webmail-13-docs-and-final-verification.md"
-    ]
+    ],
+    "wave1Resume": "Wave-1 resume (orchestrator, 2026-10-07): webmail-01..05 code from session 299 is present uncommitted in the working tree and must be continued, not overwritten. The orchestrator applied the two serial-reconciliation fixes: (1) packages/adapter/src/migrations/runner.test.ts now expects 0013_webmail_completion.sql (owned by webmail-01); (2) apps/web/src/components/message-view.test.tsx fixture now sets replyTo, forwardedFromMessageId, inReplyTo to null (sharedPath of webmail-05; webmail-11 re-reads and merges later). After the fixes: bun run typecheck exit 0, bunx vitest run packages/adapter/src/migrations exit 0 (32 passed), bun run --cwd apps/web test exit 0 (208 passed). Wave-1 workers must re-run their recorded verification commands, record fresh evidence (new fingerprints), tick remaining checkboxes, and change source only if a rerun fails."
   },
   "plans": [
     {
@@ -144,7 +146,8 @@
         "packages/adapter/src/repositories/message-repository-webmail.ts",
         "packages/adapter/src/repositories/message-repository-webmail.test.ts",
         "packages/adapter/src/migrations/webmail-completion-migration.test.ts",
-        "impl-plans/active/webmail-01-data-layer.md"
+        "impl-plans/active/webmail-01-data-layer.md",
+        "packages/adapter/src/migrations/runner.test.ts"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [],
@@ -266,8 +269,15 @@
         "apps/web/src/components/compose-host.tsx",
         "impl-plans/active/webmail-05-web-api-contract.md"
       ],
-      "sharedPaths": [],
-      "sharedPathNotes": [],
+      "sharedPaths": [
+        "apps/web/src/components/message-view.test.tsx"
+      ],
+      "sharedPathNotes": [
+        {
+          "path": "apps/web/src/components/message-view.test.tsx",
+          "intendedEdit": "add replyTo, forwardedFromMessageId and inReplyTo (null) to the MessageDetailView fixture only; webmail-11 keeps its later edits under re-read and merge"
+        }
+      ],
       "artifactRoots": [],
       "acceptanceCriteria": [
         "Mirror types and documents match design section 3 field names exactly.",

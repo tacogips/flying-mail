@@ -1,6 +1,6 @@
 # Webmail 01: Data Layer (migration 0013, Message fields, repository contract)
 
-**Status**: Ready
+**Status**: In Progress
 **planId**: webmail-01-data-layer
 **Wave**: 1 (no dependencies)
 **Design Reference**: design-docs/specs/design-webmail-completion.md sections 2, 4 (shared-blob rule), 6 (conditional draft ops), 9 (inbound dedup scope)
@@ -55,6 +55,7 @@ editing.
 ## Write ownership
 
 **writePaths**
+- `packages/adapter/src/migrations/runner.test.ts` (expected production migration list gains `0013_webmail_completion.sql`)
 - `apps/api/migrations/0013_webmail_completion.sql`
 - `packages/domain/src/entities/message.ts`
 - `packages/domain/src/entities/message.test.ts`
@@ -238,15 +239,25 @@ export async function deleteUnreferencedBlobs(deps: Pick<AppDependencies, "messa
 
 ## Completion criteria
 
-- [ ] Migration 0013 is added and applies cleanly in tests.
-- [ ] Message/Attachment domain changes and tests are done.
-- [ ] Port methods and `DuplicateMessageError` are added; adapter and fake
+- [x] Migration 0013 is added and applies cleanly in tests.
+- [x] Message/Attachment domain changes and tests are done.
+- [x] Port methods and `DuplicateMessageError` are added; adapter and fake
       are implemented.
-- [ ] `attachment-blobs.ts` helpers and tests are done.
+- [x] `attachment-blobs.ts` helpers and tests are done.
 - [ ] All verification commands pass, with exit codes logged.
 
 ## Progress Log
 
-### Session: (not started)
-**Tasks Completed**: None
-**Notes**: Record file hashes before/after each edit here.
+### Session: 2026-10-07
+**Tasks Completed**: Migration 0013, Message/Attachment domain fields and tests, repository port/adapter/fake contracts, shared-blob cleanup helpers, and focused regression tests.
+**Notes**:
+- The accepted D8 design stores inbound rows per (Message-ID, domain). This plan implemented the matching direction/domain unique index and scoped inbound lookup. Ingest fan-out and permission/filter wiring remain assigned to downstream plan webmail-08; this plan did not edit query or authorization SQL.
+- Edit intentions and pre-edit hashes are recorded under `tmp/webmail-completion-s299/evidence/edit-intentions-001.json` through `edit-intentions-006.json` and matching `pre-edit-hashes-*.txt`. Final hashes for all 13 source/test paths are in `post-edit-hashes-007.txt`; these pair with the before snapshots for each edit batch. The plan file pre-edit hash is `4fc262b8ee69e67a4f6a957fd334af364f17059da503fc58efbfb9902a87abf4` (`pre-edit-hashes-plan-001.txt`).
+- Verification: focused Vitest command exited 1; 620 passed / 1 failed across 621 tests. The one failure is `packages/adapter/src/migrations/runner.test.ts:100`, whose expected applied-migration list stops at 0012. This file is outside this plan's `writePaths`, so updating its expected list requires authorized scope. Complete log: `tmp/webmail-completion-s299/evidence/verification-vitest-002.log`.
+- `bun run typecheck` exited 2. `@flying-mail/application` and domain passed; failures are in out-of-scope concurrent web/outbound-adapter paths, documented in `tmp/webmail-completion-s299/evidence/verification-typecheck-002.log`.
+- Required Biome command exited 0 with no diagnostics (`verification-biome-002.log`). File-size gate exited 0: repository adapter 786 lines and fake 695 lines (`verification-line-counts-001.log`).
+- Earlier failed attempts are preserved in `verification-vitest-001.log` and `verification-typecheck-001.log`; the duplicate-error assertion and blob-test fixture errors were corrected in subsequent edits and are absent from the final focused run and application typecheck.
+- Remaining completion gate is blocked by the migration-runner test ownership gap and root typecheck failures outside this plan. Do not mark this plan complete until those authorized owners resolve the failures and the exact verification commands pass.
+
+### Session: 2026-10-07 orchestrator serial reconciliation
+`packages/adapter/src/migrations/runner.test.ts` was added to this plan's writePaths and its expected list now includes `0013_webmail_completion.sql`. Verified: `bunx vitest run packages/adapter/src/migrations` exit 0 (32 passed); `bun run typecheck` exit 0. Resume by re-running this plan's verification commands.
