@@ -536,7 +536,7 @@ Visible consequences:
 - **Branding**: user-visible names already read flying-mail. The README
   "Deployed instance" paragraph is rewritten to describe the multi-domain
   setup without claiming the instance is idle. The following stay unchanged
-  by rule: `MAILCAL_*`, `_mailcal`, `mailcal-verification=`, `mailcal-api`,
+  by rule: `MAILCAL_*` (since renamed to `FLYING_MAIL_*`, see notes.md), `_mailcal`, `mailcal-verification=`, `mailcal-api`,
   `mailcal-db`, `mailcal-mail`, `~/.config/mailcal`, `data/mailcal.db`,
   `data-mailcal-blocked-src`, and existing migrations.
 - **Calendar**: delete the empty `packages/adapter/src/caldav` and
@@ -664,7 +664,7 @@ Cloudflare can never receive.
 - It rejects on transport failure, the same as `lookupTxt`.
 - The DoH adapter queries `type=MX`.
 
-**`MAILCAL_INBOUND_MX_SUFFIX`**
+**`FLYING_MAIL_INBOUND_MX_SUFFIX`**
 - Deployment config. Default `mx.cloudflare.net`. An empty string disables
   the gate, for deployments that feed inbound some other way.
 - Resolved in `composition/config.ts` and exposed to use cases as

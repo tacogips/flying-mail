@@ -44,22 +44,22 @@ not_found_handling = "single-page-application"
 # into the bundle.
 
 [vars]
-MAILCAL_PUBLIC_ORIGIN = "https://mailcal-api.<account>.workers.dev"
-# MAILCAL_MAIL_FROM = "postmaster@example.com"
+FLYING_MAIL_PUBLIC_ORIGIN = "https://mailcal-api.<account>.workers.dev"
+# FLYING_MAIL_MAIL_FROM = "postmaster@example.com"
 ```
 
 ## Environment variables
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
-| `MAILCAL_PUBLIC_ORIGIN` | for login + file links | - | Absolute origin used to build login and file-link URLs. Must match the deployed hostname, or links point at the wrong host. Unset disables passwordless login rather than generating broken links; set-but-invalid fails deployment fast. |
-| `MAILCAL_MAIL_FROM` | for login mail | - | Verified sender used for system mail (login links). |
-| `MAILCAL_SIGNUP` | no | `closed` | `open` allows self-service signup. Defaults closed because this is a mail server. |
-| `MAILCAL_SPAM_THRESHOLD` | no | `0.6` | Score at or above which the `SPAM` tag is applied. |
-| `MAILCAL_FILE_LINK_MAX_TTL` | no | `604800` | Cap, in seconds, on `ttlSeconds` for file links. |
-| `MAILCAL_BLOB_BACKEND` | no | `r2` | `r2` \| `s3` \| `memory`. |
-| `MAILCAL_S3_*` | if `s3` | - | `ENDPOINT`, `BUCKET`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `REGION`. |
-| `MAILCAL_SQLITE_URL` | local only | `file:./data/mailcal.db` | libsql location for the Bun/Node server. A bare filesystem path is accepted and promoted to a `file:` URL. |
+| `FLYING_MAIL_PUBLIC_ORIGIN` | for login + file links | - | Absolute origin used to build login and file-link URLs. Must match the deployed hostname, or links point at the wrong host. Unset disables passwordless login rather than generating broken links; set-but-invalid fails deployment fast. |
+| `FLYING_MAIL_MAIL_FROM` | for login mail | - | Verified sender used for system mail (login links). |
+| `FLYING_MAIL_SIGNUP` | no | `closed` | `open` allows self-service signup. Defaults closed because this is a mail server. |
+| `FLYING_MAIL_SPAM_THRESHOLD` | no | `0.6` | Score at or above which the `SPAM` tag is applied. |
+| `FLYING_MAIL_FILE_LINK_MAX_TTL` | no | `604800` | Cap, in seconds, on `ttlSeconds` for file links. |
+| `FLYING_MAIL_BLOB_BACKEND` | no | `r2` | `r2` \| `s3` \| `memory`. |
+| `FLYING_MAIL_S3_*` | if `s3` | - | `ENDPOINT`, `BUCKET`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `REGION`. |
+| `FLYING_MAIL_SQLITE_URL` | local only | `file:./data/mailcal.db` | libsql location for the Bun/Node server. A bare filesystem path is accepted and promoted to a `file:` URL. |
 
 Secrets go through `wrangler secret put`, never into `wrangler.toml`. Local
 secret-dependent commands run under `kinko exec`.
@@ -75,7 +75,7 @@ secret-dependent commands run under `kinko exec`.
 5. Create a catch-all Email Routing rule that delivers to the `mailcal-api`
    Worker.
 6. Verify the domain for **sending** under Email Service, then set
-   `MAILCAL_MAIL_FROM`.
+   `FLYING_MAIL_MAIL_FROM`.
 7. Bootstrap the instance. A deployed Worker has no shell, and passwordless
    login needs a verified sending domain that only an authenticated admin
    can add -- so `bootstrapAdmin` returns a full-capability API key along

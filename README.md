@@ -236,9 +236,12 @@ flying-mail mail fetch --ack --watch --interval 30
 
 ## Project name compatibility
 
-The project, CLI, and workspace packages are named `flying-mail`. Existing
-`MAILCAL_*` variables, `~/.config/mailcal/config.json`, `data/mailcal.db`,
-domain verification records, and Cloudflare resource names remain supported
-under their existing names to preserve deployed instances and stored data.
+The project, CLI, and workspace packages are named `flying-mail`, and every
+configuration variable uses the `FLYING_MAIL_*` prefix. The earlier
+`MAILCAL_*` names were renamed on 2026-10-07 and are no longer read; update
+any `.env` file or Worker secret that still uses the old prefix.
+`~/.config/mailcal/config.json`, `data/mailcal.db`, domain verification
+records, and Cloudflare resource names remain under their existing names to
+preserve deployed instances and stored data.
 
 Repository: https://github.com/tacogips/flying-mail

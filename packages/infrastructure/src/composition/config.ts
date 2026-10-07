@@ -62,7 +62,7 @@ export interface BuildDependenciesConfig {
   readonly tokenHasher?: TokenHasher;
 }
 
-/** A set-but-invalid `MAILCAL_PUBLIC_ORIGIN`. Thrown rather than silently
+/** A set-but-invalid `FLYING_MAIL_PUBLIC_ORIGIN`. Thrown rather than silently
  * ignored: an operator who set the variable clearly intended login and
  * absolute file-link URLs to work, and degrading quietly would leave them
  * debugging a mail that never arrives. */
@@ -73,7 +73,7 @@ export class PublicOriginConfigurationError extends Error {
   }
 }
 
-/** A set-but-invalid `MAILCAL_CREDENTIAL_KEY`. Same reasoning as
+/** A set-but-invalid `FLYING_MAIL_CREDENTIAL_KEY`. Same reasoning as
  * {@link PublicOriginConfigurationError}: an operator who set the secret
  * meant encrypted third-party credentials to work, and quietly running
  * without encryption would be worse than refusing to start. */
@@ -99,7 +99,7 @@ type EnvLike = Record<string, string | undefined>;
  * for an unset variable -- which disables login rather than breaking it --
  * and throws for a set-but-unusable one. */
 export function resolvePublicOrigin(env: EnvLike): string | undefined {
-  const raw = env["MAILCAL_PUBLIC_ORIGIN"];
+  const raw = env["FLYING_MAIL_PUBLIC_ORIGIN"];
   if (raw === undefined || raw.trim().length === 0) {
     return undefined;
   }
@@ -108,12 +108,12 @@ export function resolvePublicOrigin(env: EnvLike): string | undefined {
     url = new URL(raw.trim());
   } catch {
     throw new PublicOriginConfigurationError(
-      "MAILCAL_PUBLIC_ORIGIN is not a valid absolute URL",
+      "FLYING_MAIL_PUBLIC_ORIGIN is not a valid absolute URL",
     );
   }
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     throw new PublicOriginConfigurationError(
-      "MAILCAL_PUBLIC_ORIGIN must use http or https",
+      "FLYING_MAIL_PUBLIC_ORIGIN must use http or https",
     );
   }
   return url.origin;
@@ -123,7 +123,7 @@ export function resolvePublicOrigin(env: EnvLike): string | undefined {
  * credential operations with a clear `SERVICE_UNAVAILABLE` -- and throws for
  * a value that is set but not a base64-encoded 32-byte key. */
 export function resolveCredentialKey(env: EnvLike): string | undefined {
-  const raw = env["MAILCAL_CREDENTIAL_KEY"];
+  const raw = env["FLYING_MAIL_CREDENTIAL_KEY"];
   if (raw === undefined || raw.trim().length === 0) {
     return undefined;
   }
@@ -133,12 +133,12 @@ export function resolveCredentialKey(env: EnvLike): string | undefined {
     decoded = atob(trimmed);
   } catch {
     throw new CredentialKeyConfigurationError(
-      "MAILCAL_CREDENTIAL_KEY must be base64-encoded",
+      "FLYING_MAIL_CREDENTIAL_KEY must be base64-encoded",
     );
   }
   if (decoded.length !== 32) {
     throw new CredentialKeyConfigurationError(
-      "MAILCAL_CREDENTIAL_KEY must decode to exactly 32 bytes",
+      "FLYING_MAIL_CREDENTIAL_KEY must decode to exactly 32 bytes",
     );
   }
   return trimmed;
@@ -147,14 +147,14 @@ export function resolveCredentialKey(env: EnvLike): string | undefined {
 export function resolveMailFrom(
   env: EnvLike,
 ): CloudflareSenderAddress | undefined {
-  const raw = env["MAILCAL_MAIL_FROM"];
+  const raw = env["FLYING_MAIL_MAIL_FROM"];
   if (raw === undefined || raw.trim().length === 0) {
     return undefined;
   }
   const parsed = parseCloudflareSenderAddress(raw.trim());
   if (parsed === null) {
     throw new MailConfigurationError(
-      "MAILCAL_MAIL_FROM is not a valid single mailbox address",
+      "FLYING_MAIL_MAIL_FROM is not a valid single mailbox address",
     );
   }
   return parsed;
@@ -169,7 +169,7 @@ export function assertMailOriginConsistency(params: {
 }): void {
   if (params.mailFrom !== undefined && params.publicOrigin === undefined) {
     throw new MailConfigurationError(
-      "MAILCAL_MAIL_FROM is set but MAILCAL_PUBLIC_ORIGIN is not; login links could not be built",
+      "FLYING_MAIL_MAIL_FROM is set but FLYING_MAIL_PUBLIC_ORIGIN is not; login links could not be built",
     );
   }
 }
@@ -177,7 +177,7 @@ export function assertMailOriginConsistency(params: {
 /** Defaults to `"closed"`. This is a mail server, not a SaaS trial: an
  * unset or unrecognized value must not leave registration open. */
 export function resolveSignupMode(env: EnvLike): SignupMode {
-  return env["MAILCAL_SIGNUP"] === "open" ? "open" : "closed";
+  return env["FLYING_MAIL_SIGNUP"] === "open" ? "open" : "closed";
 }
 
 function resolveNumber(
@@ -194,16 +194,16 @@ function resolveNumber(
 
 export function resolveSpamThreshold(env: EnvLike): number {
   return resolveNumber(
-    env["MAILCAL_SPAM_THRESHOLD"],
+    env["FLYING_MAIL_SPAM_THRESHOLD"],
     DEFAULT_SPAM_THRESHOLD,
     (value) => value >= 0 && value <= 1,
   );
 }
 
-/** `MAILCAL_SPAM_PHRASES`: comma-separated phrases that raise the spam
+/** `FLYING_MAIL_SPAM_PHRASES`: comma-separated phrases that raise the spam
  * score when matched. Blank entries are dropped. */
 export function resolveSpamPhrases(env: EnvLike): readonly string[] {
-  const raw = env["MAILCAL_SPAM_PHRASES"];
+  const raw = env["FLYING_MAIL_SPAM_PHRASES"];
   if (raw === undefined) {
     return [];
   }
@@ -215,16 +215,16 @@ export function resolveSpamPhrases(env: EnvLike): readonly string[] {
 
 export function resolveFileLinkMaxTtl(env: EnvLike): number {
   return resolveNumber(
-    env["MAILCAL_FILE_LINK_MAX_TTL"],
+    env["FLYING_MAIL_FILE_LINK_MAX_TTL"],
     DEFAULT_FILE_LINK_MAX_TTL_SECONDS,
     (value) => Number.isInteger(value) && value >= 60,
   );
 }
 
-/** `MAILCAL_INBOUND_MX_SUFFIX` defaults to Cloudflare Email Routing.
+/** `FLYING_MAIL_INBOUND_MX_SUFFIX` defaults to Cloudflare Email Routing.
  * An empty or whitespace-only value disables the activation gate. */
 export function resolveInboundMxSuffix(env: EnvLike): string | null {
-  const raw = env["MAILCAL_INBOUND_MX_SUFFIX"];
+  const raw = env["FLYING_MAIL_INBOUND_MX_SUFFIX"];
   if (raw === undefined) {
     return DEFAULT_INBOUND_MX_SUFFIX;
   }
@@ -250,32 +250,32 @@ export function normalizeSqliteUrl(value: string): string {
 }
 
 export function resolveBlobBackend(env: EnvLike): BlobBackend {
-  const raw = env["MAILCAL_BLOB_BACKEND"];
+  const raw = env["FLYING_MAIL_BLOB_BACKEND"];
   return raw === "s3" || raw === "memory" || raw === "r2" ? raw : "r2";
 }
 
 function requireS3Var(
   env: EnvLike,
   name:
-    | "MAILCAL_S3_ENDPOINT"
-    | "MAILCAL_S3_BUCKET"
-    | "MAILCAL_S3_ACCESS_KEY_ID"
-    | "MAILCAL_S3_SECRET_ACCESS_KEY",
+    | "FLYING_MAIL_S3_ENDPOINT"
+    | "FLYING_MAIL_S3_BUCKET"
+    | "FLYING_MAIL_S3_ACCESS_KEY_ID"
+    | "FLYING_MAIL_S3_SECRET_ACCESS_KEY",
 ): string {
   const value = env[name];
   if (value === undefined || value.length === 0) {
-    throw new Error(`MAILCAL_BLOB_BACKEND=s3 requires ${name} to be set`);
+    throw new Error(`FLYING_MAIL_BLOB_BACKEND=s3 requires ${name} to be set`);
   }
   return value;
 }
 
 export function resolveS3Config(env: EnvLike): S3Config {
   return {
-    endpoint: requireS3Var(env, "MAILCAL_S3_ENDPOINT"),
-    bucket: requireS3Var(env, "MAILCAL_S3_BUCKET"),
-    accessKeyId: requireS3Var(env, "MAILCAL_S3_ACCESS_KEY_ID"),
-    secretAccessKey: requireS3Var(env, "MAILCAL_S3_SECRET_ACCESS_KEY"),
-    region: env["MAILCAL_S3_REGION"] ?? DEFAULT_S3_REGION,
+    endpoint: requireS3Var(env, "FLYING_MAIL_S3_ENDPOINT"),
+    bucket: requireS3Var(env, "FLYING_MAIL_S3_BUCKET"),
+    accessKeyId: requireS3Var(env, "FLYING_MAIL_S3_ACCESS_KEY_ID"),
+    secretAccessKey: requireS3Var(env, "FLYING_MAIL_S3_SECRET_ACCESS_KEY"),
+    region: env["FLYING_MAIL_S3_REGION"] ?? DEFAULT_S3_REGION,
     forcePathStyle: true,
   };
 }
@@ -293,12 +293,12 @@ export function loadConfigFromEnv(env: EnvLike): BuildDependenciesConfig {
 
   const blobBackend = resolveBlobBackend(env);
   const localBlobBackend: BlobBackend =
-    env["MAILCAL_BLOB_BACKEND"] === undefined ? "memory" : blobBackend;
+    env["FLYING_MAIL_BLOB_BACKEND"] === undefined ? "memory" : blobBackend;
 
   return {
     sqlBackend: "sqlite",
     sqliteUrl: normalizeSqliteUrl(
-      env["MAILCAL_SQLITE_URL"] ?? DEFAULT_SQLITE_URL,
+      env["FLYING_MAIL_SQLITE_URL"] ?? DEFAULT_SQLITE_URL,
     ),
     blobBackend: localBlobBackend,
     ...(localBlobBackend === "s3" ? { s3: resolveS3Config(env) } : {}),
@@ -331,11 +331,11 @@ function optionalEnv(
 export function resolveEmailSendingAccountId(
   env: Record<string, string | undefined>,
 ): string | undefined {
-  return optionalEnv(env, "MAILCAL_EMAIL_SENDING_ACCOUNT_ID");
+  return optionalEnv(env, "FLYING_MAIL_EMAIL_SENDING_ACCOUNT_ID");
 }
 
 export function resolveEmailSendingToken(
   env: Record<string, string | undefined>,
 ): string | undefined {
-  return optionalEnv(env, "MAILCAL_EMAIL_SENDING_TOKEN");
+  return optionalEnv(env, "FLYING_MAIL_EMAIL_SENDING_TOKEN");
 }

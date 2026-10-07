@@ -11,7 +11,7 @@ export interface CliConfig {
 export function configFilePath(
   env: Record<string, string | undefined>,
 ): string {
-  const override = env["MAILCAL_CONFIG"];
+  const override = env["FLYING_MAIL_CONFIG"];
   if (override !== undefined && override.length > 0) {
     return override;
   }
@@ -68,12 +68,12 @@ export async function resolveConfig(
   return {
     endpoint:
       flagString(args, "endpoint") ??
-      env["MAILCAL_ENDPOINT"] ??
+      env["FLYING_MAIL_ENDPOINT"] ??
       file.endpoint ??
       null,
     apiKey:
       flagString(args, "api-key") ??
-      env["MAILCAL_API_KEY"] ??
+      env["FLYING_MAIL_API_KEY"] ??
       file.apiKey ??
       null,
   };

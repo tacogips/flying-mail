@@ -45,24 +45,24 @@ export interface Env {
   readonly BLOB: R2BucketLike;
   readonly ASSETS: FetcherLike;
   readonly EMAIL: CloudflareSendEmailBinding;
-  readonly MAILCAL_PUBLIC_ORIGIN?: string;
-  readonly MAILCAL_MAIL_FROM?: string;
+  readonly FLYING_MAIL_PUBLIC_ORIGIN?: string;
+  readonly FLYING_MAIL_MAIL_FROM?: string;
   /** Cloudflare Email Sending credentials. Set both to send to arbitrary
    * recipients instead of only the account's verified destinations. Keep
    * the token a Worker *secret*, never a plaintext var. */
-  readonly MAILCAL_EMAIL_SENDING_ACCOUNT_ID?: string;
-  readonly MAILCAL_EMAIL_SENDING_TOKEN?: string;
-  readonly MAILCAL_SIGNUP?: string;
-  readonly MAILCAL_SPAM_THRESHOLD?: string;
-  readonly MAILCAL_SPAM_PHRASES?: string;
-  readonly MAILCAL_FILE_LINK_MAX_TTL?: string;
-  readonly MAILCAL_INBOUND_MX_SUFFIX?: string;
-  readonly MAILCAL_BLOB_BACKEND?: string;
-  readonly MAILCAL_S3_ENDPOINT?: string;
-  readonly MAILCAL_S3_BUCKET?: string;
-  readonly MAILCAL_S3_ACCESS_KEY_ID?: string;
-  readonly MAILCAL_S3_SECRET_ACCESS_KEY?: string;
-  readonly MAILCAL_S3_REGION?: string;
+  readonly FLYING_MAIL_EMAIL_SENDING_ACCOUNT_ID?: string;
+  readonly FLYING_MAIL_EMAIL_SENDING_TOKEN?: string;
+  readonly FLYING_MAIL_SIGNUP?: string;
+  readonly FLYING_MAIL_SPAM_THRESHOLD?: string;
+  readonly FLYING_MAIL_SPAM_PHRASES?: string;
+  readonly FLYING_MAIL_FILE_LINK_MAX_TTL?: string;
+  readonly FLYING_MAIL_INBOUND_MX_SUFFIX?: string;
+  readonly FLYING_MAIL_BLOB_BACKEND?: string;
+  readonly FLYING_MAIL_S3_ENDPOINT?: string;
+  readonly FLYING_MAIL_S3_BUCKET?: string;
+  readonly FLYING_MAIL_S3_ACCESS_KEY_ID?: string;
+  readonly FLYING_MAIL_S3_SECRET_ACCESS_KEY?: string;
+  readonly FLYING_MAIL_S3_REGION?: string;
 }
 
 /** Workers vars arrive on the `Env` object rather than in `process.env`, so
@@ -70,21 +70,22 @@ export interface Env {
  * string map -- are fed through this. */
 export function envToRecord(env: Env): Record<string, string | undefined> {
   return {
-    MAILCAL_PUBLIC_ORIGIN: env.MAILCAL_PUBLIC_ORIGIN,
-    MAILCAL_MAIL_FROM: env.MAILCAL_MAIL_FROM,
-    MAILCAL_EMAIL_SENDING_ACCOUNT_ID: env.MAILCAL_EMAIL_SENDING_ACCOUNT_ID,
-    MAILCAL_EMAIL_SENDING_TOKEN: env.MAILCAL_EMAIL_SENDING_TOKEN,
-    MAILCAL_SIGNUP: env.MAILCAL_SIGNUP,
-    MAILCAL_SPAM_THRESHOLD: env.MAILCAL_SPAM_THRESHOLD,
-    MAILCAL_SPAM_PHRASES: env.MAILCAL_SPAM_PHRASES,
-    MAILCAL_FILE_LINK_MAX_TTL: env.MAILCAL_FILE_LINK_MAX_TTL,
-    MAILCAL_INBOUND_MX_SUFFIX: env.MAILCAL_INBOUND_MX_SUFFIX,
-    MAILCAL_BLOB_BACKEND: env.MAILCAL_BLOB_BACKEND,
-    MAILCAL_S3_ENDPOINT: env.MAILCAL_S3_ENDPOINT,
-    MAILCAL_S3_BUCKET: env.MAILCAL_S3_BUCKET,
-    MAILCAL_S3_ACCESS_KEY_ID: env.MAILCAL_S3_ACCESS_KEY_ID,
-    MAILCAL_S3_SECRET_ACCESS_KEY: env.MAILCAL_S3_SECRET_ACCESS_KEY,
-    MAILCAL_S3_REGION: env.MAILCAL_S3_REGION,
+    FLYING_MAIL_PUBLIC_ORIGIN: env.FLYING_MAIL_PUBLIC_ORIGIN,
+    FLYING_MAIL_MAIL_FROM: env.FLYING_MAIL_MAIL_FROM,
+    FLYING_MAIL_EMAIL_SENDING_ACCOUNT_ID:
+      env.FLYING_MAIL_EMAIL_SENDING_ACCOUNT_ID,
+    FLYING_MAIL_EMAIL_SENDING_TOKEN: env.FLYING_MAIL_EMAIL_SENDING_TOKEN,
+    FLYING_MAIL_SIGNUP: env.FLYING_MAIL_SIGNUP,
+    FLYING_MAIL_SPAM_THRESHOLD: env.FLYING_MAIL_SPAM_THRESHOLD,
+    FLYING_MAIL_SPAM_PHRASES: env.FLYING_MAIL_SPAM_PHRASES,
+    FLYING_MAIL_FILE_LINK_MAX_TTL: env.FLYING_MAIL_FILE_LINK_MAX_TTL,
+    FLYING_MAIL_INBOUND_MX_SUFFIX: env.FLYING_MAIL_INBOUND_MX_SUFFIX,
+    FLYING_MAIL_BLOB_BACKEND: env.FLYING_MAIL_BLOB_BACKEND,
+    FLYING_MAIL_S3_ENDPOINT: env.FLYING_MAIL_S3_ENDPOINT,
+    FLYING_MAIL_S3_BUCKET: env.FLYING_MAIL_S3_BUCKET,
+    FLYING_MAIL_S3_ACCESS_KEY_ID: env.FLYING_MAIL_S3_ACCESS_KEY_ID,
+    FLYING_MAIL_S3_SECRET_ACCESS_KEY: env.FLYING_MAIL_S3_SECRET_ACCESS_KEY,
+    FLYING_MAIL_S3_REGION: env.FLYING_MAIL_S3_REGION,
   };
 }
 

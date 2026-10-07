@@ -179,7 +179,7 @@ describe("external mail account lifecycle", () => {
     expect(errorCodes(second)).toEqual(["CONFLICT"]);
   });
 
-  test("reports SERVICE_UNAVAILABLE with no MAILCAL_CREDENTIAL_KEY configured", async () => {
+  test("reports SERVICE_UNAVAILABLE with no FLYING_MAIL_CREDENTIAL_KEY configured", async () => {
     harness = createGraphQLHarness(
       createFakeDependencies({ now: NOW, credentialCipherAvailable: false }),
     );

@@ -72,10 +72,10 @@ describe("createCredentialCipher", () => {
       const cipher = createCredentialCipher(value);
       expect(cipher.available).toBe(false);
       await expect(cipher.encrypt("x")).rejects.toThrow(
-        /MAILCAL_CREDENTIAL_KEY/,
+        /FLYING_MAIL_CREDENTIAL_KEY/,
       );
       await expect(cipher.decrypt("v1:x")).rejects.toThrow(
-        /MAILCAL_CREDENTIAL_KEY/,
+        /FLYING_MAIL_CREDENTIAL_KEY/,
       );
     }
   });

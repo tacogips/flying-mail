@@ -157,7 +157,7 @@ async function createWorkerEnv(
         });
       },
     },
-    MAILCAL_PUBLIC_ORIGIN: "https://mail.example.com",
+    FLYING_MAIL_PUBLIC_ORIGIN: "https://mail.example.com",
     ...overrides,
   };
   for (const key of Object.keys(merged)) {
@@ -261,12 +261,14 @@ const SAMPLE_EML = [
 describe("env helpers", () => {
   test("envToRecord exposes every var the config resolvers read", () => {
     const record = envToRecord({
-      MAILCAL_PUBLIC_ORIGIN: "https://mail.example.com",
-      MAILCAL_SIGNUP: "open",
+      FLYING_MAIL_PUBLIC_ORIGIN: "https://mail.example.com",
+      FLYING_MAIL_SIGNUP: "open",
     } as Env);
-    expect(record["MAILCAL_PUBLIC_ORIGIN"]).toBe("https://mail.example.com");
-    expect(record["MAILCAL_SIGNUP"]).toBe("open");
-    expect(record["MAILCAL_MAIL_FROM"]).toBeUndefined();
+    expect(record["FLYING_MAIL_PUBLIC_ORIGIN"]).toBe(
+      "https://mail.example.com",
+    );
+    expect(record["FLYING_MAIL_SIGNUP"]).toBe("open");
+    expect(record["FLYING_MAIL_MAIL_FROM"]).toBeUndefined();
   });
 
   test("headersToMap lower-cases keys and joins repeats", () => {
@@ -296,18 +298,20 @@ describe("buildWorkerConfig", () => {
   });
 
   test("passes an empty inbound MX suffix through as a disabled gate", async () => {
-    const { env } = await createWorkerEnv({ MAILCAL_INBOUND_MX_SUFFIX: "" });
+    const { env } = await createWorkerEnv({
+      FLYING_MAIL_INBOUND_MX_SUFFIX: "",
+    });
     expect(buildWorkerConfig(env).inboundMxSuffix).toBeNull();
-    expect(envToRecord(env)["MAILCAL_INBOUND_MX_SUFFIX"]).toBe("");
+    expect(envToRecord(env)["FLYING_MAIL_INBOUND_MX_SUFFIX"]).toBe("");
   });
 
   test("selects the S3 backend when asked", async () => {
     const { env } = await createWorkerEnv({
-      MAILCAL_BLOB_BACKEND: "s3",
-      MAILCAL_S3_ENDPOINT: "https://s3.example.com",
-      MAILCAL_S3_BUCKET: "mailcal",
-      MAILCAL_S3_ACCESS_KEY_ID: "key",
-      MAILCAL_S3_SECRET_ACCESS_KEY: "secret",
+      FLYING_MAIL_BLOB_BACKEND: "s3",
+      FLYING_MAIL_S3_ENDPOINT: "https://s3.example.com",
+      FLYING_MAIL_S3_BUCKET: "mailcal",
+      FLYING_MAIL_S3_ACCESS_KEY_ID: "key",
+      FLYING_MAIL_S3_SECRET_ACCESS_KEY: "secret",
     });
     const config = buildWorkerConfig(env);
     expect(config.blobBackend).toBe("s3");
@@ -317,7 +321,7 @@ describe("buildWorkerConfig", () => {
 
   test("throws for an invalid public origin", async () => {
     const { env } = await createWorkerEnv({
-      MAILCAL_PUBLIC_ORIGIN: "not-a-url",
+      FLYING_MAIL_PUBLIC_ORIGIN: "not-a-url",
     });
     expect(() => buildWorkerConfig(env)).toThrow(
       PublicOriginConfigurationError,
@@ -326,8 +330,8 @@ describe("buildWorkerConfig", () => {
 
   test("throws for a sender configured without an origin", async () => {
     const { env } = await createWorkerEnv({
-      MAILCAL_PUBLIC_ORIGIN: undefined,
-      MAILCAL_MAIL_FROM: "postmaster@example.com",
+      FLYING_MAIL_PUBLIC_ORIGIN: undefined,
+      FLYING_MAIL_MAIL_FROM: "postmaster@example.com",
     });
     expect(() => buildWorkerConfig(env)).toThrow(MailConfigurationError);
   });
@@ -408,7 +412,7 @@ describe("worker fetch", () => {
 
   test("a construction failure is masked and not cached", async () => {
     const { env } = await createWorkerEnv({
-      MAILCAL_PUBLIC_ORIGIN: "not-a-url",
+      FLYING_MAIL_PUBLIC_ORIGIN: "not-a-url",
     });
     const firstContext = createExecutionContext();
     const response = await worker.fetch(

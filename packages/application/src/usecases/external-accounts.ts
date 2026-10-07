@@ -108,12 +108,12 @@ export interface ExternalAccountTestResult {
 }
 
 /** Every external-mail entry point starts here: without a configured
- * `MAILCAL_CREDENTIAL_KEY` there is nowhere safe to put a password, so the
+ * `FLYING_MAIL_CREDENTIAL_KEY` there is nowhere safe to put a password, so the
  * feature reports itself unavailable instead of storing plaintext. */
 export function requireCipher(deps: AppDependencies): void {
   if (!deps.credentialCipher.available) {
     throw new ServiceUnavailableError(
-      "External mail accounts are not configured on this deployment: MAILCAL_CREDENTIAL_KEY is unset",
+      "External mail accounts are not configured on this deployment: FLYING_MAIL_CREDENTIAL_KEY is unset",
     );
   }
 }

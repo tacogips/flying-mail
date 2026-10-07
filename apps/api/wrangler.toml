@@ -27,7 +27,7 @@ not_found_handling = "single-page-application"
 # and file links are returned as relative paths. A set-but-invalid value
 # fails deployment fast instead of silently degrading -- see
 # composition/config.ts's resolvePublicOrigin.
-MAILCAL_PUBLIC_ORIGIN = "https://mailcal-api.tacotest.workers.dev"
+FLYING_MAIL_PUBLIC_ORIGIN = "https://mailcal-api.tacotest.workers.dev"
 
 # The sender used for SYSTEM mail only -- the passwordless login link, which
 # has no user-chosen sender to use. Set it to one verified Cloudflare Email
@@ -38,23 +38,23 @@ MAILCAL_PUBLIC_ORIGIN = "https://mailcal-api.tacotest.workers.dev"
 # its sender was authorized for, so a multi-address, multi-domain instance
 # needs nothing configured here to send ordinary mail -- only the send_email
 # binding above.
-MAILCAL_MAIL_FROM = "flying-mail@tacoserve.online"
+FLYING_MAIL_MAIL_FROM = "flying-mail@tacoserve.online"
 
 # Self-service signup is closed by default: this is a mail server, not a SaaS
 # trial. Set to "open" only when you intend anyone to be able to register.
-MAILCAL_SIGNUP = "closed"
+FLYING_MAIL_SIGNUP = "closed"
 
 # Spam score at or above which the SPAM system tag is applied on ingest.
-MAILCAL_SPAM_THRESHOLD = "0.6"
+FLYING_MAIL_SPAM_THRESHOLD = "0.6"
 
 # Hard cap, in seconds, on a file link's requested ttlSeconds (7 days).
-MAILCAL_FILE_LINK_MAX_TTL = "604800"
-# MAILCAL_INBOUND_MX_SUFFIX defaults to "mx.cloudflare.net" when unset.
+FLYING_MAIL_FILE_LINK_MAX_TTL = "604800"
+# FLYING_MAIL_INBOUND_MX_SUFFIX defaults to "mx.cloudflare.net" when unset.
 # Set it to an empty string only when inbound mail uses another delivery path.
 
 # Shared CardDAV and external-mail credential encryption key: base64 of 32
 # random bytes, AES-256-GCM.
 # A secret, never a var -- set it out of band and never commit a value:
-#   kinko exec -- bunx wrangler secret put MAILCAL_CREDENTIAL_KEY
+#   kinko exec -- bunx wrangler secret put FLYING_MAIL_CREDENTIAL_KEY
 # Unset is a supported deployment: CardDAV and external-mail account mutations
 # then fail with SERVICE_UNAVAILABLE; mail and local contacts keep working.

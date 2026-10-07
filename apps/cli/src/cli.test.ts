@@ -122,7 +122,7 @@ describe("config", () => {
   });
 
   test("configFilePath honours the explicit override", () => {
-    expect(configFilePath({ MAILCAL_CONFIG: "/tmp/y.json" })).toBe(
+    expect(configFilePath({ FLYING_MAIL_CONFIG: "/tmp/y.json" })).toBe(
       "/tmp/y.json",
     );
   });
@@ -170,8 +170,8 @@ describe("config", () => {
       const config = await resolveConfig(
         parseArgs(["x", "--endpoint", "https://from-flag.example.com"]),
         {
-          MAILCAL_CONFIG: path,
-          MAILCAL_ENDPOINT: "https://from-env.example.com",
+          FLYING_MAIL_CONFIG: path,
+          FLYING_MAIL_ENDPOINT: "https://from-env.example.com",
         },
       );
       expect(config.endpoint).toBe("https://from-flag.example.com");
@@ -187,15 +187,15 @@ describe("config", () => {
       });
 
       const config = await resolveConfig(parseArgs(["x"]), {
-        MAILCAL_CONFIG: path,
-        MAILCAL_ENDPOINT: "https://from-env.example.com",
+        FLYING_MAIL_CONFIG: path,
+        FLYING_MAIL_ENDPOINT: "https://from-env.example.com",
       });
       expect(config.endpoint).toBe("https://from-env.example.com");
     });
 
     test("nothing configured yields nulls", async () => {
       const config = await resolveConfig(parseArgs(["x"]), {
-        MAILCAL_CONFIG: "/definitely/not/here.json",
+        FLYING_MAIL_CONFIG: "/definitely/not/here.json",
       });
       expect(config).toEqual({ endpoint: null, apiKey: null });
     });
@@ -639,7 +639,7 @@ describe("runCli", () => {
 
   test("a command with no endpoint is a usage error", async () => {
     await expect(
-      runCli(["domain", "list"], { MAILCAL_CONFIG: "/nope.json" }),
+      runCli(["domain", "list"], { FLYING_MAIL_CONFIG: "/nope.json" }),
     ).rejects.toMatchObject({ exitCode: ExitCode.UsageError });
   });
 });

@@ -61,7 +61,7 @@ mutating a link requires contact write on the local book.
 | application | ports `AddressBookRepository`, `ContactRepository`, `CarddavAccountRepository`, `CarddavClient`, `VcardCodec` (reuses `CredentialCipher`); use cases in `usecases/address-books.ts`, `usecases/contacts.ts`, `usecases/carddav.ts`, `usecases/carddav-sync.ts`; `authorizesContactCapability` in `policies/authorization.ts`; fakes in `test-support/` |
 | adapter | D1 repositories `address-book-repository.ts`, `contact-repository.ts`, `carddav-account-repository.ts`; `vcard/vcard-codec.ts` (RFC 6350 subset, 3.0 + 4.0 input, 3.0 output for iCloud); `carddav/carddav-client.ts` with shared WebDAV multistatus parsing |
 | infrastructure | `graphql/schema-contacts.graphql.ts` SDL module + `resolvers/contact-query.ts` / `contact-mutation.ts` / `contact-types.ts`; composition wiring in `build-dependencies.ts` |
-| apps/api | migration `0010_contacts.sql`; no new bindings (reuses `MAILCAL_CREDENTIAL_KEY`) |
+| apps/api | migration `0010_contacts.sql`; no new bindings (reuses `FLYING_MAIL_CREDENTIAL_KEY`) |
 | apps/web | `/contacts` route: book-filterable, cross-address merged list, contact editor dialog, CardDAV account/link management; `api/contact-documents.ts`, `api/contact-types.ts`, `store/contact-store.ts` |
 
 No near-limit file grows inline: every addition is a new
@@ -196,7 +196,7 @@ addressbook home set via `PROPFIND` well-known + `current-user-principal`),
 `listRemoteAddressBooks`, `linkRemoteAddressBook` (bind remote collection
 to a local book, creating the local book if asked), `unlinkRemoteAddressBook`,
 `disconnectCarddavAccount`. Credentials pass through `CredentialCipher`
-(AES-256-GCM under `MAILCAL_CREDENTIAL_KEY`); the entity stores ciphertext
+(AES-256-GCM under `FLYING_MAIL_CREDENTIAL_KEY`); the entity stores ciphertext
 only, and plaintext lives only inside connect/sync for one request. Unset key
 ⇒ CardDAV mutations fail `SERVICE_UNAVAILABLE`; contacts themselves keep
 working.

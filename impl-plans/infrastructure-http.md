@@ -203,8 +203,8 @@ function resolveFileLinkMaxTtl(env: Record<string, string | undefined>): number;
 function loadConfigFromEnv(env: Record<string, string | undefined>): BuildDependenciesConfig;
 ```
 
-A set-but-invalid `MAILCAL_PUBLIC_ORIGIN` throws rather than silently disabling
-login; a configured `MAILCAL_MAIL_FROM` without a resolvable origin throws too,
+A set-but-invalid `FLYING_MAIL_PUBLIC_ORIGIN` throws rather than silently disabling
+login; a configured `FLYING_MAIL_MAIL_FROM` without a resolvable origin throws too,
 because that combination mails links that cannot work.
 
 #### packages/infrastructure/src/composition/build-dependencies.ts

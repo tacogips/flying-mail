@@ -59,7 +59,7 @@ Test: `repositories.test.ts` "sending from an address establishes it".
 ### 6. Spam phrase scoring was designed but never wired (spec break)
 
 `scoreSpam` accepted a phrase list; the design names it instance config;
-nothing supplied it. Fixed: `MAILCAL_SPAM_PHRASES` (comma-separated) flows
+nothing supplied it. Fixed: `FLYING_MAIL_SPAM_PHRASES` (comma-separated) flows
 env -> composition config -> `InstanceConfig.spamPhrases` -> ingest.
 
 ### 7. Staged uploads and expired file links accumulated forever (hygiene)

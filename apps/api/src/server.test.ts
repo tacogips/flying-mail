@@ -46,10 +46,10 @@ describe("createLocalApp", () => {
 
   beforeEach(() => {
     // A throwaway in-memory database per test, so migrations run fresh.
-    process.env["MAILCAL_SQLITE_URL"] = ":memory:";
-    process.env["MAILCAL_BLOB_BACKEND"] = "memory";
-    delete process.env["MAILCAL_PUBLIC_ORIGIN"];
-    delete process.env["MAILCAL_MAIL_FROM"];
+    process.env["FLYING_MAIL_SQLITE_URL"] = ":memory:";
+    process.env["FLYING_MAIL_BLOB_BACKEND"] = "memory";
+    delete process.env["FLYING_MAIL_PUBLIC_ORIGIN"];
+    delete process.env["FLYING_MAIL_MAIL_FROM"];
   });
 
   afterEach(() => {

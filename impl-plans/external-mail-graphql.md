@@ -178,7 +178,7 @@ plumbing. `packages/infrastructure/src/graphql/schema.ts` (extend): add
 
 **Completion Criteria**:
 - [x] Operation tests via the existing graphql test-support: full CRUD happy
-      path, `SERVICE_UNAVAILABLE` with no `MAILCAL_CREDENTIAL_KEY`,
+      path, `SERVICE_UNAVAILABLE` with no `FLYING_MAIL_CREDENTIAL_KEY`,
       `CONFLICT` for a second account on one address, `FORBIDDEN` for a
       non-admin on every mutation except `fetchExternalMail`, `NOT_FOUND`
       probe-resistance on `fetchExternalMail` for an address the viewer
@@ -214,8 +214,8 @@ Wire `externalMailAccountRepository: createExternalMailAccountRepository(db)`,
 `jmapClient: createJmapClient({ fetchImpl: fetch })` into the object
 `buildDependencies` returns, reusing the already-resolved
 `credentialCipher` (no new config surface needed -- external accounts share
-`MAILCAL_CREDENTIAL_KEY` with CardDAV, per the design doc). No new
-`apps/api` secrets: the same `wrangler secret put MAILCAL_CREDENTIAL_KEY`
+`FLYING_MAIL_CREDENTIAL_KEY` with CardDAV, per the design doc). No new
+`apps/api` secrets: the same `wrangler secret put FLYING_MAIL_CREDENTIAL_KEY`
 documented for shared credentials covers this feature too, worth one line in
 whatever doc already covers that secret (do not duplicate the secret name in
 a second place).
@@ -225,7 +225,7 @@ a second place).
       boot under `bun run` (local server) selects the Node dialer -- a
       config test for each, mirroring `config.test.ts`'s existing
       backend-selection tests
-- [x] Boot without `MAILCAL_CREDENTIAL_KEY`: external mail mutations return
+- [x] Boot without `FLYING_MAIL_CREDENTIAL_KEY`: external mail mutations return
       `SERVICE_UNAVAILABLE` through the shared credential gate
 - [x] `AppDependencies` is fully constructed with no missing field
       (`tsc --noEmit` across `@flying-mail/infrastructure` passes)

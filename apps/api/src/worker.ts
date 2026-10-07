@@ -36,7 +36,7 @@ import {
 /** Builds the composition config from Workers bindings and vars.
  *
  * Throws `PublicOriginConfigurationError` / `MailConfigurationError` for a
- * set-but-invalid `MAILCAL_PUBLIC_ORIGIN`, or a `MAILCAL_MAIL_FROM` with no
+ * set-but-invalid `FLYING_MAIL_PUBLIC_ORIGIN`, or a `FLYING_MAIL_MAIL_FROM` with no
  * resolvable origin -- both deployment mistakes that would otherwise
  * silently disable passwordless login. Exported for unit testing. */
 export function buildWorkerConfig(env: Env): BuildDependenciesConfig {

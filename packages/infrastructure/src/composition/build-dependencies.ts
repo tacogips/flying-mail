@@ -196,7 +196,7 @@ export function buildDependencies(
     // Cloudflare Worker, where `new Function` is not available at all.
     templateRenderer: createEtaTemplateRenderer(),
     // CardDAV and external mail share one AES-256-GCM cipher derived from
-    // `MAILCAL_CREDENTIAL_KEY`. When the key is absent, the cipher reports
+    // `FLYING_MAIL_CREDENTIAL_KEY`. When the key is absent, the cipher reports
     // `available: false` and credential-dependent operations fail with
     // SERVICE_UNAVAILABLE while the rest of the server remains usable.
     credentialCipher: createCredentialCipher(config.credentialKey ?? null),

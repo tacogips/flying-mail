@@ -86,13 +86,13 @@ export function translateCarddavError(error: unknown): never {
 }
 
 /** Every CardDAV entry point starts here: without a configured
- * `MAILCAL_CREDENTIAL_KEY` there is nowhere safe to put the password, so the
+ * `FLYING_MAIL_CREDENTIAL_KEY` there is nowhere safe to put the password, so the
  * feature reports itself unavailable instead of storing plaintext. The rest
  * of contacts works untouched. */
 export function requireCipher(deps: AppDependencies): void {
   if (!deps.credentialCipher.available) {
     throw new ServiceUnavailableError(
-      "CardDAV is not configured on this deployment: MAILCAL_CREDENTIAL_KEY is unset",
+      "CardDAV is not configured on this deployment: FLYING_MAIL_CREDENTIAL_KEY is unset",
     );
   }
 }

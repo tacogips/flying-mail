@@ -52,8 +52,8 @@ that key.
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--endpoint <url>` | string | `$MAILCAL_ENDPOINT` or config file | Base URL of the flying-mail deployment |
-| `--api-key <key>` | string | `$MAILCAL_API_KEY` or config file | API key used for requests |
+| `--endpoint <url>` | string | `$FLYING_MAIL_ENDPOINT` or config file | Base URL of the flying-mail deployment |
+| `--api-key <key>` | string | `$FLYING_MAIL_API_KEY` or config file | API key used for requests |
 | `--json` | boolean | `false` | Emit machine-readable JSON instead of tables |
 | `--quiet` | boolean | `false` | Suppress non-essential output |
 | `--help` / `--version` | boolean | `false` | Standard |
@@ -115,9 +115,9 @@ that key.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `MAILCAL_ENDPOINT` | no | config file value | Deployment base URL |
-| `MAILCAL_API_KEY` | no | config file value | API key |
-| `MAILCAL_CONFIG` | no | `~/.config/mailcal/config.json` | Config file path |
+| `FLYING_MAIL_ENDPOINT` | no | config file value | Deployment base URL |
+| `FLYING_MAIL_API_KEY` | no | config file value | API key |
+| `FLYING_MAIL_CONFIG` | no | `~/.config/mailcal/config.json` | Config file path |
 | `NO_COLOR` | no | - | Disables ANSI color when set |
 
 The API key is read from the environment or the config file and is never

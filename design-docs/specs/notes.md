@@ -89,7 +89,22 @@ See `design-docs/references/README.md`.
 
 Use `flying-mail` for the project, CLI command, GitHub repository, local checkout,
 and `@flying-mail/*` workspace packages. Update UI branding and documentation.
-Keep existing `MAILCAL_*` configuration variables, CLI configuration directory,
+Keep the CLI configuration directory,
 SQLite filename, browser storage identifiers, and Cloudflare Worker/D1/R2 names
 compatible so a naming change does not disconnect existing data or deployment.
 No Cloudflare deployment, resource migration, commit, or push is part of this rename.
+
+## Configuration variable rename (2026-10-07)
+
+All configuration variables moved from the `MAILCAL_*` prefix to
+`FLYING_MAIL_*`, for example `FLYING_MAIL_PUBLIC_ORIGIN`,
+`FLYING_MAIL_CREDENTIAL_KEY` and `FLYING_MAIL_ENDPOINT`. There is no fallback
+to the old names.
+
+The deployed Worker's vars and secrets were re-created under the new names.
+At the time of the rename no CardDAV or external-mail credentials were
+stored, so the credential key was regenerated instead of copied.
+
+The `_mailcal` TXT label, the `mailcal-verification=` prefix, the
+`mailcal_session` cookie, and the Cloudflare Worker, D1 and R2 names are
+unchanged.

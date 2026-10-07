@@ -126,7 +126,7 @@ export interface CreateFakeDependenciesOptions {
   readonly pop3?: Parameters<typeof scriptedPop3Client>[0];
   /** Scripts the fake SMTP submission client's canned responses. */
   readonly smtp?: Parameters<typeof scriptedSmtpSubmissionClient>[0];
-  /** Set false to simulate a deployment with no MAILCAL_CREDENTIAL_KEY. */
+  /** Set false to simulate a deployment with no FLYING_MAIL_CREDENTIAL_KEY. */
   readonly credentialCipherAvailable?: boolean;
 }
 

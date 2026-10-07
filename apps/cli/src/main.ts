@@ -33,8 +33,8 @@ Commands
   config show|set             Manage local CLI configuration
 
 Global flags
-  --endpoint <url>            Deployment base URL ($MAILCAL_ENDPOINT)
-  --api-key <key>             API key ($MAILCAL_API_KEY)
+  --endpoint <url>            Deployment base URL ($FLYING_MAIL_ENDPOINT)
+  --api-key <key>             API key ($FLYING_MAIL_API_KEY)
   --json                      Machine-readable output
   --help, --version
 

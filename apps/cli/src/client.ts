@@ -21,7 +21,7 @@ interface GraphQLResponse<T> {
 export function requireEndpoint(config: CliConfig): string {
   if (config.endpoint === null || config.endpoint.length === 0) {
     throw new CliError(
-      "No endpoint configured. Pass --endpoint, set MAILCAL_ENDPOINT, or run `flying-mail config set endpoint <url>`.",
+      "No endpoint configured. Pass --endpoint, set FLYING_MAIL_ENDPOINT, or run `flying-mail config set endpoint <url>`.",
       ExitCode.UsageError,
     );
   }

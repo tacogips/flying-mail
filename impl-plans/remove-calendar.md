@@ -25,7 +25,7 @@ migration for deployed databases and verify both fresh and upgraded schemas.
 
 - Mail and the distinct `MessageEvent` audit/activity feature remain.
 - Contacts, birthdays, address books, and CardDAV remain. Consequently
-  `IsoDate`, `CredentialCipher`, `MAILCAL_CREDENTIAL_KEY`, the CardDAV client,
+  `IsoDate`, `CredentialCipher`, `FLYING_MAIL_CREDENTIAL_KEY`, the CardDAV client,
   vCard codec, and shared credential configuration remain.
 - External JMAP/POP3/SMTP accounts continue using the shared credential cipher.
 - Generic upload/download, message attachments, file links, and

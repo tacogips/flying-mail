@@ -59,7 +59,7 @@ optionally one SMTP submission config.
 | application | ports `ExternalMailAccountRepository`, `ExternalMessageStateRepository`, `JmapClient`, `Pop3Client`, `SmtpSubmissionClient`, `TcpDialer`; use cases `usecases/external-accounts.ts` (CRUD, admin-only), `usecases/external-fetch.ts` (fetch orchestration over the existing `ingestMessage`), send-path branch in `usecases/send.ts` |
 | adapter | `jmap/jmap-client.ts` (fetch-based, RFC 8620/8621 subset), `pop3/pop3-client.ts` + `smtp/smtp-client.ts` (text protocols over `TcpDialer`), `tcp/` dialers: `cloudflare-tcp-dialer.ts` (`cloudflare:sockets`) and `node-tcp-dialer.ts` (`node:net`/`node:tls`, used by Bun/tests), D1 repositories |
 | infrastructure | `graphql/schema-external-mail.graphql.ts` + `resolvers/external-mail.ts`; composition picks the dialer per runtime in `build-dependencies.ts` |
-| apps/api | migration `0011_external_mail.sql`; reuses `MAILCAL_CREDENTIAL_KEY` for all external credentials |
+| apps/api | migration `0011_external_mail.sql`; reuses `FLYING_MAIL_CREDENTIAL_KEY` for all external credentials |
 | apps/web | none in v1 (admin GraphQL/agent surface first; settings UI is a follow-up) |
 
 ## Domain model
@@ -96,7 +96,7 @@ only, because STARTTLS-on-110 downgrade is exactly the attack a hostile
 network wants; SMTP `port`/`security` must agree (465⇒IMPLICIT_TLS,
 587⇒STARTTLS); all credentials are ciphertext-only in the entity and use the
 shared `CredentialCipher` also used by CardDAV (unset
-`MAILCAL_CREDENTIAL_KEY` ⇒ external-account mutations fail
+`FLYING_MAIL_CREDENTIAL_KEY` ⇒ external-account mutations fail
 `SERVICE_UNAVAILABLE`).
 
 Note the Workers platform constraint that shapes these rules: outbound

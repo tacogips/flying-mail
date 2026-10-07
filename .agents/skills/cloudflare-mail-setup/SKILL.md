@@ -27,10 +27,10 @@ The binding's recipient restriction is not a misconfiguration to work
 around — it is what the binding is for. A deployment that must mail people
 who have never clicked a Cloudflare verification link **needs Email
 Sending**. `resolveMailSender` in `composition/build-dependencies.ts`
-prefers Email Sending whenever `MAILCAL_EMAIL_SENDING_ACCOUNT_ID` and
-`MAILCAL_EMAIL_SENDING_TOKEN` are both set, and falls back to the binding.
+prefers Email Sending whenever `FLYING_MAIL_EMAIL_SENDING_ACCOUNT_ID` and
+`FLYING_MAIL_EMAIL_SENDING_TOKEN` are both set, and falls back to the binding.
 
-`MAILCAL_MAIL_FROM` gates neither. It is the sender for *system* mail
+`FLYING_MAIL_MAIL_FROM` gates neither. It is the sender for *system* mail
 (passwordless login links) only. Each user message leaves as the mailbox its
 sender was authorized for.
 
@@ -123,8 +123,8 @@ mise run mail-sending-enable <domain>
 Then publish the SPF/DKIM/DMARC records it prints, and configure flying-mail:
 
 ```bash
-wrangler secret put MAILCAL_EMAIL_SENDING_TOKEN     # never a plaintext var
-# add MAILCAL_EMAIL_SENDING_ACCOUNT_ID to [vars] in wrangler.toml
+wrangler secret put FLYING_MAIL_EMAIL_SENDING_TOKEN     # never a plaintext var
+# add FLYING_MAIL_EMAIL_SENDING_ACCOUNT_ID to [vars] in wrangler.toml
 mise run cf-deploy
 ```
 

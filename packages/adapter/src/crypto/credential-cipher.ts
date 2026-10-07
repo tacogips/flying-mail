@@ -35,11 +35,11 @@ function decodeKeyBytes(keyBase64: string): Uint8Array<ArrayBuffer> {
   try {
     bytes = fromBase64(keyBase64.trim());
   } catch {
-    throw new Error("MAILCAL_CREDENTIAL_KEY must be valid base64");
+    throw new Error("FLYING_MAIL_CREDENTIAL_KEY must be valid base64");
   }
   if (bytes.length !== KEY_LENGTH) {
     throw new Error(
-      `MAILCAL_CREDENTIAL_KEY must decode to ${KEY_LENGTH} bytes, got ${bytes.length}`,
+      `FLYING_MAIL_CREDENTIAL_KEY must decode to ${KEY_LENGTH} bytes, got ${bytes.length}`,
     );
   }
   return bytes;
@@ -50,7 +50,7 @@ function decodeKeyBytes(keyBase64: string): Uint8Array<ArrayBuffer> {
  * that a caller reasonably wrote around the await. */
 async function unavailable(): Promise<never> {
   throw new Error(
-    "credential encryption is unavailable: MAILCAL_CREDENTIAL_KEY is not configured",
+    "credential encryption is unavailable: FLYING_MAIL_CREDENTIAL_KEY is not configured",
   );
 }
 

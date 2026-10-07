@@ -26,7 +26,7 @@ This plan runs after all code plans have landed.
 - No source code changes. If verification fails because of a code
   defect, record the failing command, file and test in the Progress Log
   as a blocker for the owning plan. Do not fix it here.
-- Do not change operational names (`MAILCAL_*`, `_mailcal`,
+- Do not change operational names (`FLYING_MAIL_*`, `_mailcal`,
   `mailcal-verification=`, `mailcal-api`, `mailcal-db`, `mailcal-mail`).
 - No deploy. The only wrangler use allowed is the `--dry-run` bundle.
 

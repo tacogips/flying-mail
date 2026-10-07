@@ -248,10 +248,10 @@ their own because `./graphql/resolvers/*` already covers them.
   `vcardCodec: createVcardCodec()`; add all five to the returned
   `AppDependencies`. `credentialCipher` is **not** re-derived; the shared
   instance is reused for CardDAV credentials under the same
-  `MAILCAL_CREDENTIAL_KEY` (design doc: "reuses `CredentialCipher`").
+  `FLYING_MAIL_CREDENTIAL_KEY` (design doc: "reuses `CredentialCipher`").
 - `packages/infrastructure/src/composition/config.ts`: **no new
   configuration is expected** -- the design doc states "no new bindings
-  (reuses `MAILCAL_CREDENTIAL_KEY`)". Add a config test asserting this
+  (reuses `FLYING_MAIL_CREDENTIAL_KEY`)". Add a config test asserting this
   explicitly (boot with the existing mail config produces a working
   `carddavClient`/`vcardCodec` and shared `credentialCipher`) rather than
   skipping the task; if review turns up a case
@@ -261,9 +261,9 @@ their own because `./graphql/resolvers/*` already covers them.
   (no new secret, no new binding); verify and note in the progress log
   rather than assuming.
 **Completion Criteria**:
-- [x] Boot without `MAILCAL_CREDENTIAL_KEY`: address books and contacts
+- [x] Boot without `FLYING_MAIL_CREDENTIAL_KEY`: address books and contacts
       work, CardDAV mutations return `SERVICE_UNAVAILABLE`
-- [x] Boot with `MAILCAL_CREDENTIAL_KEY` set: CardDAV account connect/sync
+- [x] Boot with `FLYING_MAIL_CREDENTIAL_KEY` set: CardDAV account connect/sync
       works with no additional configuration
       (proves the cipher reuse) -- proven at the composition-root level by
       `credentialCipher: createCredentialCipher(config.credentialKey ??

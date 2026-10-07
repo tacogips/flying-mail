@@ -38,7 +38,7 @@ GraphQL contract in section 14.1 exactly.
 - [x] The verifyDomain MX gate covers ready, not Cloudflare, none, lookup
       failure, gate disabled, and already verified, with tests
 - [x] `MailDomain.inboundMx` resolver and SDL, with a test
-- [x] `MAILCAL_INBOUND_MX_SUFFIX` config: default, empty means disabled,
+- [x] `FLYING_MAIL_INBOUND_MX_SUFFIX` config: default, empty means disabled,
       with tests
 - [x] `bun run typecheck`, `bun run test` and biome all pass
 

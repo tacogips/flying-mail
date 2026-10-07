@@ -301,7 +301,7 @@ export interface ExternalAccountTestResult {
 
 // All admin-only: requireGlobalCapability(viewer, Capability.DomainAdmin),
 // as usecases/domains.ts. Every one calls requireCipher(deps) first:
-// unset MAILCAL_CREDENTIAL_KEY -> SERVICE_UNAVAILABLE.
+// unset FLYING_MAIL_CREDENTIAL_KEY -> SERVICE_UNAVAILABLE.
 export function createListExternalAccountsUseCase(deps: AppDependencies): (viewer: Viewer) => Promise<readonly ExternalMailAccount[]>;
 export function createCreateExternalAccountUseCase(deps: AppDependencies): (viewer: Viewer, input: CreateExternalAccountInput) => Promise<ExternalMailAccount>;
 // ConflictError if mailAddressId already has an ExternalMailAccount (unique index: one account per managed address).

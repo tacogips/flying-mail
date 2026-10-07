@@ -157,8 +157,8 @@ fi
 #                     for mailing customers.
 #   Email Sending  -- outbound to *any* recipient, no per-recipient
 #                     registration. Workers Paid. This is what a real mail
-#                     server wants; set MAILCAL_EMAIL_SENDING_ACCOUNT_ID and
-#                     MAILCAL_EMAIL_SENDING_TOKEN and flying-mail prefers it.
+#                     server wants; set FLYING_MAIL_EMAIL_SENDING_ACCOUNT_ID and
+#                     FLYING_MAIL_EMAIL_SENDING_TOKEN and flying-mail prefers it.
 #
 # `mail-status` first, then `mail-setup-receiving` or `mail-setup-sending`.
 
@@ -211,8 +211,8 @@ run = '''
 wrangler email sending enable "$usage_domain"
 echo
 echo "Publish the records below (SPF/DKIM/DMARC), then set the Worker secret:"
-echo "  wrangler secret put MAILCAL_EMAIL_SENDING_TOKEN"
-echo "and MAILCAL_EMAIL_SENDING_ACCOUNT_ID as a var, then redeploy."
+echo "  wrangler secret put FLYING_MAIL_EMAIL_SENDING_TOKEN"
+echo "and FLYING_MAIL_EMAIL_SENDING_ACCOUNT_ID as a var, then redeploy."
 wrangler email sending dns get "$usage_domain"
 '''
 
