@@ -414,3 +414,26 @@ type Mutation {
 
 `markSpam`/`markNotSpam` keep their signatures but now write/delete
 `message_spam` rows (hand marks are `USER`, score null).
+
+## Additions 2026-10-07: webmail completion
+
+See `design-webmail-completion.md` section 3 for the full delta.
+
+- `SendMessageInput` / `SaveDraftInput` gain `replyTo`,
+  `forwardedFromMessageId` and `forwardAttachmentIds`.
+  `SaveDraftInput.attachmentIds` becomes the full replacement set.
+- `Message` gains `replyTo` and `forwardedFromMessageId`.
+- `Viewer` gains `readableAddresses`.
+- New: `composeFromMessage(messageId, mode: REPLY|REPLY_ALL|FORWARD)`,
+  `mailLimits`, and `deleteDraft(id)`.
+- `deliveryError` carries a stable reason code (`SENDER_NOT_VERIFIED`,
+  `RECIPIENT_NOT_ALLOWED`, `RATE_LIMITED`, and so on).
+- `attachmentIds` accepts only staged uploads or rows already on the same
+  draft.
+- `POST /api/attachments` 413 bodies carry `code: "PAYLOAD_TOO_LARGE"` and
+  `maxBytes`.
+- The user-permission signatures above are stale. The current ones are
+  `addUserMailPermission(userId: ID!, input: UserMailPermissionInput!):
+  UserMailPermission!` and `removeUserMailPermission(id: ID!): Boolean!`.
+  The complete operation catalogue is maintained in this document as part
+  of the webmail-completion work.

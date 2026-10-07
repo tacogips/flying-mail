@@ -239,3 +239,14 @@ Expired links are swept opportunistically (once per isolate, registered with
   stored (migration 0003), so kind filters are stable even if the
   classification table later changes. It is search metadata only; the
   download routes make security decisions from the stored content type.
+
+## Shared attachment blobs (updated 2026-10-07)
+
+- Forwarding creates new `attachments` rows that share the source row's
+  `blob_key`. Migration 0013 adds `idx_attachments_blob_key`.
+- Every deletion path (purge, `deleteDraft`, removal from a draft, the
+  staged-upload sweep) deletes a blob only when no remaining row references
+  its key.
+- `attachmentIds` binding accepts only staged uploads or rows already on the
+  same draft.
+- See `design-webmail-completion.md` section 4.
