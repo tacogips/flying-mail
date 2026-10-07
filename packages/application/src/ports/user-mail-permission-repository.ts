@@ -1,8 +1,8 @@
-import type { UserMailPermission } from "@mailcal/domain/entities/user-mail-permission";
+import type { UserMailPermission } from "@flying-mail/domain/entities/user-mail-permission";
 import type {
   UserId,
   UserMailPermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 
 /** Persistence boundary for interactive-user mailbox permission rules. */
 export interface UserMailPermissionRepository {

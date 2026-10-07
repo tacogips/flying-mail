@@ -88,6 +88,7 @@ export const DEFAULT_INSTANCE_CONFIG: InstanceConfig = {
   spamThreshold: 0.6,
   spamPhrases: [],
   fileLinkMaxTtlSeconds: 604800,
+  inboundMxSuffix: "mx.cloudflare.net",
 };
 
 /** Everything a test may want to reach into after driving a use case. */

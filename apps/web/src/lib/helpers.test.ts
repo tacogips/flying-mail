@@ -1,11 +1,6 @@
 import { describe, expect, test } from "vitest";
-import type {
-  ApiKeyScopeView,
-  MailboxAddressView,
-  MessageDetailView,
-} from "../api/schema-types";
+import type { ApiKeyScopeView, MailboxAddressView } from "../api/schema-types";
 import {
-  buildReplyRecipients,
   formatMailbox,
   formatRecipients,
   shortMailbox,
@@ -18,12 +13,6 @@ import {
   viewToSearchParams,
 } from "./filter-params";
 import { describeErrors, hasCode } from "./mutation-error";
-import {
-  forwardBody,
-  forwardSubject,
-  quoteBody,
-  replySubject,
-} from "./quote-reply";
 import {
   formatAbsoluteTime,
   formatBytes,
@@ -61,124 +50,6 @@ describe("address formatting", () => {
     );
     expect(formatRecipients(many, 2)).toBe("a@x.com, b@x.com +3 more");
     expect(formatRecipients([])).toBe("");
-  });
-});
-
-describe("buildReplyRecipients", () => {
-  const from = mailbox("sender@other.com");
-  const recipients = [
-    mailbox("support@example.com", null, "ENVELOPE"),
-    mailbox("someone@other.com", null, "TO"),
-    mailbox("cc@other.com", null, "CC"),
-    mailbox("secret@other.com", null, "BCC"),
-  ];
-
-  test("a plain reply goes only to the sender", () => {
-    expect(
-      buildReplyRecipients({
-        from,
-        recipients,
-        replyAll: false,
-        selfAddress: "support@example.com",
-      }),
-    ).toEqual({ to: ["sender@other.com"], cc: [] });
-  });
-
-  test("reply-all excludes the reader's own mailbox and any Bcc", () => {
-    const result = buildReplyRecipients({
-      from,
-      recipients,
-      replyAll: true,
-      selfAddress: "support@example.com",
-    });
-    expect(result.to).toEqual(["sender@other.com"]);
-    expect(result.cc).toEqual(["someone@other.com", "cc@other.com"]);
-    expect(result.cc).not.toContain("support@example.com");
-    expect(result.cc).not.toContain("secret@other.com");
-  });
-
-  test("reply-all never duplicates the sender", () => {
-    const result = buildReplyRecipients({
-      from,
-      recipients: [...recipients, mailbox("sender@other.com", null, "TO")],
-      replyAll: true,
-      selfAddress: null,
-    });
-    expect(result.cc).not.toContain("sender@other.com");
-  });
-});
-
-describe("subjects and quoting", () => {
-  test.each([
-    ["Hello", "Re: Hello"],
-    ["Re: Hello", "Re: Hello"],
-    ["re: Hello", "re: Hello"],
-    ["  Hello  ", "Re: Hello"],
-  ])("replySubject(%j) is %j", (input, expected) => {
-    expect(replySubject(input)).toBe(expected);
-  });
-
-  test.each([
-    ["Hello", "Fwd: Hello"],
-    ["Fwd: Hello", "Fwd: Hello"],
-    ["Fw: Hello", "Fw: Hello"],
-  ])("forwardSubject(%j) is %j", (input, expected) => {
-    expect(forwardSubject(input)).toBe(expected);
-  });
-
-  test("quoteBody prefixes each line and attributes the sender", () => {
-    const message = {
-      occurredAt: "2026-08-23T00:00:00.000Z",
-      from: mailbox("a@x.com", "Alice"),
-      textBody: "line one\nline two",
-      snippet: "line one line two",
-    } as MessageDetailView;
-    const quoted = quoteBody(message);
-    expect(quoted).toContain("Alice <a@x.com> wrote:");
-    expect(quoted).toContain("> line one");
-    expect(quoted).toContain("> line two");
-  });
-
-  test("quoteBody falls back to the snippet rather than quoting markup", () => {
-    const message = {
-      occurredAt: "2026-08-23T00:00:00.000Z",
-      from: mailbox("a@x.com"),
-      textBody: null,
-      snippet: "plain preview",
-    } as MessageDetailView;
-    expect(quoteBody(message)).toContain("> plain preview");
-  });
-
-  test("forwardBody includes the original headers and body", () => {
-    const message = {
-      occurredAt: "2026-08-23T00:00:00.000Z",
-      from: mailbox("a@x.com", "Alice"),
-      subject: "Quarterly numbers",
-      recipients: [
-        mailbox("me@example.com", null, "TO"),
-        mailbox("cc@example.com", null, "CC"),
-      ],
-      textBody: "the full body",
-      snippet: "preview",
-    } as unknown as MessageDetailView;
-    const forwarded = forwardBody(message);
-    expect(forwarded).toContain("---------- Forwarded message ----------");
-    expect(forwarded).toContain("From: Alice <a@x.com>");
-    expect(forwarded).toContain("Subject: Quarterly numbers");
-    expect(forwarded).toContain("To: me@example.com, cc@example.com");
-    expect(forwarded).toContain("the full body");
-  });
-
-  test("forwardBody falls back to the snippet when there is no text body", () => {
-    const message = {
-      occurredAt: "2026-08-23T00:00:00.000Z",
-      from: mailbox("a@x.com"),
-      subject: "Hi",
-      recipients: [],
-      textBody: null,
-      snippet: "plain preview",
-    } as unknown as MessageDetailView;
-    expect(forwardBody(message)).toContain("plain preview");
   });
 });
 
@@ -279,49 +150,57 @@ describe("avatar helpers", () => {
 
 describe("mailbox views", () => {
   test("inbox and sent filter by direction", () => {
-    expect(viewToFilter({ kind: "INBOX" })).toEqual({ direction: "INBOUND" });
+    expect(viewToFilter({ folder: { kind: "INBOX" }, scope: {} })).toEqual({
+      direction: "INBOUND",
+    });
     // Sent restricts to dispatched mail so drafts do not appear there.
-    expect(viewToFilter({ kind: "SENT" })).toEqual({
+    expect(viewToFilter({ folder: { kind: "SENT" }, scope: {} })).toEqual({
       direction: "OUTBOUND",
       statuses: ["SENT"],
     });
   });
 
   test("the drafts view filters on status", () => {
-    expect(viewToFilter({ kind: "DRAFTS" })).toEqual({ statuses: ["DRAFT"] });
+    expect(viewToFilter({ folder: { kind: "DRAFTS" }, scope: {} })).toEqual({
+      statuses: ["DRAFT"],
+    });
   });
 
   test("the spam view restricts to the verdict table", () => {
-    expect(viewToFilter({ kind: "SPAM" })).toEqual({ spamOnly: true });
+    expect(viewToFilter({ folder: { kind: "SPAM" }, scope: {} })).toEqual({
+      spamOnly: true,
+    });
   });
 
   test("system tag views filter on their slug", () => {
-    expect(viewToFilter({ kind: "STARRED" })).toEqual({
+    expect(viewToFilter({ folder: { kind: "STARRED" }, scope: {} })).toEqual({
       systemSlugs: ["STARRED"],
     });
   });
 
-  test("address and tag views map to their filters", () => {
-    expect(viewToFilter({ kind: "ADDRESS", address: "a@x.com" })).toEqual({
-      toAddress: "a@x.com",
-    });
+  test("tag views map to their filters", () => {
     expect(
-      viewToFilter({ kind: "TAG", tagId: "tag-1", name: "Invoices" }),
+      viewToFilter({
+        folder: { kind: "TAG", tagId: "tag-1", name: "Invoices" },
+        scope: {},
+      }),
     ).toEqual({ tagIds: ["tag-1"] });
   });
 
   test("search spans spam too, since a reader searching wants everything", () => {
-    expect(viewToFilter({ kind: "SEARCH", query: "invoice" })).toEqual({
-      search: "invoice",
-      includeSpam: true,
-    });
+    expect(
+      viewToFilter({ folder: { kind: "SEARCH", query: "invoice" }, scope: {} }),
+    ).toEqual({ search: "invoice", includeSpam: true });
   });
 
   test("search views parse the operator syntax", () => {
     expect(
       viewToFilter({
-        kind: "SEARCH",
-        query: "from:a@x.com has:attachment kind:pdf refund",
+        folder: {
+          kind: "SEARCH",
+          query: "from:a@x.com has:attachment kind:pdf refund",
+        },
+        scope: {},
       }),
     ).toEqual({
       includeSpam: true,
@@ -333,34 +212,44 @@ describe("mailbox views", () => {
   });
 
   test.each([
-    [{ kind: "INBOX" as const }],
-    [{ kind: "SENT" as const }],
-    [{ kind: "SPAM" as const }],
-    [{ kind: "ADDRESS" as const, address: "a@x.com" }],
-    [{ kind: "TAG" as const, tagId: "tag-1", name: "Invoices" }],
-    [{ kind: "SEARCH" as const, query: "invoice" }],
+    [{ folder: { kind: "INBOX" as const }, scope: {} }],
+    [{ folder: { kind: "SENT" as const }, scope: { domainId: "d1" } }],
+    [{ folder: { kind: "SPAM" as const }, scope: { address: "a@x.com" } }],
+    [
+      {
+        folder: { kind: "TAG" as const, tagId: "tag-1", name: "Invoices" },
+        scope: { domainId: "d1", address: "a@x.com" },
+      },
+    ],
+    [{ folder: { kind: "SEARCH" as const, query: "invoice" }, scope: {} }],
   ])("round-trips %o through search params", (view) => {
     expect(searchParamsToView(viewToSearchParams(view))).toEqual(view);
   });
 
   test("an unrecognized or incomplete param set falls back to the inbox", () => {
     expect(searchParamsToView(new URLSearchParams())).toEqual({
-      kind: "INBOX",
+      folder: { kind: "INBOX" },
+      scope: {},
     });
     expect(searchParamsToView(new URLSearchParams("view=NONSENSE"))).toEqual({
-      kind: "INBOX",
+      folder: { kind: "INBOX" },
+      scope: {},
     });
     // `view=TAG` with no tag id would otherwise render an empty list.
     expect(searchParamsToView(new URLSearchParams("view=TAG"))).toEqual({
-      kind: "INBOX",
+      folder: { kind: "INBOX" },
+      scope: {},
     });
+    expect(
+      searchParamsToView(new URLSearchParams("view=ADDRESS&address=x")),
+    ).toEqual({ folder: { kind: "INBOX" }, scope: { address: "x" } });
   });
 
   test("titles are human-readable", () => {
-    expect(viewTitle({ kind: "INBOX" })).toBe("Inbox");
-    expect(viewTitle({ kind: "SEARCH", query: "invoice" })).toBe(
-      "Search: invoice",
-    );
+    expect(viewTitle({ folder: { kind: "INBOX" }, scope: {} })).toBe("Inbox");
+    expect(
+      viewTitle({ folder: { kind: "SEARCH", query: "invoice" }, scope: {} }),
+    ).toBe("Search: invoice");
   });
 });
 

@@ -1,15 +1,15 @@
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   createExternalMailAccount,
   type ExternalMailAccount,
   replaceExternalMailAccountSmtp,
-} from "@mailcal/domain/entities/external-mail-account";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/external-mail-account";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createDomainId,
   createExternalAccountId,
   createMailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createExternalMailAccountRepository } from "./external-mail-account-repository";
 import {

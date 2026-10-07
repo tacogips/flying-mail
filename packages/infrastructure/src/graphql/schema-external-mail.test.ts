@@ -6,15 +6,15 @@ import {
   seedContactFixture,
   SUPPORT_ADDRESS,
   type ContactFixture,
-} from "@mailcal/application/test-support/contact-fixtures";
-import { createFakeDependencies } from "@mailcal/application/test-support/fakes";
+} from "@flying-mail/application/test-support/contact-fixtures";
+import { createFakeDependencies } from "@flying-mail/application/test-support/fakes";
 import {
   adminViewer,
   memberViewer,
-} from "@mailcal/application/test-support/viewer-fixtures";
-import { Capability } from "@mailcal/domain/entities/api-key";
-import { verifyMailDomain } from "@mailcal/domain/entities/mail-domain";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
+} from "@flying-mail/application/test-support/viewer-fixtures";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { verifyMailDomain } from "@flying-mail/domain/entities/mail-domain";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
 import { beforeEach, describe, expect, test } from "vitest";
 import {
   createGraphQLHarness,

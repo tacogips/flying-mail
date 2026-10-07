@@ -1,6 +1,6 @@
-import type { AddressBook } from "@mailcal/domain/entities/address-book";
-import type { Contact } from "@mailcal/domain/entities/contact";
-import type { MailAddress } from "@mailcal/domain/entities/mail-address";
+import type { AddressBook } from "@flying-mail/domain/entities/address-book";
+import type { Contact } from "@flying-mail/domain/entities/contact";
+import type { MailAddress } from "@flying-mail/domain/entities/mail-address";
 import type { GraphQLContext } from "../context";
 
 /** Field resolvers for the contacts types.

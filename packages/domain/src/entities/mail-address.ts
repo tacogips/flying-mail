@@ -52,7 +52,7 @@ export interface CreateMailAddressInput {
 export const MAX_LOCAL_PART_LENGTH = 64;
 export const MAX_DISPLAY_NAME_LENGTH = 128;
 
-/** The local-part grammar mailcal accepts when *minting* an address.
+/** The local-part grammar flying-mail accepts when *minting* an address.
  *
  * Deliberately narrower than what `EmailAddress` will parse on the inbound
  * path: mail from the outside world may carry exotic-but-legal local parts

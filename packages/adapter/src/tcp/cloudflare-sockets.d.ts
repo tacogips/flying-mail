@@ -4,7 +4,7 @@
 // `@cloudflare/workers-types` package, whose globals this project's
 // `tsconfig.json` deliberately excludes (`types: ["bun"]`) so they do not
 // collide with Bun's own stream globals used by the rest of
-// `@mailcal/adapter`. Lives in its own ambient `.d.ts` file (rather than
+// `@flying-mail/adapter`. Lives in its own ambient `.d.ts` file (rather than
 // inside `cloudflare-tcp-dialer.ts` itself) because a `declare module
 // "specifier"` block inside a regular module file is treated by TypeScript
 // as an *augmentation* of an existing module, which fails to resolve since

@@ -1,12 +1,12 @@
 import {
   authorizesTemplateCapability,
   type Viewer,
-} from "@mailcal/application/policies";
+} from "@flying-mail/application/policies";
 import {
   Capability,
   TEMPLATE_CAPABILITIES,
-} from "@mailcal/domain/entities/api-key";
-import { UserRole } from "@mailcal/domain/entities/user";
+} from "@flying-mail/domain/entities/api-key";
+import { UserRole } from "@flying-mail/domain/entities/user";
 import type { GraphQLContext } from "../context";
 import { unauthenticatedError } from "../errors";
 

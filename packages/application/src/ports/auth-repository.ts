@@ -1,12 +1,12 @@
-import type { EmailAuthChallenge } from "@mailcal/domain/entities/email-auth-challenge";
-import type { Session } from "@mailcal/domain/entities/session";
-import type { User } from "@mailcal/domain/entities/user";
-import type { EmailAddress } from "@mailcal/domain/value-objects/email-address";
+import type { EmailAuthChallenge } from "@flying-mail/domain/entities/email-auth-challenge";
+import type { Session } from "@flying-mail/domain/entities/session";
+import type { User } from "@flying-mail/domain/entities/user";
+import type { EmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import type {
   EmailAuthChallengeId,
   SessionId,
   UserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 
 export interface UserRepository {
   findById(id: UserId): Promise<User | null>;

@@ -3,7 +3,7 @@ import type {
   SqlDatabase,
   SqlStatement,
   SqlValue,
-} from "@mailcal/application/ports/sql-database";
+} from "@flying-mail/application/ports/sql-database";
 
 function toInValues(params: readonly SqlValue[] | undefined): InValue[] {
   return [...(params ?? [])] as InValue[];

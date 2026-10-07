@@ -1,21 +1,24 @@
-import type { Attachment } from "@mailcal/domain/entities/attachment";
+import type { Attachment } from "@flying-mail/domain/entities/attachment";
 import {
   FetchStatus,
   type MessageFetchState,
-} from "@mailcal/domain/entities/fetch-state";
+} from "@flying-mail/domain/entities/fetch-state";
 import {
+  MailStatus,
   type Message,
   type MessageRecipient,
   RecipientKind,
-} from "@mailcal/domain/entities/message";
-import type { SpamMark } from "@mailcal/domain/entities/spam-mark";
-import { matchAddressPattern } from "@mailcal/domain/value-objects/address-pattern";
-import type { EmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/message";
+import { DuplicateMessageError } from "../ports/message-repository";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
+import type { SpamMark } from "@flying-mail/domain/entities/spam-mark";
+import { matchAddressPattern } from "@flying-mail/domain/value-objects/address-pattern";
+import type { EmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createTagId,
   type TagId,
   type ThreadId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { mailPermissionFilterAuthorizesAnyAddress } from "../policies/authorization";
 import type {
   InsertMessageInput,
@@ -346,6 +349,67 @@ export function fakeMessageRepository(
   stores: FakeMessageStores,
 ): MessageRepository {
   return {
+    async listAddressActivity(addresses) {
+      return addresses
+        .map(({ address, domainId }) => {
+          const activity: string[] = [];
+          let unreadCount = 0;
+          for (const message of stores.messages.values()) {
+            const recipients = stores.recipients.get(message.id) ?? [];
+            if (
+              message.domainId === domainId &&
+              message.direction === "OUTBOUND" &&
+              message.status !== MailStatus.Draft &&
+              message.fromAddress === address
+            ) {
+              activity.push(message.occurredAt);
+            }
+            const envelopeDelivered = recipients.some(
+              (recipient) =>
+                recipient.kind === RecipientKind.Envelope &&
+                recipient.address === address,
+            );
+            if (
+              message.domainId === domainId &&
+              message.direction === "INBOUND" &&
+              envelopeDelivered
+            ) {
+              activity.push(message.occurredAt);
+              if (
+                message.readAt === null &&
+                !stores.spamMarks.has(message.id) &&
+                !stores.messageTags.get(message.id)?.has("tag-trash")
+              ) {
+                unreadCount += 1;
+              }
+            }
+          }
+          return {
+            address,
+            domainId,
+            lastActivityAt:
+              activity.toSorted((left, right) =>
+                right.localeCompare(left),
+              )[0] ?? null,
+            unreadCount,
+          };
+        })
+        .toSorted((left, right) => {
+          if (left.lastActivityAt === null && right.lastActivityAt !== null) {
+            return 1;
+          }
+          if (left.lastActivityAt !== null && right.lastActivityAt === null) {
+            return -1;
+          }
+          if (left.lastActivityAt !== right.lastActivityAt) {
+            return (right.lastActivityAt ?? "").localeCompare(
+              left.lastActivityAt ?? "",
+            );
+          }
+          return String(left.address).localeCompare(String(right.address));
+        });
+    },
+
     async findById(id) {
       return stores.messages.get(id) ?? null;
     },
@@ -362,12 +426,94 @@ export function fakeMessageRepository(
     },
 
     async findByRfcMessageId(rfcMessageId) {
-      for (const message of stores.messages.values()) {
-        if (message.rfcMessageId === rfcMessageId) {
-          return message;
+      const matches = [...stores.messages.values()]
+        .filter((message) => message.rfcMessageId === rfcMessageId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      return matches[0] ?? null;
+    },
+
+    async findInboundByRfcMessageId(rfcMessageId, domainId) {
+      return (
+        [...stores.messages.values()].find(
+          (message) =>
+            message.direction === "INBOUND" &&
+            message.domainId === domainId &&
+            message.rfcMessageId === rfcMessageId,
+        ) ?? null
+      );
+    },
+
+    async addEnvelopeRecipient(messageId, address) {
+      const recipients = stores.recipients.get(messageId) ?? [];
+      if (
+        recipients.some(
+          (recipient) =>
+            recipient.kind === RecipientKind.Envelope &&
+            recipient.address === address,
+        )
+      ) {
+        return;
+      }
+      const position =
+        recipients
+          .filter((recipient) => recipient.kind === RecipientKind.Envelope)
+          .reduce(
+            (highest, recipient) => Math.max(highest, recipient.position),
+            -1,
+          ) + 1;
+      stores.recipients.set(messageId, [
+        ...recipients,
+        {
+          kind: RecipientKind.Envelope,
+          address: createEmailAddress(address),
+          name: null,
+          position,
+        },
+      ]);
+    },
+
+    async saveIfDraft(message) {
+      const existing = stores.messages.get(message.id);
+      if (existing?.status !== MailStatus.Draft) {
+        return false;
+      }
+      stores.messages.set(message.id, message);
+      return true;
+    },
+
+    async deleteDraftIfDraft(id) {
+      const existing = stores.messages.get(id);
+      if (existing?.status !== MailStatus.Draft) {
+        return false;
+      }
+      stores.messages.delete(id);
+      stores.recipients.delete(id);
+      stores.messageTags.delete(id);
+      stores.spamMarks.delete(id);
+      for (const [key, state] of stores.fetchStates) {
+        if (state.messageId === id) {
+          stores.fetchStates.delete(key);
         }
       }
-      return null;
+      for (const [attachmentId, attachment] of stores.attachments) {
+        if (attachment.messageId === id) {
+          stores.attachments.delete(attachmentId);
+        }
+      }
+      return true;
+    },
+
+    async countAttachmentsByBlobKeys(blobKeys) {
+      const counts = new Map<string, number>(blobKeys.map((key) => [key, 0]));
+      for (const attachment of stores.attachments.values()) {
+        if (counts.has(attachment.blobKey)) {
+          counts.set(
+            attachment.blobKey,
+            (counts.get(attachment.blobKey) ?? 0) + 1,
+          );
+        }
+      }
+      return counts;
     },
 
     async findThreadIdByReferences(references) {
@@ -417,6 +563,18 @@ export function fakeMessageRepository(
     },
 
     async insertWithRelations(input) {
+      const duplicate = [...stores.messages.values()].some(
+        (message) =>
+          input.message.rfcMessageId !== null &&
+          message.rfcMessageId === input.message.rfcMessageId &&
+          message.direction === input.message.direction &&
+          message.domainId === input.message.domainId,
+      );
+      if (duplicate) {
+        throw new DuplicateMessageError(
+          `Duplicate Message-ID ${input.message.rfcMessageId} for direction and domain`,
+        );
+      }
       stores.messages.set(input.message.id, input.message);
       stores.recipients.set(input.message.id, [...input.recipients]);
       for (const attachment of input.attachments) {
@@ -472,6 +630,12 @@ export function fakeMessageRepository(
         }
         stores.recipients.delete(id);
         stores.messageTags.delete(id);
+        stores.spamMarks.delete(id);
+        for (const [key, state] of stores.fetchStates) {
+          if (state.messageId === id) {
+            stores.fetchStates.delete(key);
+          }
+        }
         for (const [attachmentId, attachment] of stores.attachments) {
           if (attachment.messageId === id) {
             stores.attachments.delete(attachmentId);

@@ -1,12 +1,12 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   FetchStatus,
   markFetched,
   markNotFetched,
   type MessageFetchState,
-} from "@mailcal/domain/entities/fetch-state";
-import type { Message } from "@mailcal/domain/entities/message";
-import type { MessageId } from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/entities/fetch-state";
+import type { Message } from "@flying-mail/domain/entities/message";
+import type { MessageId } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { BadUserInputError } from "../errors";
 import type { Viewer } from "../policies/viewer";

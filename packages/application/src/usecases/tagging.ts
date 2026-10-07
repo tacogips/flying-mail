@@ -1,11 +1,11 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import type { Message } from "@mailcal/domain/entities/message";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import type { Message } from "@flying-mail/domain/entities/message";
 import {
   createSpamMark,
   SpamMarkedBy,
-} from "@mailcal/domain/entities/spam-mark";
-import type { Tag } from "@mailcal/domain/entities/tag";
-import type { MessageId, TagId } from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/entities/spam-mark";
+import type { Tag } from "@flying-mail/domain/entities/tag";
+import type { MessageId, TagId } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { NotFoundError } from "../errors";
 import type { Viewer } from "../policies/viewer";

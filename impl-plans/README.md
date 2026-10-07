@@ -226,3 +226,37 @@ Design reference: `design-docs/specs/design-contacts.md`.
 | [external-mail-graphql.md](external-mail-graphql.md) | Completed |
 
 Design reference: `design-docs/specs/design-external-mail.md`.
+
+- [Flying-mail rename](completed/rename-flying-mail.md) — completed project, repository, and checkout naming.
+
+## Webmail completion (phases 12-15)
+
+Design reference: `design-docs/specs/design-webmail-completion.md`
+(accepted 2026-10-07). Plans live in `impl-plans/completed/` (all completed 2026-10-07).
+
+| Wave / Phase | Plan | Depends on |
+|--------------|------|------------|
+| 1 / 12 | [webmail-01-data-layer](completed/webmail-01-data-layer.md) | - |
+| 1 / 12 | [webmail-02-outbound-delivery](completed/webmail-02-outbound-delivery.md) | - |
+| 1 / 12 | [webmail-03-web-compose-libs](completed/webmail-03-web-compose-libs.md) | - |
+| 1 / 12 | [webmail-04-rest-attachments-limits](completed/webmail-04-rest-attachments-limits.md) | - |
+| 1 / 12 | [webmail-05-web-api-contract](completed/webmail-05-web-api-contract.md) | - |
+| 2 / 13 | [webmail-06-send-drafts-forward](completed/webmail-06-send-drafts-forward.md) | 01, 02 |
+| 2 / 13 | [webmail-07-attachment-deletion](completed/webmail-07-attachment-deletion.md) | 01 |
+| 2 / 13 | [webmail-08-ingest-multi-domain](completed/webmail-08-ingest-multi-domain.md) | 01 |
+| 2 / 13 | [webmail-09-compose-prefill](completed/webmail-09-compose-prefill.md) | 01, 04 |
+| 2 / 13 | [webmail-10-web-compose-ui](completed/webmail-10-web-compose-ui.md) | 03, 05 |
+| 3 / 14 | [webmail-11-web-mailbox-ui](completed/webmail-11-web-mailbox-ui.md) | 05, 10 |
+| 3 / 14 | [webmail-12-graphql-compose-api](completed/webmail-12-graphql-compose-api.md) | 04, 05, 06, 09 |
+| 4 / 15 | [webmail-13-docs-and-final-verification](completed/webmail-13-docs-and-final-verification.md) | all of 01-12 |
+| 5 / 16 | [webmail-14-domain-rail-mx](completed/webmail-14-domain-rail-mx.md) | 11 (design section 14) |
+
+Rules for workers:
+- Each worker edits only its plan's `writePaths`/`sharedPaths` and its own
+  Progress Log.
+- Updates to `PROGRESS.json` and to this README are serial reconciliation
+  steps, done after each wave joins.
+- Workers record file hashes before and after every edit. On drift they
+  re-read and merge rather than overwrite.
+- A conflict found after a wave joins is repaired serially.
+- There are no worktrees and no private branches.

@@ -2,18 +2,18 @@ import {
   type ApiKeyScope,
   Capability,
   createApiKeyScope,
-} from "@mailcal/domain/entities/api-key";
-import { UserRole } from "@mailcal/domain/entities/user";
+} from "@flying-mail/domain/entities/api-key";
+import { UserRole } from "@flying-mail/domain/entities/user";
 import {
   createUserMailPermission,
   type UserMailPermission,
   UserPermissionEffect,
-} from "@mailcal/domain/entities/user-mail-permission";
+} from "@flying-mail/domain/entities/user-mail-permission";
 import {
   type AddressPattern,
   createAddressPattern,
   MATCH_ALL_ADDRESSES,
-} from "@mailcal/domain/value-objects/address-pattern";
+} from "@flying-mail/domain/value-objects/address-pattern";
 import {
   type ApiKeyId,
   createApiKeyId,
@@ -23,12 +23,12 @@ import {
   createUserTemplatePermissionId,
   type DomainId,
   type UserId,
-} from "@mailcal/domain/value-objects/ids";
-import type { TemplateCapability } from "@mailcal/domain/entities/api-key";
+} from "@flying-mail/domain/value-objects/ids";
+import type { TemplateCapability } from "@flying-mail/domain/entities/api-key";
 import {
   createUserTemplatePermission,
   type UserTemplatePermission,
-} from "@mailcal/domain/entities/user-template-permission";
+} from "@flying-mail/domain/entities/user-template-permission";
 import type { Viewer } from "../policies/viewer";
 
 const DEFAULT_PERMISSION_CREATED_AT = "2026-08-23T00:00:00.000Z";

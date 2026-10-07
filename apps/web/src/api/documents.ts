@@ -36,6 +36,9 @@ const MESSAGE_DETAIL_FIELDS = `
   bodyTruncated
   rfcMessageId
   rawSize
+  replyTo
+  forwardedFromMessageId
+  inReplyTo
 `;
 
 export const VIEWER_QUERY = `
@@ -45,6 +48,8 @@ export const VIEWER_QUERY = `
       apiKey { id keyPrefix }
       capabilities
       sendableAddresses
+      readableAddresses
+      addressActivity { address domainId lastActivityAt unreadCount }
     }
   }
 `;
@@ -96,6 +101,23 @@ export const DOMAINS_QUERY = `
       id
       name
       status
+      catchAll
+      verificationToken
+      verifiedAt
+      messageCount
+      dnsRecords { type name value priority purpose }
+    }
+  }
+`;
+
+/** Admin-only enrichment; kept out of the mailbox's reference-data query. */
+export const DOMAINS_ADMIN_QUERY = `
+  query AdminDomains {
+    domains {
+      id
+      name
+      status
+      inboundMx
       catchAll
       verificationToken
       verifiedAt
@@ -284,6 +306,8 @@ export const VERIFY_EMAIL_AUTH_MUTATION = `
         apiKey { id keyPrefix }
         capabilities
         sendableAddresses
+        readableAddresses
+        addressActivity { address domainId lastActivityAt unreadCount }
       }
     }
   }
@@ -298,6 +322,39 @@ export const LOGOUT_MUTATION = `
 export const SAVE_DRAFT_MUTATION = `
   mutation SaveDraft($input: SaveDraftInput!) {
     saveDraft(input: $input) { ${MESSAGE_SUMMARY_FIELDS} }
+  }
+`;
+
+export const COMPOSE_FROM_MESSAGE_QUERY = `
+  query ComposeFromMessage($messageId: ID!, $mode: ComposeMode!) {
+    composeFromMessage(messageId: $messageId, mode: $mode) {
+      from
+      to
+      cc
+      subject
+      inReplyToMessageId
+      forwardedFromMessageId
+      quotedText
+      quotedHtml
+      forwardAttachments { id fileName contentType size kind inline contentId url }
+    }
+  }
+`;
+
+export const MAIL_LIMITS_QUERY = `
+  query MailLimits {
+    mailLimits {
+      maxAttachmentBytes
+      maxOutboundTotalBytes
+      maxAttachmentsPerMessage
+      maxRecipientsPerMessage
+    }
+  }
+`;
+
+export const DELETE_DRAFT_MUTATION = `
+  mutation DeleteDraft($id: ID!) {
+    deleteDraft(id: $id)
   }
 `;
 

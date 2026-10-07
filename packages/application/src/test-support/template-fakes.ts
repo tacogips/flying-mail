@@ -1,5 +1,5 @@
-import type { MailTemplate } from "@mailcal/domain/entities/mail-template";
-import type { UserTemplatePermission } from "@mailcal/domain/entities/user-template-permission";
+import type { MailTemplate } from "@flying-mail/domain/entities/mail-template";
+import type { UserTemplatePermission } from "@flying-mail/domain/entities/user-template-permission";
 import type { MailTemplateRepository } from "../ports/mail-template-repository";
 import {
   TemplateSyntaxError,
@@ -92,7 +92,7 @@ const SIMPLE_PATH = /^it(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+$/;
  *
  * Use case tests are about authorization, validation and the send path, not
  * about template syntax -- the real grammar is exercised against the real
- * parser in `@mailcal/adapter`'s `eta-renderer.test.ts`. Keeping this fake
+ * parser in `@flying-mail/adapter`'s `eta-renderer.test.ts`. Keeping this fake
  * deliberately dumb means an application test cannot accidentally start
  * depending on parser behavior it does not control. */
 export function fakeTemplateRenderer(): TemplateRenderer {

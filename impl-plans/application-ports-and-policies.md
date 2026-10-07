@@ -11,7 +11,7 @@ design-docs/specs/design-api-keys-and-permissions.md
 ## Design Document Reference
 
 ### Summary
-`@mailcal/application`'s outward-facing contracts: infrastructure ports,
+`@flying-mail/application`'s outward-facing contracts: infrastructure ports,
 repository ports, the `AppDependencies` bundle, `ApplicationError`, the
 `Viewer` union, and the single authorization policy module every use case
 delegates to.

@@ -1,15 +1,15 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   createMailDomain,
   verifyMailDomain,
-} from "@mailcal/domain/entities/mail-domain";
+} from "@flying-mail/domain/entities/mail-domain";
 import {
   type MailTemplateContentInput,
   TemplateVariableType,
-} from "@mailcal/domain/entities/mail-template";
-import { DeliveryStatus } from "@mailcal/domain/entities/message";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
-import { createDomainId } from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/entities/mail-template";
+import { DeliveryStatus } from "@flying-mail/domain/entities/message";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
+import { createDomainId } from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { BadUserInputError, ForbiddenError } from "../errors";
 import {

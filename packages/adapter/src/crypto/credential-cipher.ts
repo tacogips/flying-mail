@@ -1,4 +1,4 @@
-import type { CredentialCipher } from "@mailcal/application/ports/credential-cipher";
+import type { CredentialCipher } from "@flying-mail/application/ports/credential-cipher";
 
 /** `v1:` + base64(12-byte IV || ciphertext+tag).
  *

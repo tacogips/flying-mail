@@ -1,176 +1,386 @@
-import { createSignal, For, type JSX, Show } from "solid-js";
-import { uploadAttachment } from "../api/graphql-client";
-import type { SendMessageVariables } from "../api/schema-types";
-import { describeErrors } from "../lib/mutation-error";
-import { pushToast } from "../lib/toast";
+import { createSignal, For, onCleanup, Show, type JSX } from "solid-js";
+import type { AttachmentView, MailLimitsView } from "../api/schema-types";
+import { createDraftSaver, type DraftSaverState } from "../lib/draft-autosave";
+import { htmlToPlainText, sanitizeComposeHtml } from "../lib/compose-html";
+import {
+  mapWithConcurrency,
+  uploadAttachmentWithProgress,
+} from "../lib/upload";
+import type {
+  ComposeAttachmentChip,
+  ComposeInitialState,
+} from "../lib/compose-types";
+import { addressDomain, addressMatchesPattern } from "../lib/domain-rail";
 import { CloseIcon, MinusIcon, PaperclipIcon, TrashIcon } from "./icons";
+import { ComposeAttachments } from "./compose-attachments";
+import { ComposeEditor, type ComposeEditorValue } from "./compose-editor";
 import "./compose-form.css";
 
-export interface ComposeDraft {
-  /** Present when editing a stored draft; Send then dispatches that draft
-   * and Save updates it in place. */
-  readonly draftId?: string;
+export interface ComposeSubmit {
+  readonly draftId: string | null;
   readonly from: string;
-  readonly to: string;
-  readonly cc: string;
-  readonly subject: string;
-  readonly text: string;
-  readonly inReplyToMessageId?: string;
-}
-
-export interface ComposeContent {
-  readonly draftId?: string;
-  readonly inReplyToMessageId?: string;
-  readonly from: string;
+  readonly replyTo: string | null;
   readonly to: readonly string[];
   readonly cc: readonly string[];
+  readonly bcc: readonly string[];
   readonly subject: string;
+  readonly html: string | null;
   readonly text: string;
+  readonly inReplyToMessageId: string | null;
+  readonly forwardedFromMessageId: string | null;
   readonly attachmentIds: readonly string[];
+  readonly forwardAttachmentIds: readonly string[];
 }
 
-interface UploadedAttachment {
-  readonly id: string;
-  readonly fileName: string;
+export type ComposeSaveResult =
+  | {
+      readonly kind: "saved";
+      readonly draftId?: string;
+      readonly attachments?: readonly AttachmentView[];
+    }
+  | { readonly kind: "conflict" }
+  | { readonly kind: "error"; readonly message: string };
+
+export interface ComposeFormProps {
+  readonly initial: ComposeInitialState;
+  readonly sendableAddresses: readonly string[];
+  readonly limits: MailLimitsView | null;
+  readonly onSend: (content: ComposeSubmit) => Promise<"sent" | "failed">;
+  readonly onSave: (content: ComposeSubmit) => Promise<ComposeSaveResult>;
+  readonly onDiscard: (draftId: string | null) => Promise<void>;
+  readonly onClose: () => void;
 }
 
-function splitAddresses(value: string): readonly string[] {
+const DEFAULT_MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const DEFAULT_MAX_TOTAL_BYTES = 5 * 1024 * 1024;
+
+export function splitAddresses(value: string): readonly string[] {
   return value
     .split(/[,;]/)
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
 }
 
-export function ComposeForm(props: {
-  readonly draft: ComposeDraft;
-  /** From the viewer's MAIL_SEND scopes, so the picker cannot offer a
-   * sender the server will reject. */
-  readonly sendableAddresses: readonly string[];
-  readonly onCancel: () => void;
-  readonly onSend: (input: SendMessageVariables) => Promise<boolean>;
-  /** Saves the current content as a draft. Returns the draft id so later
-   * saves in the same session update rather than duplicate. */
-  readonly onSaveDraft?: (content: ComposeContent) => Promise<string | null>;
-  /** Dispatches a stored draft after saving the latest edits. */
-  readonly onSendDraft?: (content: ComposeContent) => Promise<boolean>;
-}): JSX.Element {
-  const [from, setFrom] = createSignal(props.draft.from);
-  const [to, setTo] = createSignal(props.draft.to);
-  const [cc, setCc] = createSignal(props.draft.cc);
-  const [subject, setSubject] = createSignal(props.draft.subject);
-  const [text, setText] = createSignal(props.draft.text);
-  const [attachments, setAttachments] = createSignal<
-    readonly UploadedAttachment[]
-  >([]);
-  const [sending, setSending] = createSignal(false);
-  const [uploading, setUploading] = createSignal(false);
-  const [savingDraft, setSavingDraft] = createSignal(false);
-  const [draftId, setDraftId] = createSignal<string | null>(
-    props.draft.draftId ?? null,
+function sameContent(left: ComposeSubmit, right: ComposeSubmit): boolean {
+  const { draftId: _leftDraftId, ...leftContent } = left;
+  const { draftId: _rightDraftId, ...rightContent } = right;
+  return JSON.stringify(leftContent) === JSON.stringify(rightContent);
+}
+
+function makeKey(): string {
+  return crypto.randomUUID();
+}
+
+export function ComposeForm(props: ComposeFormProps): JSX.Element {
+  const initialPattern =
+    props.sendableAddresses.find(
+      (address) =>
+        address.includes("*") &&
+        addressMatchesPattern(address, props.initial.from),
+    ) ?? null;
+  const [fromChoice, setFromChoice] = createSignal(
+    props.sendableAddresses.includes(props.initial.from)
+      ? props.initial.from
+      : (initialPattern ?? props.initial.from),
   );
-  const [showCc, setShowCc] = createSignal(props.draft.cc.length > 0);
+  const [localPart, setLocalPart] = createSignal(
+    initialPattern === null || props.initial.from.includes("*")
+      ? ""
+      : (props.initial.from.split("@")[0] ?? ""),
+  );
+  const [to, setTo] = createSignal(props.initial.to.join(", "));
+  const [cc, setCc] = createSignal(props.initial.cc.join(", "));
+  const [bcc, setBcc] = createSignal(props.initial.bcc.join(", "));
+  const [subject, setSubject] = createSignal(props.initial.subject);
+  const [body, setBody] = createSignal<ComposeEditorValue>({
+    mode: props.initial.html === null ? "plain" : "html",
+    html: props.initial.html,
+    text: props.initial.text,
+  });
+  const [chips, setChips] = createSignal<readonly ComposeAttachmentChip[]>(
+    props.initial.attachments,
+  );
+  const [draftId, setDraftId] = createSignal(props.initial.draftId);
+  const [showCc, setShowCc] = createSignal(props.initial.cc.length > 0);
+  const [showBcc, setShowBcc] = createSignal(props.initial.bcc.length > 0);
+  const [sending, setSending] = createSignal(false);
   const [minimized, setMinimized] = createSignal(false);
-  let fileInputRef: HTMLInputElement | undefined;
-
-  const title = () =>
-    props.draft.inReplyToMessageId === undefined ? "New message" : "Reply";
-
-  function currentContent(): ComposeContent {
-    const id = draftId();
+  const [saverState, setSaverState] = createSignal<DraftSaverState>("idle");
+  const [sendError, setSendError] = createSignal("");
+  const [closeSaveError, setCloseSaveError] = createSignal(false);
+  let fileInput: HTMLInputElement | undefined;
+  const maxFileBytes = () =>
+    props.limits?.maxAttachmentBytes ?? DEFAULT_MAX_ATTACHMENT_BYTES;
+  const maxTotalBytes = () =>
+    props.limits?.maxOutboundTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES;
+  const selectedPattern = () =>
+    fromChoice().includes("*") ? fromChoice() : null;
+  const from = () => {
+    const pattern = selectedPattern();
+    return pattern === null
+      ? fromChoice()
+      : `${localPart()}@${pattern.split("@").at(-1) ?? ""}`;
+  };
+  const fromIsValid = () => {
+    const pattern = selectedPattern();
+    return (
+      pattern === null ||
+      (localPart().length > 0 && addressMatchesPattern(pattern, from()))
+    );
+  };
+  const addressesByDomain = () => {
+    const grouped = new Map<string, string[]>();
+    for (const address of props.sendableAddresses) {
+      const domain = addressDomain(address);
+      grouped.set(domain, [...(grouped.get(domain) ?? []), address]);
+    }
+    return Array.from(grouped, ([domain, addresses]) => ({
+      domain,
+      addresses,
+    }));
+  };
+  const totalBytes = () =>
+    chips()
+      .filter((chip) => chip.status !== "error")
+      .reduce((sum, chip) => sum + chip.size, 0);
+  const busyUploading = () =>
+    chips().some((chip) => chip.status === "uploading");
+  const recipients = () => splitAddresses(to());
+  const recipientsAreValid = () =>
+    [to(), cc(), bcc()]
+      .flatMap(splitAddresses)
+      .every((address) => /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(address));
+  const formContent = (): ComposeSubmit => {
+    const currentChips = chips();
+    const safeHtml =
+      body().mode === "html" ? sanitizeComposeHtml(body().html ?? "") : null;
     return {
-      ...(id === null ? {} : { draftId: id }),
-      ...(props.draft.inReplyToMessageId === undefined
-        ? {}
-        : { inReplyToMessageId: props.draft.inReplyToMessageId }),
+      draftId: draftId(),
       from: from(),
-      to: splitAddresses(to()),
+      replyTo: props.initial.replyTo,
+      to: recipients(),
       cc: splitAddresses(cc()),
+      bcc: splitAddresses(bcc()),
       subject: subject(),
-      text: text(),
-      attachmentIds: attachments().map((entry) => entry.id),
+      html: safeHtml,
+      text: safeHtml === null ? body().text : htmlToPlainText(safeHtml),
+      inReplyToMessageId: props.initial.inReplyToMessageId,
+      forwardedFromMessageId: props.initial.forwardedFromMessageId,
+      attachmentIds: currentChips
+        .filter((chip) => chip.status === "done" && chip.id !== null)
+        .map((chip) => chip.id as string),
+      forwardAttachmentIds: currentChips
+        .filter(
+          (chip) =>
+            chip.origin === "forward" &&
+            chip.id === null &&
+            chip.sourceAttachmentId !== undefined,
+        )
+        .map((chip) => chip.sourceAttachmentId as string),
     };
-  }
-
-  async function handleSaveDraft(): Promise<void> {
-    if (props.onSaveDraft === undefined) {
-      return;
-    }
-    setSavingDraft(true);
-    const savedId = await props.onSaveDraft(currentContent());
-    if (savedId !== null) {
-      setDraftId(savedId);
-    }
-    setSavingDraft(false);
-  }
-
-  async function handleFiles(files: FileList | null): Promise<void> {
-    if (files === null || files.length === 0) {
-      return;
-    }
-    setUploading(true);
-    for (const file of Array.from(files)) {
-      const result = await uploadAttachment(file);
-      if (!result.ok) {
-        pushToast("error", describeErrors(result.errors));
-        continue;
+  };
+  const saver = createDraftSaver<ComposeSubmit>({
+    debounceMs: 2000,
+    save: async (_content) => {
+      const content = formContent();
+      const result = await props.onSave(content);
+      if (result.kind === "saved") {
+        if (result.draftId !== undefined) setDraftId(result.draftId);
+        if (result.attachments !== undefined) {
+          setChips((current) => {
+            const claimedIds = new Set(
+              current.flatMap((chip) => (chip.id === null ? [] : [chip.id])),
+            );
+            return current.map((chip) => {
+              if (chip.origin !== "forward" || chip.id !== null) return chip;
+              const adopted = result.attachments?.find(
+                (attachment) =>
+                  !claimedIds.has(attachment.id) &&
+                  attachment.fileName === chip.fileName &&
+                  attachment.size === chip.size,
+              );
+              if (adopted !== undefined) claimedIds.add(adopted.id);
+              return adopted === undefined
+                ? chip
+                : { ...chip, id: adopted.id, status: "done" };
+            });
+          });
+        }
+        return { kind: "saved" };
       }
-      setAttachments((current) => [...current, result.data]);
-    }
-    setUploading(false);
-  }
+      return result;
+    },
+    isSame: sameContent,
+    onStateChange: setSaverState,
+  });
+  onCleanup(() => {
+    void saver.flush();
+  });
 
-  async function handleSend(event: Event): Promise<void> {
-    event.preventDefault();
-    const recipients = splitAddresses(to());
-    if (recipients.length === 0) {
-      pushToast("error", "At least one recipient is required");
-      return;
-    }
-    setSending(true);
-    if (draftId() !== null && props.onSendDraft !== undefined) {
-      const dispatched = await props.onSendDraft(currentContent());
-      setSending(false);
-      if (dispatched) {
-        props.onCancel();
+  const notifyChanged = (): void => {
+    if (!fromIsValid() || !recipientsAreValid() || sending()) return;
+    setCloseSaveError(false);
+    saver.notifyChange(formContent());
+  };
+
+  const uploadFiles = async (fileList: FileList | null): Promise<void> => {
+    if (fileList === null || fileList.length === 0) return;
+    const files = Array.from(fileList);
+    const pending = files.map((file) => ({ file, key: makeKey() }));
+    setChips((current) => [
+      ...current,
+      ...pending.map(({ file, key }) => ({
+        localKey: key,
+        id: null,
+        fileName: file.name,
+        size: file.size,
+        contentType: file.type || "application/octet-stream",
+        origin: "upload" as const,
+        status:
+          file.size > maxFileBytes()
+            ? ("error" as const)
+            : ("uploading" as const),
+        progress: 0,
+        ...(file.size > maxFileBytes()
+          ? { error: `File exceeds ${maxFileBytes()} bytes.` }
+          : {}),
+      })),
+    ]);
+    notifyChanged();
+    const accepted = pending.filter(({ file }) => file.size <= maxFileBytes());
+    await mapWithConcurrency(accepted, 3, async ({ file, key }) => {
+      const request = uploadAttachmentWithProgress(file, (loaded, total) => {
+        setChips((current) =>
+          current.map((chip) =>
+            chip.localKey === key
+              ? {
+                  ...chip,
+                  progress: total > 0 ? Math.round((loaded / total) * 100) : 0,
+                }
+              : chip,
+          ),
+        );
+      });
+      uploadRequests.set(key, request);
+      if (!chips().some((chip) => chip.localKey === key)) {
+        request.abort();
+        uploadRequests.delete(key);
+        return;
       }
-      return;
-    }
-    const ccList = splitAddresses(cc());
-    const attachmentIds = attachments().map((entry) => entry.id);
-    const sent = await props.onSend({
-      from: from(),
-      to: recipients,
-      subject: subject(),
-      text: text(),
-      ...(ccList.length > 0 ? { cc: ccList } : {}),
-      ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
-      ...(props.draft.inReplyToMessageId === undefined
-        ? {}
-        : { inReplyToMessageId: props.draft.inReplyToMessageId }),
+      const result = await request.promise;
+      if (uploadRequests.get(key) === request) uploadRequests.delete(key);
+      setChips((current) =>
+        current.map((chip) => {
+          if (chip.localKey !== key) return chip;
+          return result.ok
+            ? {
+                ...chip,
+                id: result.attachment.id,
+                fileName: result.attachment.fileName,
+                contentType: result.attachment.contentType,
+                size: result.attachment.size,
+                status: "done",
+                progress: 100,
+              }
+            : {
+                ...chip,
+                status: "error",
+                error:
+                  result.failure === "TOO_LARGE"
+                    ? `${result.message}${result.maxBytes === undefined ? "" : ` Maximum ${result.maxBytes} bytes.`}`
+                    : result.message,
+              };
+        }),
+      );
+      notifyChanged();
     });
-    setSending(false);
-    if (sent) {
-      props.onCancel();
-    }
-  }
+    notifyChanged();
+  };
 
-  function draftStatusLabel(): string {
-    if (savingDraft()) {
-      return "Saving...";
+  const uploadRequests = new Map<
+    string,
+    ReturnType<typeof uploadAttachmentWithProgress>
+  >();
+
+  const removeChip = (localKey: string): void => {
+    uploadRequests.get(localKey)?.abort();
+    uploadRequests.delete(localKey);
+    setChips((current) => current.filter((chip) => chip.localKey !== localKey));
+    notifyChanged();
+  };
+
+  const handleSend = async (event: Event): Promise<void> => {
+    event.preventDefault();
+    if (
+      sending() ||
+      recipients().length === 0 ||
+      !fromIsValid() ||
+      busyUploading() ||
+      totalBytes() > maxTotalBytes()
+    )
+      return;
+    setSending(true);
+    setSendError("");
+    await saver.cancel();
+    const result = await props.onSend(formContent());
+    if (result === "sent") {
+      saver.dispose();
+      props.onClose();
+      return;
     }
-    return draftId() !== null ? "Saved" : "Not saved";
-  }
+    setSending(false);
+    setSendError("Message could not be sent. Try again.");
+  };
+
+  const handleDiscard = async (): Promise<void> => {
+    if (!window.confirm("Discard this message?")) return;
+    await saver.cancel();
+    await props.onDiscard(draftId());
+    saver.dispose();
+  };
+
+  const handleClose = async (): Promise<void> => {
+    await saver.flush();
+    if (saver.state() === "error" || !recipientsAreValid()) {
+      setCloseSaveError(true);
+      return;
+    }
+    props.onClose();
+  };
+
+  const handleRetrySave = async (): Promise<void> => {
+    if (!recipientsAreValid()) return;
+    setCloseSaveError(false);
+    saver.notifyChange(formContent());
+    await saver.flush();
+  };
+
+  const statusLabel = (): string => {
+    switch (saverState()) {
+      case "pending":
+      case "saving":
+        return "Saving";
+      case "saved":
+        return "Saved";
+      case "conflict":
+        return "Conflict";
+      case "error":
+        return "Not saved";
+      default:
+        return draftId() === null ? "Not saved" : "Saved";
+    }
+  };
 
   return (
     <section class="compose-window">
       <div class="compose-titlebar">
-        <span class="compose-titlebar-title">{title()}</span>
+        <span class="compose-titlebar-title">{props.initial.title}</span>
         <span class="compose-titlebar-spacer" />
         <button
           type="button"
           class="icon-button compose-titlebar-button"
           aria-label="Minimize"
-          onClick={() => setMinimized((current) => !current)}
+          onClick={() => setMinimized((value) => !value)}
         >
           <MinusIcon />
         </button>
@@ -178,12 +388,11 @@ export function ComposeForm(props: {
           type="button"
           class="icon-button compose-titlebar-button"
           aria-label="Close"
-          onClick={() => props.onCancel()}
+          onClick={() => void handleClose()}
         >
           <CloseIcon />
         </button>
       </div>
-
       <Show when={!minimized()}>
         <form class="compose-form" onSubmit={(event) => void handleSend(event)}>
           <div class="compose-body">
@@ -191,40 +400,67 @@ export function ComposeForm(props: {
               <label for="compose-from" class="compose-row-label">
                 From
               </label>
-              <Show
-                when={props.sendableAddresses.length > 0}
-                fallback={
-                  <p class="muted compose-no-sender">
-                    No sender address is available to you. An administrator must
-                    add and verify a domain, and grant you a MAIL_SEND scope.
-                  </p>
-                }
+              <select
+                id="compose-from"
+                class="compose-row-input"
+                value={fromChoice()}
+                onChange={(event) => {
+                  setFromChoice(event.currentTarget.value);
+                  notifyChanged();
+                }}
               >
-                <select
-                  id="compose-from"
-                  class="compose-row-input"
-                  value={from()}
-                  onChange={(event) => setFrom(event.currentTarget.value)}
-                >
-                  <For each={props.sendableAddresses}>
-                    {(address) => <option value={address}>{address}</option>}
-                  </For>
-                </select>
-              </Show>
+                <For each={addressesByDomain()}>
+                  {(group) => (
+                    <optgroup label={group.domain}>
+                      <For each={group.addresses}>
+                        {(address) => (
+                          <option value={address}>
+                            {address.includes("*")
+                              ? `Other address on ${group.domain}`
+                              : address}
+                          </option>
+                        )}
+                      </For>
+                    </optgroup>
+                  )}
+                </For>
+              </select>
             </div>
-
+            <Show when={selectedPattern() !== null}>
+              <div class="compose-row compose-from-pattern">
+                <label for="compose-from-local" class="compose-row-label">
+                  Address
+                </label>
+                <input
+                  id="compose-from-local"
+                  class="compose-row-input"
+                  aria-label="Local part"
+                  value={localPart()}
+                  onInput={(event) => {
+                    setLocalPart(event.currentTarget.value);
+                    notifyChanged();
+                  }}
+                />
+              </div>
+              <Show when={!fromIsValid()}>
+                <p class="compose-field-error" role="alert">
+                  Enter a local part that matches the sender pattern.
+                </p>
+              </Show>
+            </Show>
             <div class="compose-row">
               <label for="compose-to" class="compose-row-label">
                 To
               </label>
               <input
                 id="compose-to"
-                type="text"
                 class="compose-row-input"
-                autocomplete="off"
-                placeholder="someone@example.com, other@example.com"
                 value={to()}
-                onInput={(event) => setTo(event.currentTarget.value)}
+                autocomplete="off"
+                onInput={(event) => {
+                  setTo(event.currentTarget.value);
+                  notifyChanged();
+                }}
               />
               <Show when={!showCc()}>
                 <button
@@ -235,8 +471,16 @@ export function ComposeForm(props: {
                   Cc
                 </button>
               </Show>
+              <Show when={!showBcc()}>
+                <button
+                  type="button"
+                  class="compose-row-toggle"
+                  onClick={() => setShowBcc(true)}
+                >
+                  Bcc
+                </button>
+              </Show>
             </div>
-
             <Show when={showCc()}>
               <div class="compose-row">
                 <label for="compose-cc" class="compose-row-label">
@@ -244,66 +488,112 @@ export function ComposeForm(props: {
                 </label>
                 <input
                   id="compose-cc"
-                  type="text"
                   class="compose-row-input"
-                  autocomplete="off"
                   value={cc()}
-                  onInput={(event) => setCc(event.currentTarget.value)}
+                  onInput={(event) => {
+                    setCc(event.currentTarget.value);
+                    notifyChanged();
+                  }}
                 />
               </div>
             </Show>
-
+            <Show when={showBcc()}>
+              <div class="compose-row">
+                <label for="compose-bcc" class="compose-row-label">
+                  Bcc
+                </label>
+                <input
+                  id="compose-bcc"
+                  class="compose-row-input"
+                  value={bcc()}
+                  onInput={(event) => {
+                    setBcc(event.currentTarget.value);
+                    notifyChanged();
+                  }}
+                />
+              </div>
+            </Show>
             <div class="compose-row">
               <label for="compose-subject" class="compose-row-label">
                 Subject
               </label>
               <input
                 id="compose-subject"
-                type="text"
                 class="compose-row-input"
                 value={subject()}
-                onInput={(event) => setSubject(event.currentTarget.value)}
+                onInput={(event) => {
+                  setSubject(event.currentTarget.value);
+                  notifyChanged();
+                }}
               />
             </div>
-
-            <textarea
-              id="compose-body"
-              class="compose-body-text"
-              aria-label="Message"
-              value={text()}
-              onInput={(event) => setText(event.currentTarget.value)}
+            <ComposeEditor
+              initialHtml={props.initial.html}
+              initialText={props.initial.text}
+              onChange={(value) => {
+                setBody(value);
+                notifyChanged();
+              }}
             />
-
-            <Show when={attachments().length > 0}>
-              <ul class="compose-attachments">
-                <For each={attachments()}>
-                  {(attachment) => (
-                    <li class="compose-attachment-chip">
-                      <PaperclipIcon size={14} />
-                      {attachment.fileName}
-                    </li>
-                  )}
-                </For>
-              </ul>
+            <ComposeAttachments
+              chips={chips()}
+              onRemove={removeChip}
+              totalBytes={totalBytes()}
+              maxTotalBytes={maxTotalBytes()}
+            />
+            <Show when={recipients().length === 0}>
+              <p class="compose-field-error" role="alert">
+                Add at least one recipient to send.
+              </p>
+            </Show>
+            <Show when={totalBytes() > maxTotalBytes()}>
+              <p class="compose-field-error" role="alert">
+                Attachments exceed the total message limit.
+              </p>
+            </Show>
+            <Show when={sendError().length > 0}>
+              <p class="compose-field-error" role="alert">
+                {sendError()}
+              </p>
+            </Show>
+            <Show when={saverState() === "conflict"}>
+              <p class="compose-field-error" role="alert">
+                This draft was sent or deleted elsewhere
+              </p>
+            </Show>
+            <Show when={saverState() === "error" || closeSaveError()}>
+              <div class="compose-field-error" role="alert">
+                <span>Not saved</span>
+                <button
+                  type="button"
+                  disabled={!recipientsAreValid()}
+                  onClick={() => void handleRetrySave()}
+                >
+                  Retry
+                </button>
+                <button type="button" onClick={() => void handleDiscard()}>
+                  Discard
+                </button>
+              </div>
             </Show>
           </div>
-
           <input
-            ref={fileInputRef}
+            ref={fileInput}
             type="file"
             multiple
             class="compose-file-input"
-            disabled={uploading()}
-            onChange={(event) => void handleFiles(event.currentTarget.files)}
+            onChange={(event) => {
+              void uploadFiles(event.currentTarget.files);
+              event.currentTarget.value = "";
+            }}
           />
-
           <div class="compose-footer">
             <button
               type="button"
               class="icon-button"
               aria-label="Discard draft"
               title="Discard draft"
-              onClick={() => props.onCancel()}
+              onClick={() => void handleDiscard()}
             >
               <TrashIcon />
             </button>
@@ -312,27 +602,25 @@ export function ComposeForm(props: {
               class="icon-button"
               aria-label="Attach files"
               title="Attach files"
-              disabled={uploading()}
-              onClick={() => fileInputRef?.click()}
+              onClick={() => fileInput?.click()}
             >
               <PaperclipIcon />
             </button>
             <span class="compose-footer-spacer" />
-            <span class="muted compose-draft-status">{draftStatusLabel()}</span>
-            <Show when={props.onSaveDraft !== undefined}>
-              <button
-                type="button"
-                disabled={savingDraft() || sending() || uploading()}
-                onClick={() => void handleSaveDraft()}
-              >
-                {savingDraft() ? "Saving..." : "Save draft"}
-              </button>
-            </Show>
+            <span class="muted compose-draft-status" aria-live="polite">
+              {statusLabel()}
+            </span>
             <button
               type="submit"
               class="primary pill"
               disabled={
-                sending() || uploading() || props.sendableAddresses.length === 0
+                sending() ||
+                busyUploading() ||
+                totalBytes() > maxTotalBytes() ||
+                recipients().length === 0 ||
+                !fromIsValid() ||
+                props.sendableAddresses.length === 0 ||
+                saverState() === "conflict"
               }
             >
               {sending() ? "Sending..." : "Send"}

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   createMigrationRunner,
   type MigrationFile,

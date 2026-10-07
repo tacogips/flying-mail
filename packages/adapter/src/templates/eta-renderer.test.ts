@@ -1,4 +1,4 @@
-import { TemplateSyntaxError } from "@mailcal/application/ports/template-renderer";
+import { TemplateSyntaxError } from "@flying-mail/application/ports/template-renderer";
 import { describe, expect, test } from "vitest";
 import { createEtaTemplateRenderer } from "./eta-renderer";
 

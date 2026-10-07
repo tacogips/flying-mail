@@ -2,12 +2,12 @@ import {
   type AddressBook,
   createAddressBook,
   updateAddressBook,
-} from "@mailcal/domain/entities/address-book";
+} from "@flying-mail/domain/entities/address-book";
 import {
   type AddressBookId,
   createAddressBookId,
   type MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { ConflictError, NotFoundError } from "../errors";
 import {
@@ -38,7 +38,7 @@ export interface UpdateAddressBookUseCaseInput {
 /** Omitting `mailAddressId` yields every book the viewer may read, across
  * every address; supplying one narrows to that address's own books (empty
  * when the viewer cannot read it, never an error -- mirrors a denied read
- * anywhere else in mailcal). */
+ * anywhere else in flying-mail). */
 export function createListAddressBooksUseCase(
   deps: AppDependencies,
 ): (

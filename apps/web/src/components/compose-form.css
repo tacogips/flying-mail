@@ -157,3 +157,126 @@
 .compose-draft-status {
   font-size: 12px;
 }
+
+.compose-editor-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+  border-bottom: 1px solid var(--border);
+}
+
+.compose-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 0 4px;
+}
+
+.compose-editor-toolbar button {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+  color: var(--text);
+  padding: 4px 7px;
+  font-size: 12px;
+}
+
+.compose-editor,
+.compose-editor-plain {
+  flex: 1;
+  min-height: 180px;
+  padding: 10px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.compose-editor:focus,
+.compose-editor-plain:focus {
+  outline: none;
+}
+
+.compose-editor-plain {
+  resize: vertical;
+}
+
+.compose-attachments-wrap {
+  padding: 4px 0 8px;
+}
+
+.compose-attachments {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compose-attachment-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.compose-attachment-size,
+.compose-forward-label {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.compose-attachment-chip progress {
+  width: 72px;
+}
+
+.compose-attachment-error,
+.compose-field-error,
+.compose-limit-warning {
+  color: var(--danger, #a12b2b);
+  font-size: 12px;
+}
+
+.compose-limit-warning {
+  margin: 4px 0;
+}
+
+.compose-attachment-chip button {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.compose-field-error {
+  margin: 4px 0;
+}
+
+@media (max-width: 759px) {
+  .compose-window {
+    inset: 0;
+    width: 100vw;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .compose-titlebar {
+    min-height: 52px;
+    border-radius: 0;
+  }
+
+  .compose-body {
+    padding-inline: 16px;
+  }
+
+  .compose-footer {
+    padding: 8px 16px;
+  }
+}

@@ -3,7 +3,7 @@ import type {
   ParsedMime,
   ParsedMimeAddress,
   ParsedMimeAttachment,
-} from "@mailcal/application/ports/mime";
+} from "@flying-mail/application/ports/mime";
 import PostalMime, {
   type Address,
   type Attachment as PostalAttachment,

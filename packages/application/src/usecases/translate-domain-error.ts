@@ -4,10 +4,10 @@ import {
   InvalidStateTransitionError,
   SystemTagImmutableError,
   ValidationError,
-} from "@mailcal/domain/errors";
+} from "@flying-mail/domain/errors";
 import { ApplicationError, BadUserInputError, ConflictError } from "../errors";
 
-/** Re-throws a `@mailcal/domain` error as the matching `ApplicationError`.
+/** Re-throws a `@flying-mail/domain` error as the matching `ApplicationError`.
  * Anything that is not a `DomainError` -- including an `ApplicationError`
  * a use case raised deliberately -- is re-thrown untouched, so this can be
  * wrapped around a whole operation without swallowing intent. */

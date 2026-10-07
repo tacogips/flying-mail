@@ -1,8 +1,8 @@
 import type {
   BuildMimeInput,
   MimeBuilder,
-} from "@mailcal/application/ports/mime";
-import { createMimeMessage, type MIMEMessage } from "mimetext/browser";
+} from "@flying-mail/application/ports/mime";
+import { createMimeMessage, Mailbox, type MIMEMessage } from "mimetext/browser";
 
 /** Thrown when a caller-supplied header value contains CR or LF.
  *
@@ -45,9 +45,6 @@ function applyRecipients(message: MIMEMessage, input: BuildMimeInput): void {
   if (input.cc !== undefined && input.cc.length > 0) {
     message.setCc(toMailboxObjects(input.cc));
   }
-  if (input.bcc !== undefined && input.bcc.length > 0) {
-    message.setBcc(toMailboxObjects(input.bcc));
-  }
 }
 
 function applyBodies(message: MIMEMessage, input: BuildMimeInput): void {
@@ -65,6 +62,20 @@ function applyThreadingHeaders(
 ): void {
   message.setHeader("Message-ID", `<${input.messageId}>`);
   message.setHeader("Date", new Date(input.date).toUTCString());
+  if (input.replyTo !== undefined) {
+    if (
+      FORBIDDEN_HEADER_VALUE.test(input.replyTo.address) ||
+      (input.replyTo.name !== null &&
+        FORBIDDEN_HEADER_VALUE.test(input.replyTo.name))
+    ) {
+      throw new HeaderInjectionError("Reply-To");
+    }
+    const mailbox =
+      input.replyTo.name === null
+        ? input.replyTo.address
+        : { addr: input.replyTo.address, name: input.replyTo.name };
+    message.setHeader("Reply-To", new Mailbox(mailbox));
+  }
   if (input.inReplyTo !== undefined) {
     message.setHeader("In-Reply-To", `<${input.inReplyTo}>`);
   }

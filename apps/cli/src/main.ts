@@ -20,10 +20,10 @@ import { colorize } from "./output";
 
 const VERSION = "0.1.0";
 
-const HELP = `mailcal - self-hosted mail on Cloudflare Workers
+const HELP = `flying-mail - self-hosted mail on Cloudflare Workers
 
 Usage
-  mailcal <command> <subcommand> [flags]
+  flying-mail <command> <subcommand> [flags]
 
 Commands
   client serve                Serve the browser mail client locally
@@ -143,7 +143,7 @@ export async function runCli(
   if (group === "client") {
     if (subcommand !== "serve") {
       throw new CliError(
-        `Unknown client subcommand "${subcommand ?? ""}". Try: mailcal client serve`,
+        `Unknown client subcommand "${subcommand ?? ""}". Try: flying-mail client serve`,
         ExitCode.UsageError,
       );
     }
@@ -153,7 +153,7 @@ export async function runCli(
   const handlers = group === undefined ? undefined : COMMAND_GROUPS.get(group);
   if (handlers === undefined) {
     throw new CliError(
-      `Unknown command "${group ?? ""}". Run \`mailcal --help\`.`,
+      `Unknown command "${group ?? ""}". Run \`flying-mail --help\`.`,
       ExitCode.UsageError,
     );
   }

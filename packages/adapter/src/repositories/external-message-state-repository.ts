@@ -1,13 +1,13 @@
-import type { ExternalMessageStateRepository } from "@mailcal/application/ports/external-mail";
+import type { ExternalMessageStateRepository } from "@flying-mail/application/ports/external-mail";
 import type {
   SqlDatabase,
   SqlStatement,
-} from "@mailcal/application/ports/sql-database";
-import type { ExternalMessageState } from "@mailcal/domain/entities/external-message-state";
+} from "@flying-mail/application/ports/sql-database";
+import type { ExternalMessageState } from "@flying-mail/domain/entities/external-message-state";
 import {
   createExternalAccountId,
   createMessageId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 
 interface ExternalMessageStateRow {
   readonly account_id: string;

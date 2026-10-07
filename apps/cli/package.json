@@ -1,10 +1,10 @@
 {
-  "name": "mailcal-cli",
+  "name": "flying-mail-cli",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "bin": {
-    "mailcal": "./src/main.ts"
+    "flying-mail": "./src/main.ts"
   },
   "scripts": {
     "start": "bun run src/main.ts",

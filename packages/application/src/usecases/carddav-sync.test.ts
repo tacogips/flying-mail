@@ -1,10 +1,10 @@
-import { createContact } from "@mailcal/domain/entities/contact";
+import { createContact } from "@flying-mail/domain/entities/contact";
 import {
   createCarddavAccountId,
   createCarddavBookId,
   createContactId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import type { CarddavObject } from "../ports/carddav";
 import type { ParsedVcardContact } from "../ports/vcard-codec";
@@ -24,7 +24,7 @@ import { createUseCases, type UseCases } from "../usecases";
 /** Sync policy: remote-wins conflicts, tombstone pushes, and the
  * unparsable/partial distinction the design doc calls out. The fake
  * `vcardCodec` round-trips a `ParsedVcardContact` through JSON -- the
- * application layer must not depend on `@mailcal/adapter`, and RFC 6350
+ * application layer must not depend on `@flying-mail/adapter`, and RFC 6350
  * grammar is covered by that package's own round-trip fixtures. */
 
 const ACCOUNT_ID = createCarddavAccountId("cda-1");

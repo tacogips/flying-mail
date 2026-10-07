@@ -1,4 +1,4 @@
-import type { Contact } from "@mailcal/domain/entities/contact";
+import type { Contact } from "@flying-mail/domain/entities/contact";
 
 export interface ParsedVcardEmail {
   readonly address: string;

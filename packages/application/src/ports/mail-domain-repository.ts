@@ -1,6 +1,6 @@
-import type { MailDomain } from "@mailcal/domain/entities/mail-domain";
-import type { DomainName } from "@mailcal/domain/value-objects/domain-name";
-import type { DomainId } from "@mailcal/domain/value-objects/ids";
+import type { MailDomain } from "@flying-mail/domain/entities/mail-domain";
+import type { DomainName } from "@flying-mail/domain/value-objects/domain-name";
+import type { DomainId } from "@flying-mail/domain/value-objects/ids";
 
 export interface MailDomainRepository {
   findById(id: DomainId): Promise<MailDomain | null>;

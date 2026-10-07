@@ -1,5 +1,5 @@
 {
-  "name": "@mailcal/application",
+  "name": "@flying-mail/application",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,7 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@mailcal/domain": "workspace:*"
+    "@flying-mail/domain": "workspace:*"
   },
   "devDependencies": {
     "typescript": "5.7.2"

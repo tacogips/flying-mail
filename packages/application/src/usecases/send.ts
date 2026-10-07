@@ -1,15 +1,17 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import type { Attachment } from "@mailcal/domain/entities/attachment";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import type { Attachment } from "@flying-mail/domain/entities/attachment";
 import {
   attachToMessage,
   buildRawMessageBlobKey,
-} from "@mailcal/domain/entities/attachment";
+  copyAttachmentForForward,
+} from "@flying-mail/domain/entities/attachment";
 import {
   type ExternalMailAccount,
   isExternalAccountActive,
-} from "@mailcal/domain/entities/external-mail-account";
-import { isMailAddressActive } from "@mailcal/domain/entities/mail-address";
-import { assertCanSendMail } from "@mailcal/domain/entities/mail-domain";
+} from "@flying-mail/domain/entities/external-mail-account";
+import { isMailAddressActive } from "@flying-mail/domain/entities/mail-address";
+import { assertCanSendMail } from "@flying-mail/domain/entities/mail-domain";
+import { UserRole } from "@flying-mail/domain/entities/user";
 import {
   createOutboundMessage,
   DeliveryStatus,
@@ -19,37 +21,49 @@ import {
   type MessageRecipient,
   RecipientKind,
   requeueMessage,
-} from "@mailcal/domain/entities/message";
+} from "@flying-mail/domain/entities/message";
 import {
   createEmailAddress,
   type EmailAddress,
   emailDomainName,
-} from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/value-objects/email-address";
 import {
   type AttachmentId,
+  createAttachmentId,
   type DomainId,
   createMessageId,
   createThreadId,
   type MailAddressId,
   type MessageId,
   type TagId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { BadUserInputError, NotFoundError } from "../errors";
 import {
   authorizesAnyAddress,
+  mailAuthorizationRules,
   requireAddressCapability,
 } from "../policies/authorization";
 import type { Viewer } from "../policies/viewer";
 import type { BuildMimeAttachment } from "../ports/mime";
+import { readDeliveryReason } from "../ports/mail-sender";
+import { loadReadableMessage } from "./messages";
+import {
+  assertOutboundAttachmentLimits,
+  resolveForwardSources,
+  resolveOwnAttachments,
+} from "./attachment-binding";
+import { assembleOutbound } from "./outbound-assembly";
 import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
 
 /** Provider limits, validated before the binding call so a caller gets a
  * `BAD_USER_INPUT` naming the offending field instead of an opaque
  * provider error. See `design-mail-pipeline.md#limits-summary`. */
 export const MAX_RECIPIENTS_PER_MESSAGE = 50;
-export const MAX_OUTBOUND_ATTACHMENTS = 32;
-export const MAX_OUTBOUND_TOTAL_BYTES = 5 * 1024 * 1024;
+export {
+  MAX_OUTBOUND_ATTACHMENTS,
+  MAX_OUTBOUND_TOTAL_BYTES,
+} from "./attachment-binding";
 
 /** Custom headers must be `X-`-prefixed and free of CR/LF. This is the
  * header-injection guard: without it, a newline in a caller-supplied value
@@ -71,7 +85,10 @@ export interface SendMessageInput {
   readonly subject: string;
   readonly text?: string;
   readonly html?: string;
+  readonly replyTo?: string;
   readonly inReplyToMessageId?: MessageId;
+  readonly forwardedFromMessageId?: MessageId;
+  readonly forwardAttachmentIds?: readonly AttachmentId[];
   readonly attachmentIds?: readonly AttachmentId[];
   readonly headers?: readonly SendMessageHeaderInput[];
   readonly tagIds?: readonly TagId[];
@@ -144,38 +161,6 @@ export function validateCustomHeaders(
   return validated;
 }
 
-export async function loadOutboundAttachments(
-  deps: AppDependencies,
-  ids: readonly AttachmentId[] | undefined,
-): Promise<readonly Attachment[]> {
-  if (ids === undefined || ids.length === 0) {
-    return [];
-  }
-  if (ids.length > MAX_OUTBOUND_ATTACHMENTS) {
-    throw new BadUserInputError(
-      `A message may not have more than ${MAX_OUTBOUND_ATTACHMENTS} attachments`,
-      "attachmentIds",
-    );
-  }
-  const loaded: Attachment[] = [];
-  let totalBytes = 0;
-  for (const id of ids) {
-    const attachment = await deps.messageRepository.findAttachmentById(id);
-    if (attachment === null) {
-      throw new NotFoundError("Attachment", id);
-    }
-    totalBytes += attachment.size;
-    loaded.push(attachment);
-  }
-  if (totalBytes > MAX_OUTBOUND_TOTAL_BYTES) {
-    throw new BadUserInputError(
-      `Attachments exceed the ${MAX_OUTBOUND_TOTAL_BYTES / (1024 * 1024)} MB total size limit`,
-      "attachmentIds",
-    );
-  }
-  return loaded;
-}
-
 export async function readAttachmentBytes(
   deps: AppDependencies,
   attachments: readonly Attachment[],
@@ -223,12 +208,13 @@ interface ThreadContext {
 
 export async function resolveThreadContext(
   deps: AppDependencies,
+  viewer: Viewer,
   inReplyToMessageId: MessageId | undefined,
 ): Promise<ThreadContext> {
   if (inReplyToMessageId === undefined) {
     return { threadId: null, inReplyTo: null, references: [] };
   }
-  const parent = await deps.messageRepository.findById(inReplyToMessageId);
+  const parent = await loadReadableMessage(deps, viewer, inReplyToMessageId);
   if (parent === null) {
     throw new NotFoundError("Message", inReplyToMessageId);
   }
@@ -303,64 +289,80 @@ async function deliverMail(
   deps: AppDependencies,
   message: Message,
   mail: OutboundMailInput,
-): Promise<void> {
+): Promise<{ readonly providerMessageId: string | null }> {
   const mailAddress = await deps.mailAddressRepository.findByAddress(mail.from);
   const account =
     mailAddress === null
       ? null
       : await resolveExternalSmtpAccount(deps, mailAddress.id);
   if (account === null || account.smtp === null) {
-    await deps.mailSender.send(mail);
-    return;
+    return deps.mailSender.send(mail);
   }
 
   const smtp = account.smtp;
-  const password = await deps.credentialCipher.decrypt(smtp.passwordCiphertext);
-  await deps.smtpSubmissionClient.send(
-    {
-      host: smtp.host,
-      port: smtp.port,
-      security: smtp.security,
-      username: smtp.username,
-      password,
-    },
-    {
-      from: account.externalAddress,
-      to: [...mail.to, ...(mail.cc ?? []), ...(mail.bcc ?? [])],
-      raw: mail.raw ?? buildFallbackRaw(deps, message, mail),
-    },
-  );
+  try {
+    const password = await deps.credentialCipher.decrypt(
+      smtp.passwordCiphertext,
+    );
+    await deps.smtpSubmissionClient.send(
+      {
+        host: smtp.host,
+        port: smtp.port,
+        security: smtp.security,
+        username: smtp.username,
+        password,
+      },
+      {
+        from: account.externalAddress,
+        to: [...mail.to, ...(mail.cc ?? []), ...(mail.bcc ?? [])],
+        raw: mail.raw ?? buildFallbackRaw(deps, message, mail),
+      },
+    );
+  } catch {
+    throw { reason: "RELAY_ERROR" };
+  }
+  return { providerMessageId: null };
 }
 
 /** Delivers `message` and records the outcome. The message row is already
- * persisted by the time this runs, so a failure -- including a Worker
- * eviction between the write and the provider call -- leaves a visible,
- * retryable `QUEUED`/`FAILED` row rather than a silently lost send. Shared
- * by both transports: `markMessageSent`/`markMessageFailed` bookkeeping
- * never duplicates between the Cloudflare and SMTP-relay branches, since
- * both flow through this one function and only `deliverMail` above branches
- * on the transport. */
+ * persisted by the time this runs, so a delivery failure -- including a
+ * Worker eviction between the write and the provider call -- leaves a
+ * visible, retryable `QUEUED`/`FAILED` row rather than a silently lost send.
+ * Post-delivery persistence errors propagate so a successfully delivered
+ * message is never marked failed and sent again by `retrySend`. Shared by
+ * both transports: `markMessageSent`/`markMessageFailed` bookkeeping never
+ * duplicates between the Cloudflare and SMTP-relay branches, since both
+ * flow through this one function and only `deliverMail` above branches on
+ * the transport. */
 export async function deliver(
   deps: AppDependencies,
   message: Message,
   mail: OutboundMailInput,
 ): Promise<Message> {
   const now = deps.clock.now().toISOString();
+  let receipt: { readonly providerMessageId: string | null };
   try {
-    await deliverMail(deps, message, mail);
+    receipt = await deliverMail(deps, message, mail);
   } catch (error) {
-    // The provider's own message routinely echoes recipient addresses and
-    // subjects; store only its class name so the failure is diagnosable
-    // without leaking message content into an error field clients can read.
-    const reason =
-      error instanceof Error ? error.name : "Unknown delivery failure";
+    const reason = readDeliveryReason(error);
     const failed = markMessageFailed(message, reason, now);
     await deps.messageRepository.save(failed);
     return failed;
   }
+
+  const providerMessageId = receipt.providerMessageId
+    ?.trim()
+    .replace(/^<|>$/g, "");
+  const normalizedProviderMessageId =
+    providerMessageId === "" ? null : (providerMessageId ?? null);
   const sent = markMessageSent(message, now);
-  await deps.messageRepository.save(sent);
-  return sent;
+  const reconciled =
+    normalizedProviderMessageId !== null &&
+    normalizedProviderMessageId !== message.rfcMessageId
+      ? { ...sent, rfcMessageId: normalizedProviderMessageId }
+      : sent;
+  await deps.messageRepository.save(reconciled);
+  return reconciled;
 }
 
 export function createSendMessageUseCase(
@@ -380,42 +382,47 @@ export function createSendMessageUseCase(
       }
       requireAddressCapability(viewer, Capability.MailSend, domain.id, [from]);
       assertCanSendMail(domain);
+      const provisionedFrom =
+        await deps.mailAddressRepository.findByAddress(from);
+      if (provisionedFrom !== null && !isMailAddressActive(provisionedFrom)) {
+        throw new BadUserInputError(
+          "A disabled mail address cannot be used as a sender",
+          "from",
+        );
+      }
 
       const recipients = validateRecipients(input);
       validateBodies(input);
       const headers = validateCustomHeaders(input.headers);
-      const attachments = await loadOutboundAttachments(
+      const ownAttachments = await resolveOwnAttachments(
         deps,
         input.attachmentIds,
+        null,
       );
+      const forward = await resolveForwardSources(
+        deps,
+        viewer,
+        input.forwardedFromMessageId,
+        input.forwardAttachmentIds,
+      );
+      assertOutboundAttachmentLimits([
+        ...ownAttachments,
+        ...forward.attachments,
+      ]);
+      const replyTo =
+        input.replyTo === undefined
+          ? null
+          : createEmailAddress(input.replyTo, "replyTo");
 
       const now = deps.clock.now().toISOString();
       const messageId = createMessageId(deps.random.uuid());
       const rfcMessageId = `${messageId}@${domain.name}`;
-      const thread = await resolveThreadContext(deps, input.inReplyToMessageId);
-
-      const mimeAttachments = await readAttachmentBytes(deps, attachments);
-      const raw = deps.mimeBuilder.build({
-        from: { address: from, name: null },
-        to: recipients.to.map((address) => ({ address, name: null })),
-        cc: recipients.cc.map((address) => ({ address, name: null })),
-        bcc: recipients.bcc.map((address) => ({ address, name: null })),
-        subject: input.subject,
-        ...(input.text === undefined ? {} : { text: input.text }),
-        ...(input.html === undefined ? {} : { html: input.html }),
-        messageId: rfcMessageId,
-        ...(thread.inReplyTo === null ? {} : { inReplyTo: thread.inReplyTo }),
-        references: thread.references,
-        date: now,
-        headers,
-        attachments: mimeAttachments,
-      });
-
+      const thread = await resolveThreadContext(
+        deps,
+        viewer,
+        input.inReplyToMessageId,
+      );
       const rawKey = buildRawMessageBlobKey(messageId);
-      await deps.blobs.put(rawKey, new TextEncoder().encode(raw), {
-        contentType: "message/rfc822",
-      });
-
       const message = createOutboundMessage({
         id: messageId,
         domainId: domain.id,
@@ -425,6 +432,8 @@ export function createSendMessageUseCase(
             : createThreadId(thread.threadId),
         rfcMessageId,
         inReplyTo: thread.inReplyTo,
+        replyTo,
+        forwardedFromMessageId: input.forwardedFromMessageId ?? null,
         references: thread.references,
         subject: input.subject,
         fromAddress: from,
@@ -432,42 +441,41 @@ export function createSendMessageUseCase(
         textBody: input.text ?? null,
         htmlBody: input.html ?? null,
         rawKey,
-        rawSize: raw.length,
+        rawSize: 0,
         occurredAt: now,
         createdAt: now,
       });
 
+      const forwardedAttachments = forward.attachments.map((attachment) =>
+        copyAttachmentForForward(attachment, {
+          id: createAttachmentId(deps.random.uuid()),
+          messageId,
+          createdAt: now,
+        }),
+      );
       await deps.messageRepository.insertWithRelations({
         message,
         recipients: buildRecipientRows(recipients),
         // Binds the staged uploads to this message, so they stop being
         // orphans and start cascading with it on delete.
-        attachments: attachments.map((attachment) =>
-          attachToMessage(attachment, messageId),
-        ),
+        attachments: [
+          ...ownAttachments.map((attachment) =>
+            attachToMessage(attachment, messageId),
+          ),
+          ...forwardedAttachments,
+        ],
         tagIds: input.tagIds ?? [],
         taggedAt: now,
       });
-
-      return deliver(deps, message, {
-        from,
-        to: recipients.to,
-        cc: recipients.cc,
-        bcc: recipients.bcc,
-        subject: input.subject,
-        text: input.text ?? "",
-        ...(input.html === undefined ? {} : { html: input.html }),
-        headers,
-        raw,
-        // Same bytes `raw` already encodes, handed over structurally for a
-        // provider that assembles the MIME itself.
-        attachments: mimeAttachments.map((attachment) => ({
-          fileName: attachment.fileName,
-          contentType: attachment.contentType,
-          content: attachment.content,
-          inline: attachment.inline,
-        })),
+      const outbound = await assembleOutbound(deps, message, {
+        customHeaders: headers,
       });
+      const ready = { ...message, rawSize: outbound.raw.length };
+      await deps.messageRepository.save(ready);
+      await deps.blobs.put(rawKey, new TextEncoder().encode(outbound.raw), {
+        contentType: "message/rfc822",
+      });
+      return deliver(deps, ready, outbound.mail);
     });
 }
 
@@ -492,30 +500,10 @@ export function createRetrySendUseCase(
         );
       }
 
-      const recipientsByKind = await deps.messageRepository.listRecipients([
-        messageId,
-      ]);
-      const rows = recipientsByKind.get(messageId) ?? [];
-      const addressesOf = (kind: RecipientKind): readonly EmailAddress[] =>
-        rows.filter((row) => row.kind === kind).map((row) => row.address);
-
       const requeued = requeueMessage(message, deps.clock.now().toISOString());
       await deps.messageRepository.save(requeued);
-
-      const stored = await deps.blobs.get(message.rawKey ?? "");
-      const raw =
-        stored === null ? undefined : await new Response(stored.body).text();
-
-      return deliver(deps, requeued, {
-        from: message.fromAddress,
-        to: addressesOf(RecipientKind.To),
-        cc: addressesOf(RecipientKind.Cc),
-        bcc: addressesOf(RecipientKind.Bcc),
-        subject: message.subject,
-        text: message.textBody ?? "",
-        ...(message.htmlBody === null ? {} : { html: message.htmlBody }),
-        ...(raw === undefined ? {} : { raw }),
-      });
+      const outbound = await assembleOutbound(deps, requeued);
+      return deliver(deps, requeued, outbound.mail);
     });
 }
 
@@ -579,15 +567,41 @@ export function createListSendableAddressesUseCase(
   };
 }
 
-/** The pre-provisioning behaviour, kept for domains with no usable mailbox:
- * a user sees the whole domain, a key sees each of its `MAIL_SEND` scope
- * patterns. */
+/** Fallback sendable patterns for domains with no usable provisioned
+ * mailbox: admins get the domain wildcard subject to DENY rules, members get
+ * only their own ALLOW patterns, and API keys keep their scoped patterns. */
 function fallbackPatterns(
   viewer: Viewer,
   domain: { readonly id: DomainId; readonly name: string },
 ): readonly string[] {
   if (viewer.kind === "USER") {
-    return [`*@${domain.name}`];
+    const rules = mailAuthorizationRules(viewer, Capability.MailSend).filter(
+      (rule) => rule.domainId === null || rule.domainId === domain.id,
+    );
+    const denied = rules.some(
+      (rule) =>
+        rule.effect === "DENY" &&
+        (rule.addressPattern === "*" ||
+          rule.addressPattern === `*@${domain.name}`),
+    );
+    if (denied) {
+      return [];
+    }
+    if (viewer.role === UserRole.Admin) {
+      return [`*@${domain.name}`];
+    }
+    if (viewer.role !== UserRole.Member) {
+      return [];
+    }
+    return rules
+      .filter((rule) => rule.effect === "ALLOW")
+      .map((rule) => rule.addressPattern as string)
+      .filter(
+        (pattern) =>
+          !rules.some(
+            (rule) => rule.effect === "DENY" && rule.addressPattern === pattern,
+          ),
+      );
   }
   const patterns: string[] = [];
   for (const scope of viewer.scopes) {

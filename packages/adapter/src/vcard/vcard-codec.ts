@@ -4,8 +4,8 @@ import type {
   ParsedVcardPhone,
   ParsedVcardPostalAddress,
   VcardCodec,
-} from "@mailcal/application/ports/vcard-codec";
-import type { Contact } from "@mailcal/domain/entities/contact";
+} from "@flying-mail/application/ports/vcard-codec";
+import type { Contact } from "@flying-mail/domain/entities/contact";
 import {
   encodeParamValue,
   escapeText,

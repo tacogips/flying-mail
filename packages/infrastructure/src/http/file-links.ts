@@ -1,4 +1,4 @@
-import type { UseCases } from "@mailcal/application/usecases";
+import type { UseCases } from "@flying-mail/application/usecases";
 import { Hono } from "hono";
 import { buildDownloadResponse } from "./downloads";
 

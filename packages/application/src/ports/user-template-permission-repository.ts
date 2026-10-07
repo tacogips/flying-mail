@@ -1,9 +1,9 @@
-import type { TemplateCapability } from "@mailcal/domain/entities/api-key";
-import type { UserTemplatePermission } from "@mailcal/domain/entities/user-template-permission";
+import type { TemplateCapability } from "@flying-mail/domain/entities/api-key";
+import type { UserTemplatePermission } from "@flying-mail/domain/entities/user-template-permission";
 import type {
   UserId,
   UserTemplatePermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 
 /** Persistence boundary for per-user template-capability rules. */
 export interface UserTemplatePermissionRepository {

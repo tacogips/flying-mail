@@ -25,7 +25,7 @@ constructors, and the CardDAV *client* sync entities (`CarddavAccount`,
 **Excluded**: the `0010_contacts.sql` migration (owned by
 `contacts-adapter.md`), ports/use cases (`contacts-application.md`),
 adapters (`contacts-adapter.md`), GraphQL/web. No CardDAV *server* entities;
-mailcal remains a CardDAV client only. No contact groups, `PHOTO`, or
+flying-mail remains a CardDAV client only. No contact groups, `PHOTO`, or
 modeled `X-*` properties -- see the design doc's out-of-scope list.
 
 ---

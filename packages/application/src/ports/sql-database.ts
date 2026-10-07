@@ -7,7 +7,7 @@ export interface SqlStatement {
   readonly params?: readonly SqlValue[];
 }
 
-/** Port over the relational store backing mailcal. Implementations: D1
+/** Port over the relational store backing flying-mail. Implementations: D1
  * (Cloudflare Workers), libsql (a local SQLite file under Bun/Node), and an
  * in-memory libsql database for tests.
  *

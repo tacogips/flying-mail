@@ -243,6 +243,25 @@ export function attachToMessage(
   return { ...attachment, messageId };
 }
 
+/** Reuses a stored blob as a normal attachment on a forwarded message. */
+export function copyAttachmentForForward(
+  source: Attachment,
+  input: {
+    readonly id: AttachmentId;
+    readonly messageId: MessageId;
+    readonly createdAt: string;
+  },
+): Attachment {
+  return {
+    ...source,
+    id: input.id,
+    messageId: input.messageId,
+    inline: false,
+    contentId: null,
+    createdAt: input.createdAt,
+  };
+}
+
 /** True for an upload that has not yet been sent as part of a message. */
 export function isStagedAttachment(attachment: Attachment): boolean {
   return attachment.messageId === null;

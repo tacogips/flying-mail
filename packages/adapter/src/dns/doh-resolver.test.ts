@@ -67,4 +67,36 @@ describe("createDohResolver", () => {
     expect(called.searchParams.get("name")).toBe("_mailcal.example.com");
     expect(called.searchParams.get("type")).toBe("TXT");
   });
+
+  test("parses MX records and normalizes exchanges", async () => {
+    stubFetch({
+      Status: 0,
+      Answer: [
+        { type: 15, data: "10 ROUTE1.MX.CLOUDFLARE.NET." },
+        { type: 5, data: "ignored.example." },
+      ],
+    });
+    const resolver = createDohResolver();
+    expect(await resolver.lookupMx("example.com")).toEqual([
+      { priority: 10, exchange: "route1.mx.cloudflare.net" },
+    ]);
+  });
+
+  test("drops the RFC 7505 null MX record", async () => {
+    stubFetch({ Status: 0, Answer: [{ type: 15, data: "0 ." }] });
+    const resolver = createDohResolver();
+    expect(await resolver.lookupMx("example.com")).toEqual([]);
+  });
+
+  test("requests MX and rejects MX transport failures", async () => {
+    stubFetch({ Status: 0, Answer: [] });
+    const resolver = createDohResolver("https://doh.test/dns-query");
+    await resolver.lookupMx("example.com");
+    const called = (fetch as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as URL;
+    expect(called.searchParams.get("type")).toBe("MX");
+
+    stubFetch({ Status: 2 });
+    await expect(resolver.lookupMx("example.com")).rejects.toThrow("status 2");
+  });
 });

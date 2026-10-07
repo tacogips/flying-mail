@@ -12,7 +12,7 @@ export enum ExternalAccountStatus {
   Disabled = "DISABLED",
 }
 
-/** How mailcal reaches the remote mailbox to fetch mail. A discriminated
+/** How flying-mail reaches the remote mailbox to fetch mail. A discriminated
  * union rather than one config with optional fields, so a `JMAP` account can
  * never carry a stray POP3 port and vice versa.
  *
@@ -129,7 +129,7 @@ const SMTP_PORT_SECURITY: Readonly<Record<number, SmtpSecurity>> = {
   587: "STARTTLS",
 };
 
-/** Enforces the one dial mailcal supports per port: `465` must declare
+/** Enforces the one dial flying-mail supports per port: `465` must declare
  * `IMPLICIT_TLS`, `587` must declare `STARTTLS`. Any other port is refused
  * outright -- submission only ever happens on these two, and Workers'
  * `cloudflare:sockets` cannot reach port 25 regardless. */

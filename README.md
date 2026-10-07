@@ -1,4 +1,4 @@
-# mailcal
+# flying-mail
 
 A self-hosted, multi-domain mail service that runs entirely on Cloudflare
 Workers. It receives mail through Cloudflare Email Routing, stores messages
@@ -45,7 +45,7 @@ endpoint built for AI agents and programmatic clients as first-class callers
   addressed by slug. Inbound mail is scored on explainable signals (SPF/DKIM/
   DMARC results, envelope-vs-header sender mismatch, phrase and blocklists)
   and auto-tagged `SPAM`; spam is hidden from default listings.
-- **Browser mail client.** `mailcal client serve` serves the SolidJS client
+- **Browser mail client.** `flying-mail client serve` serves the SolidJS client
   locally against any deployment. HTML mail is sanitized *and* rendered in a
   sandboxed iframe, with remote images blocked until the reader opts in.
 
@@ -59,7 +59,7 @@ endpoint built for AI agents and programmatic clients as first-class callers
 | `packages/infrastructure` | GraphQL schema/resolvers, hono app, composition root |
 | `apps/api` | Worker (`fetch` + `email`), migrations, local Bun/Node server |
 | `apps/web` | SolidJS mail client |
-| `apps/cli` | The `mailcal` CLI, including `client serve` |
+| `apps/cli` | The `flying-mail` CLI, including `client serve` |
 
 The dependency rule points inward: `domain` depends on nothing, and no inner
 layer imports an outer one.
@@ -84,18 +84,101 @@ This repository is deployed at **https://mailcal-api.tacotest.workers.dev**
 (Cloudflare account `me+cloudflare@tacogips.me`), backed by the `mailcal-db`
 D1 database and the `mailcal-mail` R2 bucket, with both migrations applied.
 
-It is bootstrapped and idle: no mail domain is configured yet, so nothing is
-being received or sent. Add one with `mailcal domain add <name>` (or the
-settings UI), publish the DNS records it prints, then enable Email Routing on
-that domain in the Cloudflare dashboard with a catch-all rule targeting the
-`mailcal-api` Worker.
+The instance operates multiple managed domains, including
+`tacoserve.online` and `mutvar-test.online`. Cloudflare Email Routing uses a
+catch-all rule to deliver inbound mail to the `mailcal-api` Worker. The
+Worker uses the `mailcal-db` D1 database and the `mailcal-mail` R2 bucket.
+
+## API
+
+The GraphQL endpoint is `POST https://<worker-host>/graphql`. API clients
+authenticate with `Authorization: Bearer ybm_<key>`; the web client uses the
+`mailcal_session` session cookie. The examples use placeholder hostnames,
+keys, IDs and addresses.
+
+List messages for a domain and mailbox:
+
+```bash
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' \
+  -H 'authorization: Bearer $KEY' \
+  -d '{"query":"query { messages(filter: { domainId: \"<domain-id>\", toAddress: \"support@example.com\" }) { nodes { id subject from { address } } nextCursor totalCount } }"}'
+```
+
+Send a message with cc, bcc and HTML content:
+
+```bash
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' \
+  -H 'authorization: Bearer $KEY' \
+  -d '{"query":"mutation { sendMessage(input: { from: \"support@example.com\", to: [\"person@example.net\"], cc: [\"copy@example.net\"], bcc: [\"blind-copy@example.net\"], subject: \"Report\", text: \"See the report.\", html: \"<p>See the report.</p>\" }) { id deliveryStatus } }"}'
+```
+
+Save a draft, send it, then delete a draft that should be discarded:
+
+```bash
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' -H 'authorization: Bearer $KEY' \
+  -d '{"query":"mutation { saveDraft(input: { from: \"support@example.com\", to: [\"person@example.net\"], subject: \"Draft\", text: \"Draft body\" }) { id } }"}'
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' -H 'authorization: Bearer $KEY' \
+  -d '{"query":"mutation { sendDraft(id: \"<draft-id-to-send>\") { id deliveryStatus } }"}'
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' -H 'authorization: Bearer $KEY' \
+  -d '{"query":"mutation { deleteDraft(id: \"<draft-id-to-discard>\") }"}'
+```
+
+Prepare a forward from a message, then send it with selected original
+attachments. Use the returned `forwardedFromMessageId` and attachment IDs in
+the send mutation:
+
+```bash
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' -H 'authorization: Bearer $KEY' \
+  -d '{"query":"query { composeFromMessage(messageId: \"<source-message-id>\", mode: FORWARD) { from to cc subject forwardedFromMessageId forwardAttachments { id fileName } quotedText } }"}'
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' -H 'authorization: Bearer $KEY' \
+  -d '{"query":"mutation { sendMessage(input: { from: \"support@example.com\", to: [\"recipient@example.net\"], subject: \"Fwd: Report\", text: \"Forwarded message\", forwardedFromMessageId: \"<source-message-id>\", forwardAttachmentIds: [\"<attachment-id>\"] }) { id deliveryStatus } }"}'
+```
+
+Create and verify a domain, provision a mailbox, and grant a user mailbox
+permission:
+
+```bash
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' -H 'authorization: Bearer $KEY' \
+  -d '{"query":"mutation { createDomain(name: \"example.com\") { id name status dnsRecords { type name value } } }"}'
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' -H 'authorization: Bearer $KEY' \
+  -d '{"query":"mutation { verifyDomain(id: \"<domain-id>\") { id status } }"}'
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' -H 'authorization: Bearer $KEY' \
+  -d '{"query":"mutation { createMailAddress(input: { domainId: \"<domain-id>\", localPart: \"support\" }) { id address status } }"}'
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' -H 'authorization: Bearer $KEY' \
+  -d '{"query":"mutation { addUserMailPermission(userId: \"<user-id>\", input: { effect: ALLOW, domainId: \"<domain-id>\", addressPattern: \"support@example.com\" }) { id effect addressPattern } }"}'
+```
+
+Upload an attachment, download it by ID, or create and use a temporary file
+link:
+
+```bash
+curl -s -H 'authorization: Bearer $KEY' \
+  -F file=@report.pdf https://<worker-host>/api/attachments
+curl -OJ -H 'authorization: Bearer $KEY' \
+  'https://<worker-host>/api/attachments/<attachment-id>'
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' -H 'authorization: Bearer $KEY' \
+  -d '{"query":"mutation { createAttachmentLink(attachmentId: \"<attachment-id>\") { url token link { expiresAt } } }"}'
+curl -OJ 'https://<worker-host>/files/<token>'
+```
 
 ## Deploying
 
 See `design-docs/specs/design-deployment.md` for the full bring-up order.
 In short: create the D1 database and R2 bucket, `mise run cf-deploy`, enable
 Email Routing on your domain with a catch-all rule targeting the Worker,
-verify the domain for sending, then add the domain in mailcal itself.
+verify the domain for sending, then add the domain in flying-mail itself.
 
 A **Workers Paid plan** is required.
 
@@ -128,6 +211,7 @@ narrowly scoped keys for your agents.
 | `design-docs/specs/design-storage-and-file-links.md` | D1 schema, R2 layout, file links |
 | `design-docs/specs/design-web-client.md` | Mail client structure |
 | `design-docs/specs/design-deployment.md` | Bindings, env vars, setup |
+| `design-docs/specs/design-webmail-completion.md` | Compose, drafts, forwarding, multi-domain delivery and completion verification |
 | `design-docs/specs/command.md` | CLI interface |
 | `design-docs/specs/notes.md` | Research findings and decisions |
 
@@ -147,5 +231,14 @@ mutation($ids: [ID!]!) { markMessagesFetched(messageIds: $ids) { id fetchStatus 
 Or from the shell:
 
 ```bash
-mailcal mail fetch --ack --watch --interval 30
+flying-mail mail fetch --ack --watch --interval 30
 ```
+
+## Project name compatibility
+
+The project, CLI, and workspace packages are named `flying-mail`. Existing
+`MAILCAL_*` variables, `~/.config/mailcal/config.json`, `data/mailcal.db`,
+domain verification records, and Cloudflare resource names remain supported
+under their existing names to preserve deployed instances and stored data.
+
+Repository: https://github.com/tacogips/flying-mail

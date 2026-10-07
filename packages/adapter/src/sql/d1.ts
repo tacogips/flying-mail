@@ -2,13 +2,13 @@ import type {
   SqlDatabase,
   SqlStatement,
   SqlValue,
-} from "@mailcal/application/ports/sql-database";
+} from "@flying-mail/application/ports/sql-database";
 
 /** Minimal structural surface of a Cloudflare D1 prepared statement that
  * this adapter uses. Kept as a local, non-ambient interface (rather than
  * importing the ambient-global `@cloudflare/workers-types` package) so this
  * file's types do not merge into the global scope, where they would collide
- * with Bun's global runtime types used by the rest of `@mailcal/adapter`. A
+ * with Bun's global runtime types used by the rest of `@flying-mail/adapter`. A
  * real `D1PreparedStatement`, and hand-rolled test fakes, satisfy this
  * structurally. */
 export interface D1PreparedStatementLike {

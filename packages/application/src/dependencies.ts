@@ -52,7 +52,7 @@ export interface InstanceConfig {
    * disables passwordless login with a clear `SERVICE_UNAVAILABLE` rather
    * than mailing from an address the provider would reject.
    *
-   * Deliberately *not* the sender for user mail: mailcal runs many
+   * Deliberately *not* the sender for user mail: flying-mail runs many
    * addresses across many domains, and each message leaves as the mailbox
    * its sender was authorized for. */
   readonly mailFrom: string | null;
@@ -63,6 +63,8 @@ export interface InstanceConfig {
   readonly spamPhrases: readonly string[];
   /** Hard cap on a file link's requested `ttlSeconds`. */
   readonly fileLinkMaxTtlSeconds: number;
+  /** MX suffix that must receive inbound mail, or null to disable the gate. */
+  readonly inboundMxSuffix: string | null;
 }
 
 /** Composition-root bundle of every port a use case may need. Concrete

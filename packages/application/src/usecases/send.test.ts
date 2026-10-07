@@ -1,23 +1,23 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import { ExternalAccountStatus } from "@mailcal/domain/entities/external-mail-account";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { ExternalAccountStatus } from "@flying-mail/domain/entities/external-mail-account";
 import {
   createMailDomain,
   verifyMailDomain,
-} from "@mailcal/domain/entities/mail-domain";
-import { DeliveryStatus } from "@mailcal/domain/entities/message";
+} from "@flying-mail/domain/entities/mail-domain";
+import { DeliveryStatus } from "@flying-mail/domain/entities/message";
 import {
   createMailAddress,
   MailAddressStatus,
   setMailAddressStatus,
-} from "@mailcal/domain/entities/mail-address";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
+} from "@flying-mail/domain/entities/mail-address";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
 import {
   createAttachmentId,
   createDomainId,
   createMailAddressId,
   createMessageId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import {
   BadUserInputError,
@@ -126,10 +126,10 @@ describe("sendMessage", () => {
     // send-then-persist ordering would leave behind on a crash.
     expect(message.deliveryStatus).toBe(DeliveryStatus.Failed);
     expect(fake.messageStores.messages.has(message.id)).toBe(true);
-    expect(message.deliveryError).toBe("Error");
+    expect(message.deliveryError).toBe("PROVIDER_ERROR");
   });
 
-  test("records only the error class, never provider detail", async () => {
+  test("records only the address-free reason, never provider detail", async () => {
     class MailDeliveryError extends Error {
       constructor() {
         super("failed for customer@other.com re: your ticket");
@@ -139,7 +139,7 @@ describe("sendMessage", () => {
     fake.mailSender.failNext(new MailDeliveryError());
     const send = createSendMessageUseCase(fake.deps);
     const message = await send(adminViewer(), baseSend());
-    expect(message.deliveryError).toBe("MailDeliveryError");
+    expect(message.deliveryError).toBe("PROVIDER_ERROR");
     expect(message.deliveryError).not.toContain("customer@other.com");
   });
 
@@ -598,7 +598,7 @@ describe("external SMTP relay branch", () => {
     const message = await send(adminViewer(), baseSend());
 
     expect(message.deliveryStatus).toBe(DeliveryStatus.Failed);
-    expect(message.deliveryError).toBe("Error");
+    expect(message.deliveryError).toBe("RELAY_ERROR");
     expect(fake.mailSender.sent).toHaveLength(0);
   });
 

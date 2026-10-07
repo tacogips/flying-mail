@@ -1,17 +1,17 @@
-import type { ListContactsInput } from "@mailcal/application/usecases/contact-usecases";
-import type { ContactPage } from "@mailcal/application/ports/contact-repository";
-import type { AddressBook } from "@mailcal/domain/entities/address-book";
+import type { ListContactsInput } from "@flying-mail/application/usecases/contact-usecases";
+import type { ContactPage } from "@flying-mail/application/ports/contact-repository";
+import type { AddressBook } from "@flying-mail/domain/entities/address-book";
 import type {
   CarddavAccount,
   CarddavBookLink,
-} from "@mailcal/domain/entities/carddav-account";
-import type { Contact } from "@mailcal/domain/entities/contact";
+} from "@flying-mail/domain/entities/carddav-account";
+import type { Contact } from "@flying-mail/domain/entities/contact";
 import {
   createAddressBookId,
   createCarddavAccountId,
   createContactId,
   createMailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { GraphQLContext } from "../context";
 import { requireViewerOrThrow } from "./helpers";
 

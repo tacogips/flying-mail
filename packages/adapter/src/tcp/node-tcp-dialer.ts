@@ -4,7 +4,7 @@ import type {
   TcpDialer,
   TcpDialOptions,
   TextSocket,
-} from "@mailcal/application/ports/external-mail";
+} from "@flying-mail/application/ports/external-mail";
 import { ChunkedLineBuffer } from "./chunked-line-buffer";
 
 /** Wires a `net.Socket`'s (or `tls.TLSSocket`'s -- it extends `net.Socket`)

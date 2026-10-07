@@ -1,30 +1,30 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   createFakeDependencies,
   type FakeDependencies,
-} from "@mailcal/application/test-support/fakes";
+} from "@flying-mail/application/test-support/fakes";
 import {
   adminViewer,
   mailboxAgentViewer,
   memberViewer,
-} from "@mailcal/application/test-support/viewer-fixtures";
-import { createAttachment } from "@mailcal/domain/entities/attachment";
+} from "@flying-mail/application/test-support/viewer-fixtures";
+import { createAttachment } from "@flying-mail/domain/entities/attachment";
 import {
   createMailDomain,
   verifyMailDomain,
-} from "@mailcal/domain/entities/mail-domain";
+} from "@flying-mail/domain/entities/mail-domain";
 import {
   createInboundMessage,
   RecipientKind,
-} from "@mailcal/domain/entities/message";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/message";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createAttachmentId,
   createDomainId,
   createMessageId,
   createThreadId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { GraphQLEnumType, GraphQLObjectType } from "graphql";
 import { beforeEach, describe, expect, test } from "vitest";
 import {

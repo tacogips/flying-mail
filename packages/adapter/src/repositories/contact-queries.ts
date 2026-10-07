@@ -1,5 +1,5 @@
-import type { ContactListPageInput } from "@mailcal/application/ports/contact-repository";
-import type { SqlValue } from "@mailcal/application/ports/sql-database";
+import type { ContactListPageInput } from "@flying-mail/application/ports/contact-repository";
+import type { SqlValue } from "@flying-mail/application/ports/sql-database";
 import {
   buildInPlaceholders,
   decodeCursor,

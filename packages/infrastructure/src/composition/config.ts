@@ -1,18 +1,18 @@
 import type {
   CloudflareSendEmailBinding,
   CloudflareSenderAddress,
-} from "@mailcal/adapter/mail/cloudflare-email";
-import { parseCloudflareSenderAddress } from "@mailcal/adapter/mail/cloudflare-email";
-import type { R2BucketLike } from "@mailcal/adapter/blob/r2";
-import type { S3Config } from "@mailcal/adapter/blob/s3";
-import type { D1DatabaseLike } from "@mailcal/adapter/sql/d1";
-import type { SignupMode } from "@mailcal/application/dependencies";
-import type { DnsResolver } from "@mailcal/application/ports/dns-resolver";
+} from "@flying-mail/adapter/mail/cloudflare-email";
+import { parseCloudflareSenderAddress } from "@flying-mail/adapter/mail/cloudflare-email";
+import type { R2BucketLike } from "@flying-mail/adapter/blob/r2";
+import type { S3Config } from "@flying-mail/adapter/blob/s3";
+import type { D1DatabaseLike } from "@flying-mail/adapter/sql/d1";
+import type { SignupMode } from "@flying-mail/application/dependencies";
+import type { DnsResolver } from "@flying-mail/application/ports/dns-resolver";
 import type {
   Clock,
   RandomSource,
   TokenHasher,
-} from "@mailcal/application/ports/runtime-ports";
+} from "@flying-mail/application/ports/runtime-ports";
 
 export type BlobBackend = "r2" | "s3" | "memory";
 export type SqlBackend = "d1" | "sqlite";
@@ -24,6 +24,7 @@ export type ExternalMailRuntime = "cloudflare" | "node";
 export const DEFAULT_SQLITE_URL = "file:./data/mailcal.db";
 export const DEFAULT_SPAM_THRESHOLD = 0.6;
 export const DEFAULT_FILE_LINK_MAX_TTL_SECONDS = 604800;
+export const DEFAULT_INBOUND_MX_SUFFIX = "mx.cloudflare.net";
 const DEFAULT_S3_REGION = "us-east-1";
 
 export interface BuildDependenciesConfig {
@@ -46,6 +47,7 @@ export interface BuildDependenciesConfig {
   readonly spamThreshold?: number;
   readonly spamPhrases?: readonly string[];
   readonly fileLinkMaxTtlSeconds?: number;
+  readonly inboundMxSuffix?: string | null;
   /** Base64-encoded 32-byte AES key for stored CardDAV and external-mail
    * credentials. Absent means credential-dependent operations are disabled. */
   readonly credentialKey?: string;
@@ -219,6 +221,17 @@ export function resolveFileLinkMaxTtl(env: EnvLike): number {
   );
 }
 
+/** `MAILCAL_INBOUND_MX_SUFFIX` defaults to Cloudflare Email Routing.
+ * An empty or whitespace-only value disables the activation gate. */
+export function resolveInboundMxSuffix(env: EnvLike): string | null {
+  const raw = env["MAILCAL_INBOUND_MX_SUFFIX"];
+  if (raw === undefined) {
+    return DEFAULT_INBOUND_MX_SUFFIX;
+  }
+  const normalized = raw.trim().toLowerCase().replace(/\.$/, "");
+  return normalized.length === 0 ? null : normalized;
+}
+
 /** Normalizes a SQLite location into something `@libsql/client` accepts.
  *
  * libsql requires a URL (`file:...`, `libsql://...`, `:memory:`) and throws
@@ -295,6 +308,7 @@ export function loadConfigFromEnv(env: EnvLike): BuildDependenciesConfig {
     spamThreshold: resolveSpamThreshold(env),
     spamPhrases: resolveSpamPhrases(env),
     fileLinkMaxTtlSeconds: resolveFileLinkMaxTtl(env),
+    inboundMxSuffix: resolveInboundMxSuffix(env),
     ...(credentialKey === undefined ? {} : { credentialKey }),
   };
 }

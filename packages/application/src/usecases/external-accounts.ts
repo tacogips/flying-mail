@@ -1,4 +1,4 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   type ExternalFetchConfig,
   type ExternalMailAccount,
@@ -10,13 +10,13 @@ import {
   setExternalMailAccountStatus,
   type SmtpSecurity,
   type SmtpSubmissionConfig,
-} from "@mailcal/domain/entities/external-mail-account";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/external-mail-account";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createExternalAccountId,
   type ExternalAccountId,
   type MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import {
   BadUserInputError,

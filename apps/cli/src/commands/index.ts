@@ -139,7 +139,7 @@ export const domainCommands: ReadonlyMap<string, CommandHandler> = new Map([
       const name = ctx.args.positionals[0];
       if (name === undefined) {
         throw new CliError(
-          "Usage: mailcal domain add <name>",
+          "Usage: flying-mail domain add <name>",
           ExitCode.UsageError,
         );
       }
@@ -160,7 +160,7 @@ export const domainCommands: ReadonlyMap<string, CommandHandler> = new Map([
       }
       console.log(`Added ${data.createDomain.name} (${data.createDomain.id}).`);
       console.log(
-        "Publish these DNS records, then run `mailcal domain verify`:",
+        "Publish these DNS records, then run `flying-mail domain verify`:",
       );
       printTable(
         ["TYPE", "NAME", "VALUE", "PRIORITY"],
@@ -180,7 +180,7 @@ export const domainCommands: ReadonlyMap<string, CommandHandler> = new Map([
       const id = ctx.args.positionals[0];
       if (id === undefined) {
         throw new CliError(
-          "Usage: mailcal domain verify <id>",
+          "Usage: flying-mail domain verify <id>",
           ExitCode.UsageError,
         );
       }
@@ -246,7 +246,7 @@ export const keyCommands: ReadonlyMap<string, CommandHandler> = new Map([
       const specs = flagList(ctx.args, "scope");
       if (name === undefined || specs.length === 0) {
         throw new CliError(
-          "Usage: mailcal key create <name> --scope CAPABILITY[:domain[:pattern]] ...",
+          "Usage: flying-mail key create <name> --scope CAPABILITY[:domain[:pattern]] ...",
           ExitCode.UsageError,
         );
       }
@@ -327,7 +327,7 @@ export const keyCommands: ReadonlyMap<string, CommandHandler> = new Map([
       const id = ctx.args.positionals[0];
       if (id === undefined) {
         throw new CliError(
-          "Usage: mailcal key revoke <id>",
+          "Usage: flying-mail key revoke <id>",
           ExitCode.UsageError,
         );
       }
@@ -513,7 +513,7 @@ export const mailCommands: ReadonlyMap<string, CommandHandler> = new Map([
       const id = ctx.args.positionals[0];
       if (id === undefined) {
         throw new CliError(
-          "Usage: mailcal mail show <id>",
+          "Usage: flying-mail mail show <id>",
           ExitCode.UsageError,
         );
       }
@@ -610,7 +610,7 @@ export const mailCommands: ReadonlyMap<string, CommandHandler> = new Map([
         subject === undefined
       ) {
         throw new CliError(
-          "Usage: mailcal mail send --from <addr> --to <addr> --subject <text> [--text <body> | --text-file <path>]",
+          "Usage: flying-mail mail send --from <addr> --to <addr> --subject <text> [--text <body> | --text-file <path>]",
           ExitCode.UsageError,
         );
       }
@@ -701,7 +701,7 @@ export const configCommands: ReadonlyMap<string, CommandHandler> = new Map([
       const value = ctx.args.positionals[1];
       if ((key !== "endpoint" && key !== "apiKey") || value === undefined) {
         throw new CliError(
-          "Usage: mailcal config set <endpoint|apiKey> <value>",
+          "Usage: flying-mail config set <endpoint|apiKey> <value>",
           ExitCode.UsageError,
         );
       }

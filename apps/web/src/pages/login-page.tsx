@@ -30,7 +30,7 @@ export default function LoginPage(): JSX.Element {
 
   return (
     <main class="login-page">
-      <h1>mailcal</h1>
+      <h1>flying-mail</h1>
       <Show
         when={!sent()}
         fallback={

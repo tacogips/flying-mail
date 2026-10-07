@@ -1,16 +1,16 @@
-import type { ApiKey, ApiKeyScope } from "@mailcal/domain/entities/api-key";
-import type { MessageFetchState } from "@mailcal/domain/entities/fetch-state";
-import type { FileLink } from "@mailcal/domain/entities/file-link";
+import type { ApiKey, ApiKeyScope } from "@flying-mail/domain/entities/api-key";
+import type { MessageFetchState } from "@flying-mail/domain/entities/fetch-state";
+import type { FileLink } from "@flying-mail/domain/entities/file-link";
 import type {
   DomainStatus,
   MailDomain,
-} from "@mailcal/domain/entities/mail-domain";
-import type { ClassificationRule } from "@mailcal/domain/entities/classification-rule";
-import type { Message } from "@mailcal/domain/entities/message";
-import type { MessageEvent } from "@mailcal/domain/entities/message-event";
-import type { Tag } from "@mailcal/domain/entities/tag";
-import type { User, UserRole } from "@mailcal/domain/entities/user";
-import type { UserMailPermission } from "@mailcal/domain/entities/user-mail-permission";
+} from "@flying-mail/domain/entities/mail-domain";
+import type { ClassificationRule } from "@flying-mail/domain/entities/classification-rule";
+import type { Message } from "@flying-mail/domain/entities/message";
+import type { MessageEvent } from "@flying-mail/domain/entities/message-event";
+import type { Tag } from "@flying-mail/domain/entities/tag";
+import type { User, UserRole } from "@flying-mail/domain/entities/user";
+import type { UserMailPermission } from "@flying-mail/domain/entities/user-mail-permission";
 import type {
   ClassificationRuleId,
   MessageEventId,
@@ -24,27 +24,31 @@ import type {
   ThreadId,
   UserId,
   UserMailPermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type {
   MailAddress,
   MailAddressStatus,
-} from "@mailcal/domain/entities/mail-address";
+} from "@flying-mail/domain/entities/mail-address";
 import type {
   MailTemplate,
   MailTemplateContentInput,
-} from "@mailcal/domain/entities/mail-template";
+} from "@flying-mail/domain/entities/mail-template";
 export type { MailTemplateContentInput };
-import type { UserTemplatePermission } from "@mailcal/domain/entities/user-template-permission";
+import type { UserTemplatePermission } from "@flying-mail/domain/entities/user-template-permission";
 import type {
   MailAddressId,
   MailTemplateId,
   UserTemplatePermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type {
   TemplateValidation,
   TemplateValueEntry,
-} from "@mailcal/domain/entities/template-values";
+} from "@flying-mail/domain/entities/template-values";
 import type { AppDependencies } from "./dependencies";
+import {
+  type ComposeUseCases,
+  createComposeUseCases,
+} from "./usecases/compose-usecases";
 import {
   type ContactUseCases,
   createContactUseCases,
@@ -102,6 +106,7 @@ import {
 } from "./usecases/auth";
 import {
   buildDomainDnsRecords,
+  createInboundMxStatusUseCase,
   createCreateDomainUseCase,
   createDeleteDomainUseCase,
   createGetDomainUseCase,
@@ -109,6 +114,7 @@ import {
   createSetDomainStatusUseCase,
   createVerifyDomainUseCase,
   type DnsRecord,
+  type InboundMxStatus,
 } from "./usecases/domains";
 import {
   type BootstrapResult,
@@ -171,6 +177,7 @@ import {
   createSendDraftUseCase,
   type SaveDraftInput,
 } from "./usecases/drafts";
+import { createDeleteDraftUseCase } from "./usecases/delete-draft";
 import {
   type CreateMessageEventInput,
   createCreateMessageEventUseCase,
@@ -236,6 +243,7 @@ export interface UseCases {
     input: SaveDraftInput,
   ) => Promise<Message>;
   readonly sendDraft: (viewer: Viewer, draftId: MessageId) => Promise<Message>;
+  readonly deleteDraft: (viewer: Viewer, id: MessageId) => Promise<boolean>;
   readonly retrySend: (
     viewer: Viewer,
     messageId: MessageId,
@@ -378,6 +386,7 @@ export interface UseCases {
   ) => Promise<MailDomain>;
   readonly deleteDomain: (viewer: Viewer, id: DomainId) => Promise<boolean>;
   readonly domainDnsRecords: (domain: MailDomain) => readonly DnsRecord[];
+  readonly inboundMxStatus: (domain: MailDomain) => Promise<InboundMxStatus>;
 
   // --- mail addresses (mailbox provisioning) ---
   readonly listMailAddresses: (
@@ -534,7 +543,10 @@ export interface UseCases {
 /** The contact and external-mail halves are declared in their own
  * modules and spread in, so this file does not grow another feature's worth
  * of entries. */
-export interface UseCases extends ContactUseCases, ExternalMailUseCases {}
+export interface UseCases
+  extends ContactUseCases,
+    ExternalMailUseCases,
+    ComposeUseCases {}
 
 export function createUseCases(deps: AppDependencies): UseCases {
   const sendMessage = createSendMessageUseCase(deps);
@@ -542,6 +554,7 @@ export function createUseCases(deps: AppDependencies): UseCases {
   return {
     ...createContactUseCases(deps),
     ...createExternalMailUseCases(deps, receiveMessage),
+    ...createComposeUseCases(deps),
 
     listMailTemplates: createListMailTemplatesUseCase(deps),
     getMailTemplate: createGetMailTemplateUseCase(deps),
@@ -570,6 +583,7 @@ export function createUseCases(deps: AppDependencies): UseCases {
     sendMessage,
     saveDraft: createSaveDraftUseCase(deps),
     sendDraft: createSendDraftUseCase(deps),
+    deleteDraft: createDeleteDraftUseCase(deps),
     retrySend: createRetrySendUseCase(deps),
     listSendableAddresses: createListSendableAddressesUseCase(deps),
 
@@ -611,6 +625,7 @@ export function createUseCases(deps: AppDependencies): UseCases {
     setDomainStatus: createSetDomainStatusUseCase(deps),
     deleteDomain: createDeleteDomainUseCase(deps),
     domainDnsRecords: buildDomainDnsRecords,
+    inboundMxStatus: createInboundMxStatusUseCase(deps),
 
     listMailAddresses: createListMailAddressesUseCase(deps),
     createMailAddress: createCreateMailAddressUseCase(deps),

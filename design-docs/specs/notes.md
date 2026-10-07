@@ -54,7 +54,7 @@ Cartesian product of messages and keys.
 
 The reference implementation `cloudflare/agentic-inbox` uses one Durable
 Object per mailbox, each with its own SQLite database. That is a good fit for a
-single-user AI inbox with heavy per-mailbox agent state. mailcal's requirements
+single-user AI inbox with heavy per-mailbox agent state. flying-mail's requirements
 pull the other way: cross-domain and cross-mailbox queries (an agent scoped to
 `*@example.com`, a tag view spanning every mailbox, global API key
 administration) are first-class, and those are awkward to serve when the data
@@ -84,3 +84,12 @@ envelope recipient that authorization must match.
 ## References
 
 See `design-docs/references/README.md`.
+
+## Project rename to flying-mail
+
+Use `flying-mail` for the project, CLI command, GitHub repository, local checkout,
+and `@flying-mail/*` workspace packages. Update UI branding and documentation.
+Keep existing `MAILCAL_*` configuration variables, CLI configuration directory,
+SQLite filename, browser storage identifiers, and Cloudflare Worker/D1/R2 names
+compatible so a naming change does not disconnect existing data or deployment.
+No Cloudflare deployment, resource migration, commit, or push is part of this rename.

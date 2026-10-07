@@ -1,4 +1,4 @@
-import { createCredentialCipher } from "@mailcal/adapter/crypto/credential-cipher";
+import { createCredentialCipher } from "@flying-mail/adapter/crypto/credential-cipher";
 import { afterEach, describe, expect, test } from "vitest";
 import {
   buildDependencies,
@@ -9,6 +9,7 @@ import {
 import {
   CredentialKeyConfigurationError,
   DEFAULT_FILE_LINK_MAX_TTL_SECONDS,
+  DEFAULT_INBOUND_MX_SUFFIX,
   DEFAULT_SPAM_THRESHOLD,
   MailConfigurationError,
   PublicOriginConfigurationError,
@@ -18,6 +19,7 @@ import {
   resolveBlobBackend,
   resolveCredentialKey,
   resolveFileLinkMaxTtl,
+  resolveInboundMxSuffix,
   resolveMailFrom,
   resolvePublicOrigin,
   resolveSignupMode,
@@ -126,6 +128,19 @@ describe("scalar env resolution", () => {
     }
   });
 
+  test("inbound MX suffix defaults to Cloudflare and empty disables the gate", () => {
+    expect(resolveInboundMxSuffix({})).toBe(DEFAULT_INBOUND_MX_SUFFIX);
+    expect(
+      resolveInboundMxSuffix({ MAILCAL_INBOUND_MX_SUFFIX: "  MX.Example. " }),
+    ).toBe("mx.example");
+    expect(resolveInboundMxSuffix({ MAILCAL_INBOUND_MX_SUFFIX: "" })).toBe(
+      null,
+    );
+    expect(resolveInboundMxSuffix({ MAILCAL_INBOUND_MX_SUFFIX: "   " })).toBe(
+      null,
+    );
+  });
+
   test("blob backend defaults to r2", () => {
     expect(resolveBlobBackend({})).toBe("r2");
     expect(resolveBlobBackend({ MAILCAL_BLOB_BACKEND: "s3" })).toBe("s3");
@@ -169,6 +184,13 @@ describe("loadConfigFromEnv", () => {
     // Local defaults to memory blobs so a clean checkout runs with no setup.
     expect(config.blobBackend).toBe("memory");
     expect(config.signupMode).toBe("closed");
+    expect(config.inboundMxSuffix).toBe(DEFAULT_INBOUND_MX_SUFFIX);
+  });
+
+  test("an empty inbound MX suffix disables the gate", () => {
+    expect(
+      loadConfigFromEnv({ MAILCAL_INBOUND_MX_SUFFIX: "" }).inboundMxSuffix,
+    ).toBeNull();
   });
 
   test("normalizes a bare sqlite path from the environment", () => {
@@ -209,6 +231,7 @@ describe("buildDependencies", () => {
     expect(deps.instanceConfig.signupMode).toBe("closed");
     expect(deps.instanceConfig.publicOrigin).toBeNull();
     expect(deps.instanceConfig.spamThreshold).toBe(DEFAULT_SPAM_THRESHOLD);
+    expect(deps.instanceConfig.inboundMxSuffix).toBe(DEFAULT_INBOUND_MX_SUFFIX);
     // External mail's whole port surface is wired even with no
     // MAILCAL_CREDENTIAL_KEY -- the cipher (not a missing field) is what
     // gates its credential-dependent operations.

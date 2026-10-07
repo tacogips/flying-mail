@@ -1,7 +1,10 @@
-import type { AppDependencies } from "@mailcal/application/dependencies";
-import type { Viewer } from "@mailcal/application/policies";
-import type { FakeDependencies } from "@mailcal/application/test-support/fakes";
-import { createUseCases, type UseCases } from "@mailcal/application/usecases";
+import type { AppDependencies } from "@flying-mail/application/dependencies";
+import type { Viewer } from "@flying-mail/application/policies";
+import type { FakeDependencies } from "@flying-mail/application/test-support/fakes";
+import {
+  createUseCases,
+  type UseCases,
+} from "@flying-mail/application/usecases";
 import { buildGraphQLContext } from "./context";
 import { buildGraphQLSchema, createGraphQLYoga } from "./schema";
 

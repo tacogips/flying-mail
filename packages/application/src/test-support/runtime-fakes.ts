@@ -161,23 +161,29 @@ export function memoryBlobStore(): MemoryBlobStore {
 export interface RecordingMailSender extends MailSender {
   readonly sent: readonly OutboundMail[];
   failNext(error: Error): void;
+  setProviderMessageId(providerMessageId: string | null): void;
 }
 
 export function recordingMailSender(): RecordingMailSender {
   const sent: OutboundMail[] = [];
   let pendingFailure: Error | null = null;
+  let providerMessageId: string | null = null;
   return {
     sent,
     failNext(error: Error) {
       pendingFailure = error;
     },
-    async send(mail: OutboundMail): Promise<void> {
+    setProviderMessageId(value: string | null) {
+      providerMessageId = value;
+    },
+    async send(mail: OutboundMail) {
       if (pendingFailure !== null) {
         const error = pendingFailure;
         pendingFailure = null;
         throw error;
       }
       sent.push(mail);
+      return { providerMessageId };
     },
   };
 }
@@ -264,25 +270,35 @@ export function unusedSqlDatabase(): SqlDatabase {
   };
 }
 
-import type { DnsResolver } from "../ports/dns-resolver";
+import type { DnsResolver, MxRecord } from "../ports/dns-resolver";
 
 export interface FakeDnsResolver extends DnsResolver {
   /** Sets the TXT values returned for a name. */
   setTxt(name: string, values: readonly string[]): void;
+  /** Sets the MX records returned for a name. */
+  setMx(name: string, records: readonly MxRecord[]): void;
   failNextLookup(error: Error): void;
+  failNextMxLookup(error: Error): void;
 }
 
-/** By default answers every `_mailcal.<domain>` lookup with whatever the
- * caller staged; unknown names resolve to no records. */
+/** Unstaged TXT names resolve empty; unstaged MX names default to Cloudflare. */
 export function fakeDnsResolver(): FakeDnsResolver {
   const records = new Map<string, readonly string[]>();
+  const mxRecords = new Map<string, readonly MxRecord[]>();
   let pendingFailure: Error | null = null;
+  let pendingMxFailure: Error | null = null;
   return {
     setTxt(name, values) {
       records.set(name.toLowerCase(), values);
     },
+    setMx(name, values) {
+      mxRecords.set(name.toLowerCase(), values);
+    },
     failNextLookup(error) {
       pendingFailure = error;
+    },
+    failNextMxLookup(error) {
+      pendingMxFailure = error;
     },
     async lookupTxt(name) {
       if (pendingFailure !== null) {
@@ -291,6 +307,18 @@ export function fakeDnsResolver(): FakeDnsResolver {
         throw error;
       }
       return records.get(name.toLowerCase()) ?? [];
+    },
+    async lookupMx(name) {
+      if (pendingMxFailure !== null) {
+        const error = pendingMxFailure;
+        pendingMxFailure = null;
+        throw error;
+      }
+      return (
+        mxRecords.get(name.toLowerCase()) ?? [
+          { priority: 1, exchange: "route1.mx.cloudflare.net" },
+        ]
+      );
     },
   };
 }

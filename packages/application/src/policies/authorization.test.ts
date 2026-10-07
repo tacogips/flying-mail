@@ -1,10 +1,10 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createDomainId,
   createMailAddressId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { describe, expect, test } from "vitest";
 import { ForbiddenError, UnauthenticatedError } from "../errors";
 import {

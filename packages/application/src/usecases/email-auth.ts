@@ -1,29 +1,32 @@
 import {
   consumeEmailAuthChallenge,
   createEmailAuthChallenge,
-} from "@mailcal/domain/entities/email-auth-challenge";
+} from "@flying-mail/domain/entities/email-auth-challenge";
 import {
   type ApiKey,
   Capability,
   createApiKey,
   createApiKeyScope,
-} from "@mailcal/domain/entities/api-key";
-import { createSession, type Session } from "@mailcal/domain/entities/session";
-import { MATCH_ALL_ADDRESSES } from "@mailcal/domain/value-objects/address-pattern";
+} from "@flying-mail/domain/entities/api-key";
+import {
+  createSession,
+  type Session,
+} from "@flying-mail/domain/entities/session";
+import { MATCH_ALL_ADDRESSES } from "@flying-mail/domain/value-objects/address-pattern";
 import {
   createUser,
   isUserActive,
   type User,
   UserRole,
-} from "@mailcal/domain/entities/user";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/user";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createApiKeyId,
   createApiKeyScopeId,
   createEmailAuthChallengeId,
   createSessionId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import {
   ConflictError,
@@ -31,6 +34,7 @@ import {
   UnauthenticatedError,
 } from "../errors";
 import { generateApiKeySecret } from "./api-keys";
+import { deleteAttachmentsAndUnreferencedBlobs } from "./attachment-blobs";
 import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
 
 const CHALLENGE_TTL_SECONDS = 15 * 60;
@@ -130,9 +134,9 @@ export function createRequestEmailAuthUseCase(
       await deps.mailSender.send({
         from: mail.from,
         to: [email],
-        subject: "Your mailcal sign-in link",
-        text: `Sign in to mailcal:\n\n${url}\n\nThis link expires in 15 minutes and can be used once.`,
-        html: `<p>Sign in to mailcal:</p><p><a href="${url}">${url}</a></p><p>This link expires in 15 minutes and can be used once.</p>`,
+        subject: "Your flying-mail sign-in link",
+        text: `Sign in to flying-mail:\n\n${url}\n\nThis link expires in 15 minutes and can be used once.`,
+        html: `<p>Sign in to flying-mail:</p><p><a href="${url}">${url}</a></p><p>This link expires in 15 minutes and can be used once.</p>`,
       });
       return true;
     });
@@ -284,17 +288,7 @@ export function createSweepExpiredAuthUseCase(
       if (stale.length === 0) {
         return;
       }
-      // Blobs first: if a blob delete fails, the surviving row keeps the
-      // orphan discoverable for the next sweep. The reverse order would
-      // strand unreferenced blobs forever.
-      await Promise.all(
-        stale.map((attachment) =>
-          deps.blobs.delete(attachment.blobKey).catch(() => undefined),
-        ),
-      );
-      await deps.messageRepository.deleteAttachments(
-        stale.map((attachment) => attachment.id),
-      );
+      await deleteAttachmentsAndUnreferencedBlobs(deps, stale);
     };
 
     await Promise.all([

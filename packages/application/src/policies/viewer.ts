@@ -1,8 +1,8 @@
-import type { ApiKeyScope } from "@mailcal/domain/entities/api-key";
-import type { UserMailPermission } from "@mailcal/domain/entities/user-mail-permission";
-import type { UserTemplatePermission } from "@mailcal/domain/entities/user-template-permission";
-import { UserRole } from "@mailcal/domain/entities/user";
-import type { ApiKeyId, UserId } from "@mailcal/domain/value-objects/ids";
+import type { ApiKeyScope } from "@flying-mail/domain/entities/api-key";
+import type { UserMailPermission } from "@flying-mail/domain/entities/user-mail-permission";
+import type { UserTemplatePermission } from "@flying-mail/domain/entities/user-template-permission";
+import { UserRole } from "@flying-mail/domain/entities/user";
+import type { ApiKeyId, UserId } from "@flying-mail/domain/value-objects/ids";
 
 /** Both credential kinds resolve to this one union, which every use case
  * takes as its first argument.

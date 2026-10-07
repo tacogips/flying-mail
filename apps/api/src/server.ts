@@ -2,15 +2,18 @@ import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
-import type { MigrationFile } from "@mailcal/adapter/migrations/runner";
-import { createMigrationRunner } from "@mailcal/adapter/migrations/runner";
-import { drainBlobCleanupQueue } from "@mailcal/adapter/migrations/blob-cleanup";
-import type { AppDependencies } from "@mailcal/application/dependencies";
-import { createUseCases, type UseCases } from "@mailcal/application/usecases";
-import { buildDependencies } from "@mailcal/infrastructure/composition/build-dependencies";
-import { loadConfigFromEnv } from "@mailcal/infrastructure/composition/config";
-import { createApp } from "@mailcal/infrastructure/http/app";
-import type { AuthVariables } from "@mailcal/infrastructure/http/auth-middleware";
+import type { MigrationFile } from "@flying-mail/adapter/migrations/runner";
+import { createMigrationRunner } from "@flying-mail/adapter/migrations/runner";
+import { drainBlobCleanupQueue } from "@flying-mail/adapter/migrations/blob-cleanup";
+import type { AppDependencies } from "@flying-mail/application/dependencies";
+import {
+  createUseCases,
+  type UseCases,
+} from "@flying-mail/application/usecases";
+import { buildDependencies } from "@flying-mail/infrastructure/composition/build-dependencies";
+import { loadConfigFromEnv } from "@flying-mail/infrastructure/composition/config";
+import { createApp } from "@flying-mail/infrastructure/http/app";
+import type { AuthVariables } from "@flying-mail/infrastructure/http/auth-middleware";
 import type { Context, Hono } from "hono";
 
 /** Retry policy for local post-migration blob cleanup. */
@@ -209,7 +212,9 @@ export async function startServer(
   } else {
     serve({ fetch: app.fetch, port });
   }
-  console.log(`mailcal-api listening on http://localhost:${port} (${runtime})`);
+  console.log(
+    `flying-mail-api listening on http://localhost:${port} (${runtime})`,
+  );
 }
 
 const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);

@@ -7,6 +7,7 @@ import {
   buildRawMessageBlobKey,
   classifyAttachmentKind,
   createAttachment,
+  copyAttachmentForForward,
   sanitizeFileName,
 } from "./attachment";
 
@@ -157,6 +158,36 @@ describe("classifyAttachmentKind", () => {
       createdAt: "2026-08-23T00:00:00.000Z",
     });
     expect(attachment.kind).toBe("PDF");
+  });
+
+  test("forward copies reuse the blob and clear inline metadata", () => {
+    const source = createAttachment({
+      id: createAttachmentId("att-source"),
+      messageId: createMessageId("msg-source"),
+      fileName: "image.png",
+      contentType: "image/png",
+      size: 99,
+      blobKey: "shared/blob-key",
+      contentId: "image-1",
+      inline: true,
+      createdAt: "2026-08-23T00:00:00.000Z",
+    });
+    const copy = copyAttachmentForForward(source, {
+      id: createAttachmentId("att-copy"),
+      messageId: createMessageId("msg-copy"),
+      createdAt: "2026-08-24T00:00:00.000Z",
+    });
+    expect(copy).toMatchObject({
+      id: createAttachmentId("att-copy"),
+      messageId: createMessageId("msg-copy"),
+      blobKey: source.blobKey,
+      fileName: source.fileName,
+      contentType: source.contentType,
+      size: source.size,
+      kind: source.kind,
+      inline: false,
+      contentId: null,
+    });
   });
 
   test("an explicitly stored kind wins over re-derivation", () => {

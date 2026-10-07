@@ -1,18 +1,18 @@
-import type { MailTemplateRepository } from "@mailcal/application/ports/mail-template-repository";
+import type { MailTemplateRepository } from "@flying-mail/application/ports/mail-template-repository";
 import type {
   SqlDatabase,
   SqlStatement,
-} from "@mailcal/application/ports/sql-database";
+} from "@flying-mail/application/ports/sql-database";
 import {
   type MailTemplate,
   type TemplateVariable,
   TemplateVariableType,
-} from "@mailcal/domain/entities/mail-template";
+} from "@flying-mail/domain/entities/mail-template";
 import {
   createMailTemplateId,
   createUserId,
   type MailTemplateId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import {
   assertEnumValue,
   boolToSql,

@@ -4,6 +4,7 @@ import type { GraphQLContext } from "./context";
 import { useDepthLimit } from "./depth-limit";
 import { contactTypeDefs } from "./schema-contacts.graphql";
 import { externalMailTypeDefs } from "./schema-external-mail.graphql";
+import { composeTypeDefs } from "./schema-compose.graphql";
 import { templateTypeDefs } from "./schema-templates.graphql";
 import { typeDefs } from "./schema.graphql";
 import { toGraphQLError } from "./errors";
@@ -18,6 +19,11 @@ import {
   externalMailMutationResolvers,
   externalMailQueryResolvers,
 } from "./resolvers/external-mail";
+import {
+  composeMutationResolvers,
+  composeQueryResolvers,
+  composeViewerResolvers,
+} from "./resolvers/compose";
 import { mutationResolvers } from "./resolvers/mutation";
 import { queryResolvers } from "./resolvers/query";
 import {
@@ -59,14 +65,14 @@ import { useSelectionLimit } from "./selection-limit";
  * loader-based, mirroring `ApiKey.scopes`. */
 export function buildGraphQLSchema(): GraphQLSchema {
   return createSchema<GraphQLContext>({
-    // Four SDL documents, merged by `createSchema`: the mail and admin
-    // contract, which defines Query/Mutation, plus the contacts,
-    // external-mail and template modules that `extend` them.
+    // Five SDL documents, merged by `createSchema`: the mail and admin
+    // contract plus contacts, external-mail, templates and compose modules.
     typeDefs: [
       typeDefs,
       contactTypeDefs,
       externalMailTypeDefs,
       templateTypeDefs,
+      composeTypeDefs,
     ],
     resolvers: {
       Query: {
@@ -75,6 +81,7 @@ export function buildGraphQLSchema(): GraphQLSchema {
         ...templateQueryResolvers,
         ...contactQueryResolvers,
         ...externalMailQueryResolvers,
+        ...composeQueryResolvers,
       },
       Mutation: {
         ...mutationResolvers,
@@ -82,6 +89,7 @@ export function buildGraphQLSchema(): GraphQLSchema {
         ...templateMutationResolvers,
         ...contactMutationResolvers,
         ...externalMailMutationResolvers,
+        ...composeMutationResolvers,
       },
       MailAddress: mailAddressResolvers,
       MailTemplate: mailTemplateResolvers,
@@ -100,7 +108,7 @@ export function buildGraphQLSchema(): GraphQLSchema {
       Thread: threadResolvers,
       ClassificationRule: classificationRuleResolvers,
       MessageEvent: messageEventResolvers,
-      Viewer: viewerResolvers,
+      Viewer: { ...viewerResolvers, ...composeViewerResolvers },
       User: userResolvers,
       UserMailPermission: userMailPermissionResolvers,
     },

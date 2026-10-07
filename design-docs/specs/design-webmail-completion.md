@@ -478,17 +478,30 @@ Steps:
 
 1. `resolveRecipient` yields the recipient domain D. Then read `Message-ID`
    from the envelope headers, before touching R2.
-2. If a row exists with `direction = INBOUND AND domain_id = D AND
-   rfc_message_id = <id>`:
-   - Insert an ENVELOPE recipient row for this envelope recipient, as a
-     single statement: `INSERT ... SELECT ... COALESCE(MAX(position), -1) +
-     1 ... WHERE NOT EXISTS` for the same message, kind and address.
-   - Return DUPLICATE and write no blob.
-3. Otherwise ingest as today, with `domain_id = D`. Two cases divert to
-   step 2's ENVELOPE insert and delete this call's raw blob:
+2. Retry fast path: if a row exists with `direction = INBOUND AND
+   domain_id = D AND rfc_message_id = <id>` and it already has an ENVELOPE
+   row for this envelope recipient, return DUPLICATE and write no blob.
+   A Message-ID match alone never adds a recipient, because the
+   Message-ID header is sender-controlled.
+3. Otherwise ingest as today, with `domain_id = D`. Two cases may merge
+   into the existing row:
    - dedup after parse, using the same `(INBOUND, D, rfc_message_id)` scope;
    - a conflict on the `(rfc_message_id, direction, domain_id)` unique
      index from a concurrent delivery to the same domain.
+
+   In both cases the new raw message is compared with the stored raw
+   message after skipping only the unbroken leading run of MTA trace
+   fields (`Received`, `X-Received`, `Return-Path`, `Delivered-To`,
+   `X-Original-To`, `Received-SPF`, `Authentication-Results`, `ARC-*`).
+   The remaining bytes must be identical. Only then is an ENVELOPE row
+   added, as a single statement: `INSERT ... SELECT ...
+   COALESCE(MAX(position), -1) + 1 ... WHERE NOT EXISTS` for the same
+   message, kind and address. Either way the call returns DUPLICATE and
+   deletes the blobs it wrote. A new recipient therefore costs one R2
+   put, a parse, a read of the stored raw message and a delete. The trace
+   allowlist must be confirmed against a live two-recipient Cloudflare
+   delivery; a per-recipient field outside it stops genuine copies from
+   merging (fail-safe for confidentiality).
 4. Dedup never matches OUTBOUND rows or rows on another domain. As a
    result:
    - The inbound copy of our own outbound mail to a managed mailbox is its
@@ -625,3 +638,128 @@ Visible consequences:
 | C | GraphQL `schema-compose` SDL + resolvers + REST 413 body + `schema-types.ts` mirror | B |
 | D | D1 compose UI (editor, attachments, autosave, From picker); D2 reply/forward/reopen wiring, tiles, sidebar scopes | C, A3 |
 | E | Docs (operation catalogue, README API, pointers), empty-dir cleanup, full verification | C (docs), D (verification) |
+
+## 14. Addendum (2026-10-07): domain rail and inbound MX readiness
+
+Requested by the user after the first live deployment:
+
+- Domains whose mail cannot reach flying-mail (for example `tacogips.me`,
+  whose MX is Google Workspace) must not be usable.
+- Domain switching moves to a Discord-style left-most rail, and the
+  selected domain's addresses are listed in the next pane.
+
+### 14.1 Inbound MX readiness (server)
+
+Managed-domain inbound mail arrives only through the Cloudflare Email
+Routing Worker `email()` handler, so a domain whose MX does not point at
+Cloudflare can never receive.
+
+- Ownership stays TXT-only.
+- MX readiness is a second, separate **activation gate**.
+
+**`DnsResolver.lookupMx`**
+- Signature: `lookupMx(name: string): Promise<readonly MxRecord[]>`, where
+  `MxRecord = { priority: number; exchange: string }`.
+- `exchange` is lowercased with any trailing dot stripped.
+- It rejects on transport failure, the same as `lookupTxt`.
+- The DoH adapter queries `type=MX`.
+
+**`MAILCAL_INBOUND_MX_SUFFIX`**
+- Deployment config. Default `mx.cloudflare.net`. An empty string disables
+  the gate, for deployments that feed inbound some other way.
+- Resolved in `composition/config.ts` and exposed to use cases as
+  `inboundMxSuffix: string | null`.
+
+**`verifyDomain`**
+1. Check the TXT record (unchanged).
+2. If `inboundMxSuffix` is not null, look up MX for the domain apex. At
+   least one exchange must equal the suffix or end with `.` + suffix.
+3. If none does, throw `ConflictError` and leave the domain PENDING. The
+   message is "MX records for <domain> do not point to Cloudflare Email
+   Routing (*.<suffix>); enable Email Routing for the zone (mise run
+   mail-routing-enable <domain>) and retry. Current MX: <comma list or
+   none>".
+4. If the MX lookup itself fails, throw `ServiceUnavailableError`.
+5. Already verified domains return early, as before.
+
+**`MailDomain.inboundMx: InboundMxStatus!`**
+- Enum values `READY | NOT_CLOUDFLARE | NONE | UNKNOWN`, resolved lazily
+  per selected field.
+- `UNKNOWN` means the lookup failed or the gate is disabled.
+- Requires `DOMAIN_ADMIN`, like the other domain admin fields.
+- Used by Settings > Domains.
+
+### 14.2 Domain rail (web)
+
+**Layout:** `DomainRail | MailboxSidebar | MessageList | Reader`.
+
+**`components/domain-rail.tsx` (+ css)** is a vertical rail about 64 px
+wide:
+- Top: an "All" item (the unified mailbox).
+- Then one item per **ACTIVE** domain the viewer can read. The source of
+  truth is the domains of `viewer.readableAddresses`, joined with `domains`
+  for id and status, and sorted by name.
+- Each item is a rounded avatar: two-letter initials of the first label,
+  background colour hashed from the domain name, tooltip and `aria-label`
+  with the full name, a Discord-style selection pill on the left edge, and
+  an unread badge from the same data the sidebar counts use today.
+- Bottom: a settings link to `/settings/domains` (admins only).
+- Selecting an item sets the scope `{domainId}` through the existing
+  `fullSearchParamsForView` URL mechanism. "All" clears the scope.
+
+**`MailboxSidebar`**
+- Header shows the selected domain name, or "All mail".
+- Then New message / From template, the MAIL folders, and an **ADDRESSES**
+  section:
+  - With a domain selected: that domain's readable addresses. Clicking one
+    sets scope `{domainId, address}`.
+  - With "All" selected: all readable addresses, grouped under small
+    domain headers.
+- The DOMAINS section is removed from this pane, because it now lives in
+  the rail.
+
+**PENDING / DISABLED domains** never appear in the rail, the sidebar, or
+the compose From picker groups. They are shown only in Settings > Domains,
+together with:
+- the TXT record to publish,
+- the `inboundMx` badge (Ready / MX not on Cloudflare / No MX / Unknown),
+- a Verify button that surfaces the server error text.
+
+**Compose default From:** New message pre-selects the scoped address if
+one is selected; otherwise the first sendable address on the selected
+domain; otherwise the current default.
+
+**Phone (< 760 px):** the drawer contains the rail and the sidebar side by
+side.
+
+### 14.3 Recent-address list (user request, 2026-10-07)
+
+The ADDRESSES list in `MailboxSidebar` sits **above** the "All mail" and
+folder entries, so that selecting an address is the first action.
+
+**Order: most recently used first.** "Used" means the latest message
+activity of the address:
+- the newest OUTBOUND message it sent (non-DRAFT, `from` = the address), or
+- the newest INBOUND message delivered to it (an ENVELOPE recipient row).
+
+Addresses with no activity sort last, alphabetically.
+
+**Server field: `Viewer.addressActivity: [AddressActivity!]!`**
+- `AddressActivity { address: String!, domainId: ID!, lastActivityAt: DateTime, unreadCount: Int! }`.
+- Covers exactly the viewer's readable ACTIVE addresses on ACTIVE domains.
+- Ordered by `lastActivityAt` descending, nulls last, then by address.
+- `unreadCount` counts unread, non-spam, non-trashed INBOUND messages
+  delivered to that address.
+- One aggregate SQL query per call. No N+1.
+
+**Display**
+- Show the top 7, scoped to the selected rail domain, or across all
+  domains when "All" is selected.
+- A "Show all (N)" toggle expands the rest.
+- A filter input (shown when there are more than 7) narrows by substring,
+  case-insensitive, over all addresses.
+- The selected address is always visible even when it is beyond the top 7.
+- Each row shows the address, a domain hint under "All", and an unread
+  badge.
+- The expanded state is remembered per browser in `localStorage`, wrapped
+  in try/catch.

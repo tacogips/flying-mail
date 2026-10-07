@@ -216,7 +216,7 @@ export const contactTypeDefs = /* GraphQL */ `
   }
 
   """
-  IMPORT_NEW creates a fresh mailcal address book for the remote collection;
+  IMPORT_NEW creates a fresh flying-mail address book for the remote collection;
   BIND_EXISTING attaches the remote collection to a book that already
   exists (and then requires addressBookId).
   """

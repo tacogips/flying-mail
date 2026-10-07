@@ -1,5 +1,5 @@
 /**
- * The mail and admin half of the mailcal GraphQL schema, mirroring
+ * The mail and admin half of the flying-mail GraphQL schema, mirroring
  * `design-docs/specs/design-graphql-api.md#schema`.
  *
  * This document owns `Query` and `Mutation`; the feature modules
@@ -198,6 +198,13 @@ export const typeDefs = /* GraphQL */ `
     CNAME
   }
 
+  enum InboundMxStatus {
+    READY
+    NOT_CLOUDFLARE
+    NONE
+    UNKNOWN
+  }
+
   type DnsRecord {
     type: DnsRecordType!
     name: String!
@@ -217,6 +224,7 @@ export const typeDefs = /* GraphQL */ `
     verificationToken: String
     verifiedAt: DateTime
     dnsRecords: [DnsRecord!]!
+    inboundMx: InboundMxStatus!
     messageCount: Int!
     createdAt: DateTime!
     updatedAt: DateTime!
@@ -523,6 +531,14 @@ export const typeDefs = /* GraphQL */ `
     apiKey: ApiKey
     capabilities: [Capability!]!
     sendableAddresses: [String!]!
+    addressActivity: [AddressActivity!]!
+  }
+
+  type AddressActivity {
+    address: String!
+    domainId: ID!
+    lastActivityAt: DateTime
+    unreadCount: Int!
   }
 
   type BootstrapPayload {

@@ -1,4 +1,4 @@
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import { describe, expect, test } from "vitest";
 import { createInMemoryDatabase } from "../sql/libsql";
 import { loadMigrationFiles } from "../repositories/test-support";
@@ -110,6 +110,8 @@ describe("createMigrationRunner", () => {
       "0010_contacts.sql",
       "0011_external_mail.sql",
       "0012_remove_calendar.sql",
+      "0013_webmail_completion.sql",
+      "0014_address_activity_index.sql",
     ]);
 
     const names = await tableNames(db);

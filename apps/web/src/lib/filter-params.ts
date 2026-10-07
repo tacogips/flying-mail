@@ -1,23 +1,31 @@
 import type {
+  MailDomainView,
   MessageFilterVariables,
   SystemTagSlug,
   TagView,
 } from "../api/schema-types";
 import { parseSearchQuery, searchToFilterVariables } from "./search-query";
 
-/** The mailbox view the sidebar selects. Kept as a small union rather than
- * free-form query params so a bookmarked URL always maps to a known view. */
-export type MailboxView =
+export type MailboxFolder =
   | { readonly kind: "INBOX" }
+  | { readonly kind: "STARRED" }
   | { readonly kind: "SENT" }
   | { readonly kind: "DRAFTS" }
-  | { readonly kind: "SPAM" }
-  | { readonly kind: "STARRED" }
   | { readonly kind: "ARCHIVED" }
+  | { readonly kind: "SPAM" }
   | { readonly kind: "TRASH" }
-  | { readonly kind: "ADDRESS"; readonly address: string }
   | { readonly kind: "TAG"; readonly tagId: string; readonly name: string }
   | { readonly kind: "SEARCH"; readonly query: string };
+
+export interface MailboxScope {
+  readonly domainId?: string;
+  readonly address?: string;
+}
+
+export interface MailboxView {
+  readonly folder: MailboxFolder;
+  readonly scope: MailboxScope;
+}
 
 const SLUG_VIEWS: Readonly<Record<string, SystemTagSlug>> = {
   STARRED: "STARRED",
@@ -25,80 +33,100 @@ const SLUG_VIEWS: Readonly<Record<string, SystemTagSlug>> = {
   TRASH: "TRASH",
 };
 
-/** Translates a sidebar selection into the server-side filter.
- *
- * `INBOX` is inbound mail with spam excluded (the API's default); `SENT` is
- * outbound. A system-tag view filters on the slug, which also opts that
- * view into showing spam -- otherwise the Spam folder would be empty.
- *
- * A search view is parsed through the operator syntax (`from:`, `to:`,
- * `cc:`, `has:attachment`, `kind:`, `tag:`, `is:unread`, `in:spam`, plus
- * free text -- see `search-query.ts`), with tag names resolved against the
- * loaded tag list. */
-export function viewToFilter(
-  view: MailboxView,
-  tags: readonly TagView[] = [],
+function folderToFilter(
+  folder: MailboxFolder,
+  tags: readonly TagView[],
 ): MessageFilterVariables {
-  switch (view.kind) {
+  switch (folder.kind) {
     case "INBOX":
       return { direction: "INBOUND" };
     case "SENT":
-      // Drafts are outbound too; without the status filter they would sit
-      // in Sent looking like dispatched mail.
       return { direction: "OUTBOUND", statuses: ["SENT"] };
     case "DRAFTS":
       return { statuses: ["DRAFT"] };
     case "SPAM":
-      // Spam is a verdict table now, not a tag.
       return { spamOnly: true };
     case "STARRED":
     case "ARCHIVED":
     case "TRASH": {
-      const slug = SLUG_VIEWS[view.kind];
+      const slug = SLUG_VIEWS[folder.kind];
       return slug === undefined ? {} : { systemSlugs: [slug] };
     }
-    case "ADDRESS":
-      return { toAddress: view.address };
     case "TAG":
-      return { tagIds: [view.tagId] };
+      return { tagIds: [folder.tagId] };
     case "SEARCH": {
       const variables = searchToFilterVariables(
-        parseSearchQuery(view.query),
+        parseSearchQuery(folder.query),
         tags,
       );
-      // Unless the query narrows spam explicitly, search spans it: someone
-      // hunting for a message wants it found wherever it was filed.
       return { includeSpam: true, ...variables };
     }
   }
 }
 
-/** Serializes a view into URL search params, so a mailbox is linkable. */
+/** Combines the selected folder's filter with its domain or mailbox scope. */
+export function viewToFilter(
+  view: MailboxView,
+  tags: readonly TagView[] = [],
+): MessageFilterVariables {
+  const filter = folderToFilter(view.folder, tags);
+  const addressFilter: MessageFilterVariables =
+    view.scope.address === undefined
+      ? {}
+      : view.folder.kind === "INBOX"
+        ? { toAddress: view.scope.address }
+        : view.folder.kind === "SENT" || view.folder.kind === "DRAFTS"
+          ? { fromAddress: view.scope.address }
+          : { address: view.scope.address };
+  return {
+    ...filter,
+    ...(view.scope.domainId === undefined
+      ? {}
+      : { domainId: view.scope.domainId }),
+    ...addressFilter,
+  };
+}
+
+/** Serializes folder and scope so a mailbox is linkable. */
+export function fullSearchParamsForView(
+  view: MailboxView,
+): Record<string, string | undefined> {
+  const params = viewToSearchParams(view);
+  return {
+    view: params.get("view") ?? undefined,
+    domain: params.get("domain") ?? undefined,
+    address: params.get("address") ?? undefined,
+    tag: params.get("tag") ?? undefined,
+    name: params.get("name") ?? undefined,
+    q: params.get("q") ?? undefined,
+  };
+}
+
 export function viewToSearchParams(view: MailboxView): URLSearchParams {
   const params = new URLSearchParams();
-  params.set("view", view.kind);
-  if (view.kind === "ADDRESS") {
-    params.set("address", view.address);
+  params.set("view", view.folder.kind);
+  if (view.scope.domainId !== undefined) {
+    params.set("domain", view.scope.domainId);
   }
-  if (view.kind === "TAG") {
-    params.set("tag", view.tagId);
-    params.set("name", view.name);
+  if (view.scope.address !== undefined) {
+    params.set("address", view.scope.address);
   }
-  if (view.kind === "SEARCH") {
-    params.set("q", view.query);
+  if (view.folder.kind === "TAG") {
+    params.set("tag", view.folder.tagId);
+    params.set("name", view.folder.name);
+  }
+  if (view.folder.kind === "SEARCH") {
+    params.set("q", view.folder.query);
   }
   return params;
 }
 
-/** Parses URL search params back into a view, falling back to the inbox for
- * anything unrecognized rather than rendering an empty screen. */
-export function searchParamsToView(params: URLSearchParams): MailboxView {
-  const kind = params.get("view");
-  switch (kind) {
-    case "DRAFTS":
-      return { kind: "DRAFTS" };
+function parseFolder(params: URLSearchParams): MailboxFolder {
+  switch (params.get("view")) {
     case "SENT":
       return { kind: "SENT" };
+    case "DRAFTS":
+      return { kind: "DRAFTS" };
     case "SPAM":
       return { kind: "SPAM" };
     case "STARRED":
@@ -107,12 +135,6 @@ export function searchParamsToView(params: URLSearchParams): MailboxView {
       return { kind: "ARCHIVED" };
     case "TRASH":
       return { kind: "TRASH" };
-    case "ADDRESS": {
-      const address = params.get("address");
-      return address === null
-        ? { kind: "INBOX" }
-        : { kind: "ADDRESS", address };
-    }
     case "TAG": {
       const tagId = params.get("tag");
       return tagId === null
@@ -128,8 +150,31 @@ export function searchParamsToView(params: URLSearchParams): MailboxView {
   }
 }
 
-export function viewTitle(view: MailboxView): string {
-  switch (view.kind) {
+/** Parses folder and scope params, including legacy ADDRESS URLs. */
+export function searchParamsToView(params: URLSearchParams): MailboxView {
+  const rawLegacyAddress =
+    params.get("view") === "ADDRESS" ? params.get("address") : null;
+  const legacyAddress = rawLegacyAddress === "" ? null : rawLegacyAddress;
+  const rawDomainId = params.get("domain");
+  const rawAddress = params.get("address");
+  const domainId = rawDomainId === "" ? null : rawDomainId;
+  const address = rawAddress === "" ? null : rawAddress;
+  const folder = parseFolder(params);
+  return {
+    folder,
+    scope: {
+      ...(domainId === null ? {} : { domainId }),
+      ...(legacyAddress !== null
+        ? { address: legacyAddress }
+        : address === null
+          ? {}
+          : { address }),
+    },
+  };
+}
+
+function folderTitle(folder: MailboxFolder): string {
+  switch (folder.kind) {
     case "INBOX":
       return "Inbox";
     case "SENT":
@@ -144,11 +189,20 @@ export function viewTitle(view: MailboxView): string {
       return "Archived";
     case "TRASH":
       return "Trash";
-    case "ADDRESS":
-      return view.address;
     case "TAG":
-      return view.name;
+      return folder.name;
     case "SEARCH":
-      return `Search: ${view.query}`;
+      return `Search: ${folder.query}`;
   }
+}
+
+export function viewTitle(
+  view: MailboxView,
+  domains: readonly MailDomainView[] = [],
+): string {
+  const base = folderTitle(view.folder);
+  const scopeLabel =
+    view.scope.address ??
+    domains.find((domain) => domain.id === view.scope.domainId)?.name;
+  return scopeLabel === undefined ? base : `${base} - ${scopeLabel}`;
 }

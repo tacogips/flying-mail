@@ -1,10 +1,10 @@
-import { createInMemoryDatabase } from "@mailcal/adapter/sql/libsql";
-import { createMigrationRunner } from "@mailcal/adapter/migrations/runner";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import { createInMemoryDatabase } from "@flying-mail/adapter/sql/libsql";
+import { createMigrationRunner } from "@flying-mail/adapter/migrations/runner";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   MailConfigurationError,
   PublicOriginConfigurationError,
-} from "@mailcal/infrastructure/composition/config";
+} from "@flying-mail/infrastructure/composition/config";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,12 +12,12 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import type {
   D1DatabaseLike,
   D1PreparedStatementLike,
-} from "@mailcal/adapter/sql/d1";
-import type { R2BucketLike } from "@mailcal/adapter/blob/r2";
+} from "@flying-mail/adapter/sql/d1";
+import type { R2BucketLike } from "@flying-mail/adapter/blob/r2";
 import type {
   CloudflareEmailMessage,
   CloudflareSendEmailBinding,
-} from "@mailcal/adapter/mail/cloudflare-email";
+} from "@flying-mail/adapter/mail/cloudflare-email";
 import { buildWorkerConfig, clearWorkerCacheForTesting } from "./worker";
 import worker from "./worker";
 import { type Env, envToRecord, headersToMap } from "./env";
@@ -241,7 +241,7 @@ function inboundMessage(options: {
         rejections.push(reason);
       },
       async forward() {
-        // Not used by mailcal.
+        // Not used by flying-mail.
       },
     },
   };
@@ -292,6 +292,13 @@ describe("buildWorkerConfig", () => {
     expect(config.blobBackend).toBe("r2");
     expect(config.r2).toBe(harness.env.BLOB);
     expect(config.publicOrigin).toBe("https://mail.example.com");
+    expect(config.inboundMxSuffix).toBe("mx.cloudflare.net");
+  });
+
+  test("passes an empty inbound MX suffix through as a disabled gate", async () => {
+    const { env } = await createWorkerEnv({ MAILCAL_INBOUND_MX_SUFFIX: "" });
+    expect(buildWorkerConfig(env).inboundMxSuffix).toBeNull();
+    expect(envToRecord(env)["MAILCAL_INBOUND_MX_SUFFIX"]).toBe("");
   });
 
   test("selects the S3 backend when asked", async () => {

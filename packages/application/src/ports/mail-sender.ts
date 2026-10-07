@@ -6,6 +6,22 @@ export interface OutboundAttachment {
   readonly contentType: string;
   readonly content: Uint8Array;
   readonly inline: boolean;
+  readonly contentId?: string | null;
+}
+
+export type MailDeliveryReason =
+  | "NOT_CONFIGURED"
+  | "SENDER_NOT_VERIFIED"
+  | "SENDER_DOMAIN_NOT_AVAILABLE"
+  | "RECIPIENT_NOT_ALLOWED"
+  | "RECIPIENT_SUPPRESSED"
+  | "RATE_LIMITED"
+  | "MESSAGE_REJECTED"
+  | "PROVIDER_ERROR"
+  | "RELAY_ERROR";
+
+export interface MailSendReceipt {
+  readonly providerMessageId: string | null;
 }
 
 /** One outbound message handed to the delivery provider. */
@@ -19,6 +35,11 @@ export interface OutboundMail {
   readonly html?: string;
   /** `X-`-prefixed custom headers, already validated by the send use case. */
   readonly headers?: ReadonlyMap<string, string>;
+  /** Used by the stored MIME / SMTP relay path, never as a provider header. */
+  readonly messageId?: string;
+  readonly replyTo?: string;
+  readonly inReplyTo?: string;
+  readonly references?: readonly string[];
   /** The full RFC 5322 source, when the provider accepts a raw message. */
   readonly raw?: string;
   /** Structured attachments, for a provider that assembles the MIME itself
@@ -33,5 +54,26 @@ export interface OutboundMail {
  * `SERVICE_UNAVAILABLE`, which tells an operator what to fix instead of
  * masquerading as an internal error. */
 export interface MailSender {
-  send(mail: OutboundMail): Promise<void>;
+  send(mail: OutboundMail): Promise<MailSendReceipt>;
+}
+
+/** Reads a safe provider reason from an adapter error. */
+export function readDeliveryReason(error: unknown): MailDeliveryReason {
+  if (typeof error === "object" && error !== null && "reason" in error) {
+    const reason: unknown = error.reason;
+    if (
+      reason === "NOT_CONFIGURED" ||
+      reason === "SENDER_NOT_VERIFIED" ||
+      reason === "SENDER_DOMAIN_NOT_AVAILABLE" ||
+      reason === "RECIPIENT_NOT_ALLOWED" ||
+      reason === "RECIPIENT_SUPPRESSED" ||
+      reason === "RATE_LIMITED" ||
+      reason === "MESSAGE_REJECTED" ||
+      reason === "PROVIDER_ERROR" ||
+      reason === "RELAY_ERROR"
+    ) {
+      return reason;
+    }
+  }
+  return "PROVIDER_ERROR";
 }

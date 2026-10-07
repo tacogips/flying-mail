@@ -16,6 +16,7 @@ import type {
   MailDomainView,
 } from "../../api/schema-types";
 import { describeErrors } from "../../lib/mutation-error";
+import { inboundMxLabel } from "../../lib/domain-rail";
 import { pushToast } from "../../lib/toast";
 import { useStore } from "../../store/store-context";
 import "./settings.css";
@@ -34,8 +35,11 @@ export default function DomainsPage(): JSX.Element {
   >({});
 
   onMount(() => {
-    void store.loadReferenceData();
-    void reloadAddresses();
+    void (async () => {
+      await store.loadReferenceData();
+      await store.loadAdminDomains();
+      await reloadAddresses();
+    })();
   });
 
   /** Mailboxes are loaded once for every domain and grouped client-side:
@@ -119,6 +123,7 @@ export default function DomainsPage(): JSX.Element {
       "Domain added. Publish the DNS records below, then verify it.",
     );
     await store.loadReferenceData();
+    await store.loadAdminDomains();
   }
 
   async function verify(id: string): Promise<void> {
@@ -132,6 +137,7 @@ export default function DomainsPage(): JSX.Element {
     }
     pushToast("success", "Domain verified and active");
     await store.loadReferenceData();
+    await store.loadAdminDomains();
   }
 
   async function setStatus(id: string, status: DomainStatus): Promise<void> {
@@ -144,6 +150,7 @@ export default function DomainsPage(): JSX.Element {
       return;
     }
     await store.loadReferenceData();
+    await store.loadAdminDomains();
   }
 
   return (
@@ -190,6 +197,31 @@ export default function DomainsPage(): JSX.Element {
               {domain.messageCount} message(s)
               {domain.catchAll ? ", catch-all" : ", known addresses only"}
             </p>
+            <p class="domain-mx-status">
+              Inbound MX:{" "}
+              <strong>{inboundMxLabel(domain.inboundMx ?? "UNKNOWN")}</strong>
+            </p>
+
+            <Show when={domain.status === "PENDING"}>
+              <div class="domain-verification-records">
+                <strong>
+                  Publish this TXT record to verify domain ownership:
+                </strong>
+                <For
+                  each={(domain.dnsRecords ?? []).filter(
+                    (record) =>
+                      record.type === "TXT" &&
+                      record.name.startsWith("_mailcal."),
+                  )}
+                >
+                  {(record) => (
+                    <p>
+                      <code>{record.name}</code> TXT <code>{record.value}</code>
+                    </p>
+                  )}
+                </For>
+              </div>
+            </Show>
 
             <div class="row">
               <Show when={domain.verifiedAt === null}>
@@ -317,7 +349,7 @@ export default function DomainsPage(): JSX.Element {
                   </tr>
                 </thead>
                 <tbody>
-                  <For each={domain.dnsRecords}>
+                  <For each={domain.dnsRecords ?? []}>
                     {(record) => (
                       <tr>
                         <td>{record.type}</td>

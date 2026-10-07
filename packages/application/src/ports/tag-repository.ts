@@ -1,5 +1,5 @@
-import type { SystemTagSlug, Tag } from "@mailcal/domain/entities/tag";
-import type { TagId } from "@mailcal/domain/value-objects/ids";
+import type { SystemTagSlug, Tag } from "@flying-mail/domain/entities/tag";
+import type { TagId } from "@flying-mail/domain/value-objects/ids";
 
 export interface TagRepository {
   findById(id: TagId): Promise<Tag | null>;

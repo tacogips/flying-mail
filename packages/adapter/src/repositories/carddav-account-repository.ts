@@ -1,18 +1,18 @@
-import type { CarddavAccountRepository } from "@mailcal/application/ports/carddav";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { CarddavAccountRepository } from "@flying-mail/application/ports/carddav";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import type {
   CarddavAccount,
   CarddavBookLink,
   CarddavContactState,
   CarddavDeletion,
-} from "@mailcal/domain/entities/carddav-account";
+} from "@flying-mail/domain/entities/carddav-account";
 import {
   createAddressBookId,
   createCarddavAccountId,
   createCarddavBookId,
   createContactId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { boolToSql, sqlToBool } from "./sql-helpers";
 
 interface CarddavAccountRow {

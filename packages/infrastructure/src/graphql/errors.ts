@@ -2,8 +2,8 @@ import {
   ApplicationError,
   type ApplicationErrorCode,
   BadUserInputError,
-} from "@mailcal/application/errors";
-import { DomainError, ValidationError } from "@mailcal/domain/errors";
+} from "@flying-mail/application/errors";
+import { DomainError, ValidationError } from "@flying-mail/domain/errors";
 import { GraphQLError } from "graphql";
 
 /** GraphQL `extensions.code` values, 1:1 with `ApplicationErrorCode` plus
@@ -71,7 +71,7 @@ function isGraphQLErrorLike(value: unknown): value is GraphQLError {
 }
 
 /** Same structural rationale as {@link isGraphQLErrorLike}: matches
- * `@mailcal/adapter`'s `MailDeliveryError` by `.name`, since this package has
+ * `@flying-mail/adapter`'s `MailDeliveryError` by `.name`, since this package has
  * no compile-time dependency on that class. */
 function isMailDeliveryErrorLike(value: unknown): value is Error {
   return value instanceof Error && value.name === "MailDeliveryError";

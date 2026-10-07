@@ -3,7 +3,7 @@ import type {
   TcpDialOptions,
   TextSocket,
   TlsMode,
-} from "@mailcal/application/ports/external-mail";
+} from "@flying-mail/application/ports/external-mail";
 // `import type` is erased at compile time, so this never becomes a runtime
 // import: merely loading this file on Bun/Node -- which has no
 // "cloudflare:sockets" module -- does not throw. The ambient module type

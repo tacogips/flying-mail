@@ -1,14 +1,14 @@
-import type { MailPermissionFilter } from "@mailcal/application/policies/authorization";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
-import { createAddressBook } from "@mailcal/domain/entities/address-book";
-import { createContact } from "@mailcal/domain/entities/contact";
-import { createAddressPattern } from "@mailcal/domain/value-objects/address-pattern";
+import type { MailPermissionFilter } from "@flying-mail/application/policies/authorization";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
+import { createAddressBook } from "@flying-mail/domain/entities/address-book";
+import { createContact } from "@flying-mail/domain/entities/contact";
+import { createAddressPattern } from "@flying-mail/domain/value-objects/address-pattern";
 import {
   createAddressBookId,
   createContactId,
   createDomainId,
   createMailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createAddressBookRepository } from "./address-book-repository";
 import { createContactRepository } from "./contact-repository";

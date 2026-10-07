@@ -1,17 +1,17 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import { createAttachment } from "@mailcal/domain/entities/attachment";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { createAttachment } from "@flying-mail/domain/entities/attachment";
 import {
   createInboundMessage,
   RecipientKind,
-} from "@mailcal/domain/entities/message";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/message";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createAttachmentId,
   createDomainId,
   createFileLinkId,
   createMessageId,
   createThreadId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { BadUserInputError, NotFoundError } from "../errors";
 import {

@@ -1,22 +1,25 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   createFakeDependencies,
   type FakeDependencies,
-} from "@mailcal/application/test-support/fakes";
-import { createUseCases, type UseCases } from "@mailcal/application/usecases";
-import { createAttachment } from "@mailcal/domain/entities/attachment";
+} from "@flying-mail/application/test-support/fakes";
+import {
+  createUseCases,
+  type UseCases,
+} from "@flying-mail/application/usecases";
+import { createAttachment } from "@flying-mail/domain/entities/attachment";
 import {
   createMailDomain,
   verifyMailDomain,
-} from "@mailcal/domain/entities/mail-domain";
+} from "@flying-mail/domain/entities/mail-domain";
 import {
   createInboundMessage,
   RecipientKind,
-} from "@mailcal/domain/entities/message";
-import { createSession } from "@mailcal/domain/entities/session";
-import { createUser, UserRole } from "@mailcal/domain/entities/user";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/message";
+import { createSession } from "@flying-mail/domain/entities/session";
+import { createUser, UserRole } from "@flying-mail/domain/entities/user";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createAttachmentId,
   createDomainId,
@@ -24,7 +27,7 @@ import {
   createSessionId,
   createThreadId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { Hono } from "hono";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createApp } from "./app";

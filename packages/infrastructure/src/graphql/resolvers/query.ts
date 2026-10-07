@@ -1,17 +1,17 @@
-import type { MessageFilterInput } from "@mailcal/application/usecases/messages";
-import type { AttachmentKind } from "@mailcal/domain/entities/attachment";
+import type { MessageFilterInput } from "@flying-mail/application/usecases/messages";
+import type { AttachmentKind } from "@flying-mail/domain/entities/attachment";
 import type {
   MailStatus,
   MessageDirection,
-} from "@mailcal/domain/entities/message";
-import type { SystemTagSlug } from "@mailcal/domain/entities/tag";
+} from "@flying-mail/domain/entities/message";
+import type { SystemTagSlug } from "@flying-mail/domain/entities/tag";
 import {
   createDomainId,
   createMessageId,
   createTagId,
   createThreadId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { GraphQLContext } from "../context";
 import { requireViewerOrThrow } from "./helpers";
 import type { ViewerSource } from "./types";

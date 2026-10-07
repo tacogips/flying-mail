@@ -10,6 +10,7 @@ import {
   buildSnippet,
   createInboundMessage,
   createOutboundMessage,
+  createDraftMessage,
   DeliveryStatus,
   htmlToPlainText,
   isMessageRead,
@@ -19,6 +20,7 @@ import {
   MessageDirection,
   requeueMessage,
   SNIPPET_LENGTH,
+  updateDraftMessage,
 } from "./message";
 
 const common = {
@@ -40,6 +42,11 @@ const common = {
 };
 
 describe("createInboundMessage", () => {
+  test("new reply and forward fields default to null", () => {
+    const message = createInboundMessage({ ...common, spamScore: null });
+    expect(message.replyTo).toBeNull();
+    expect(message.forwardedFromMessageId).toBeNull();
+  });
   test("is always RECEIVED and INBOUND", () => {
     const message = createInboundMessage({ ...common, spamScore: 0.1 });
     expect(message.direction).toBe(MessageDirection.Inbound);
@@ -74,6 +81,30 @@ describe("createInboundMessage", () => {
     expect(() =>
       createInboundMessage({ ...common, rawSize: -1, spamScore: null }),
     ).toThrow(ValidationError);
+  });
+});
+
+describe("draft reply and forward fields", () => {
+  test("keeps optional linkage when omitted and replaces or clears it when supplied", () => {
+    const initial = createDraftMessage({
+      ...common,
+      replyTo: createEmailAddress("reply@example.com"),
+      forwardedFromMessageId: createMessageId("source-1"),
+    });
+    const kept = updateDraftMessage(initial, {}, "2026-08-24T00:00:00.000Z");
+    expect(kept.replyTo).toBe(createEmailAddress("reply@example.com"));
+    expect(kept.forwardedFromMessageId).toBe(createMessageId("source-1"));
+
+    const replaced = updateDraftMessage(
+      initial,
+      {
+        replyTo: null,
+        forwardedFromMessageId: createMessageId("source-2"),
+      },
+      "2026-08-24T00:00:00.000Z",
+    );
+    expect(replaced.replyTo).toBeNull();
+    expect(replaced.forwardedFromMessageId).toBe(createMessageId("source-2"));
   });
 });
 

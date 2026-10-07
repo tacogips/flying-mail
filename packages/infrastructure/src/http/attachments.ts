@@ -1,11 +1,12 @@
-import { ApplicationError } from "@mailcal/application/errors";
-import type { AppDependencies } from "@mailcal/application/dependencies";
-import type { UseCases } from "@mailcal/application/usecases";
+import { ApplicationError } from "@flying-mail/application/errors";
+import type { AppDependencies } from "@flying-mail/application/dependencies";
+import type { UseCases } from "@flying-mail/application/usecases";
+import { MAX_ATTACHMENT_UPLOAD_BYTES } from "@flying-mail/application/usecases/mail-limits";
 import {
   buildAttachmentBlobKey,
   createAttachment,
-} from "@mailcal/domain/entities/attachment";
-import { createAttachmentId } from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/entities/attachment";
+import { createAttachmentId } from "@flying-mail/domain/value-objects/ids";
 import { Hono } from "hono";
 import type { AuthVariables } from "./auth-middleware";
 import { buildDownloadResponse } from "./downloads";
@@ -20,10 +21,6 @@ export interface UploadAttachmentResponse {
   readonly createdAt: string;
 }
 
-/** Upload cap, matching the outbound total-size limit an attachment is
- * ultimately destined for. */
-export const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
-
 /** Slack added when rejecting from `Content-Length` alone, before the body
  * is parsed: a multipart request's total size includes boundary markers and
  * per-part headers, which count toward `Content-Length` but not toward the
@@ -34,7 +31,9 @@ const MULTIPART_OVERHEAD_ALLOWANCE = 64 * 1024;
 function sizeLimitResponse(): Response {
   return Response.json(
     {
-      error: `Attachment exceeds the ${MAX_ATTACHMENT_SIZE / (1024 * 1024)} MB size limit`,
+      error: `Attachment exceeds the ${MAX_ATTACHMENT_UPLOAD_BYTES / (1024 * 1024)} MB size limit`,
+      code: "PAYLOAD_TOO_LARGE",
+      maxBytes: MAX_ATTACHMENT_UPLOAD_BYTES,
     },
     { status: 413 },
   );
@@ -105,7 +104,8 @@ export function createAttachmentRoutes(
       const contentLength = Number(contentLengthHeader);
       if (
         Number.isFinite(contentLength) &&
-        contentLength > MAX_ATTACHMENT_SIZE + MULTIPART_OVERHEAD_ALLOWANCE
+        contentLength >
+          MAX_ATTACHMENT_UPLOAD_BYTES + MULTIPART_OVERHEAD_ALLOWANCE
       ) {
         return sizeLimitResponse();
       }
@@ -121,7 +121,7 @@ export function createAttachmentRoutes(
         );
       }
       // Backstop for a request with no, or an understated, `Content-Length`.
-      if (file.size > MAX_ATTACHMENT_SIZE) {
+      if (file.size > MAX_ATTACHMENT_UPLOAD_BYTES) {
         return sizeLimitResponse();
       }
 

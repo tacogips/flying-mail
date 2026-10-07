@@ -1,11 +1,11 @@
-import type { SqlStatement } from "@mailcal/application/ports/sql-database";
-import type { Contact } from "@mailcal/domain/entities/contact";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+import type { SqlStatement } from "@flying-mail/application/ports/sql-database";
+import type { Contact } from "@flying-mail/domain/entities/contact";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createAddressBookId,
   createContactId,
-} from "@mailcal/domain/value-objects/ids";
-import { createIsoDate } from "@mailcal/domain/value-objects/iso-date";
+} from "@flying-mail/domain/value-objects/ids";
+import { createIsoDate } from "@flying-mail/domain/value-objects/iso-date";
 
 /** Row <-> entity mapping for `contacts` and its four child tables.
  *

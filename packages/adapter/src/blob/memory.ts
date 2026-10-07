@@ -1,7 +1,7 @@
 import type {
   BlobObject,
   BlobStore,
-} from "@mailcal/application/ports/blob-store";
+} from "@flying-mail/application/ports/blob-store";
 
 interface StoredBlob {
   readonly bytes: Uint8Array;

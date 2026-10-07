@@ -1,10 +1,10 @@
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
-import { createAddressBook } from "@mailcal/domain/entities/address-book";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
+import { createAddressBook } from "@flying-mail/domain/entities/address-book";
 import {
   type CarddavAccount,
   createCarddavAccount,
-} from "@mailcal/domain/entities/carddav-account";
-import { createContact } from "@mailcal/domain/entities/contact";
+} from "@flying-mail/domain/entities/carddav-account";
+import { createContact } from "@flying-mail/domain/entities/contact";
 import {
   createAddressBookId,
   createCarddavAccountId,
@@ -13,7 +13,7 @@ import {
   createDomainId,
   createMailAddressId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createAddressBookRepository } from "./address-book-repository";
 import { createCarddavAccountRepository } from "./carddav-account-repository";

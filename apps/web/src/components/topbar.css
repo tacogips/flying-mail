@@ -4,8 +4,15 @@
   align-items: center;
   padding: 8px 16px;
   height: 52px;
+  flex: 0 0 52px;
+  min-width: 0;
   border-bottom: 1px solid var(--border);
   background: var(--bg-raised);
+}
+
+.topbar-sidebar-toggle,
+.topbar-overflow {
+  display: none;
 }
 
 .topbar-search-form {
@@ -47,6 +54,12 @@
   font-size: 13px;
 }
 
+.topbar-links {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
 .topbar-link {
   padding: 6px 10px;
   border-radius: var(--radius-sm);
@@ -63,4 +76,108 @@
   width: 30px;
   height: 30px;
   font-size: 12px;
+}
+
+@media (max-width: 1099px) {
+  .topbar {
+    gap: 8px;
+  }
+
+  .topbar-search-form {
+    min-width: 120px;
+  }
+
+  .topbar-actions {
+    gap: 2px;
+  }
+
+  .topbar-link {
+    padding-inline: 6px;
+  }
+
+  .topbar-sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .topbar-links {
+    display: none;
+  }
+
+  .topbar-overflow {
+    display: block;
+    position: relative;
+  }
+
+  .topbar-overflow summary {
+    list-style: none;
+    cursor: pointer;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+
+  .topbar-overflow summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .topbar-overflow nav {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    min-width: 160px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    box-shadow: var(--shadow);
+  }
+
+  .topbar-overflow nav a,
+  .topbar-overflow nav button {
+    display: block;
+    padding: 8px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 759px) {
+  .topbar {
+    gap: 8px;
+    padding: 8px 16px;
+  }
+
+  .topbar-search-form {
+    flex: 1;
+    width: 0;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .topbar-search-input {
+    min-width: 0;
+  }
+
+  .topbar-actions {
+    flex: 0 0 auto;
+    gap: 8px;
+  }
+
+  .topbar-links,
+  .topbar-actions > button {
+    display: none;
+  }
+
 }

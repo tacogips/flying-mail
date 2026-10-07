@@ -4,7 +4,7 @@ import {
   InvalidStateTransitionError,
   SystemTagImmutableError,
   ValidationError,
-} from "@mailcal/domain/errors";
+} from "@flying-mail/domain/errors";
 import { describe, expect, test } from "vitest";
 import { BadUserInputError, ConflictError, NotFoundError } from "../errors";
 import {

@@ -1,14 +1,14 @@
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
-import { createExternalMailAccount } from "@mailcal/domain/entities/external-mail-account";
-import { createInboundMessage } from "@mailcal/domain/entities/message";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
+import { createExternalMailAccount } from "@flying-mail/domain/entities/external-mail-account";
+import { createInboundMessage } from "@flying-mail/domain/entities/message";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createDomainId,
   createExternalAccountId,
   createMailAddressId,
   createMessageId,
   createThreadId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createExternalMailAccountRepository } from "./external-mail-account-repository";
 import { createExternalMessageStateRepository } from "./external-message-state-repository";

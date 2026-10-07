@@ -1,7 +1,7 @@
 import {
   ExternalMailAuthError,
   ExternalMailTransportError,
-} from "@mailcal/application/ports/external-mail";
+} from "@flying-mail/application/ports/external-mail";
 import { describe, expect, test } from "vitest";
 import { fakeTcpDialer, STARTTLS_MARKER } from "../tcp/fake-socket";
 import { createSmtpSubmissionClient } from "./smtp-client";

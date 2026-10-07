@@ -9,6 +9,7 @@ import type { ContactView } from "../api/contact-types";
 import { formatMailbox, formatRecipients } from "../lib/address-format";
 import { avatarClass, avatarInitial } from "../lib/avatar";
 import { lookupContactByEmail } from "../lib/contact-lookup";
+import { normalizeContentId } from "../lib/mail-html";
 import { describeErrors } from "../lib/mutation-error";
 import { formatAbsoluteTime, formatBytes } from "../lib/relative-time";
 import { pushToast } from "../lib/toast";
@@ -30,6 +31,8 @@ import { SpamBanner } from "./spam-banner";
 import { TagChip } from "./tag-chip";
 import "./message-view.css";
 
+const MAX_INLINE_TILE_HIDDEN_BYTES = 5 * 1024 * 1024;
+
 function hasSystemTag(
   message: MessageDetailView,
   slug: "STARRED" | "ARCHIVED",
@@ -41,6 +44,7 @@ function hasSystemTag(
 
 export function MessageView(props: {
   readonly message: MessageDetailView;
+  readonly onBack: () => void;
   readonly onReply: (replyAll: boolean) => void;
   readonly onForward: () => void;
   readonly onNotSpam: () => void;
@@ -72,13 +76,87 @@ export function MessageView(props: {
   const archived = () => hasSystemTag(props.message, "ARCHIVED");
   const userTags = () =>
     props.message.tags.filter((tag) => tag.kind === "USER");
+  const visibleAttachments = () =>
+    props.message.attachments.filter((attachment) => {
+      if (
+        !attachment.inline ||
+        attachment.contentId === null ||
+        !attachment.contentType.startsWith("image/") ||
+        attachment.size > MAX_INLINE_TILE_HIDDEN_BYTES
+      ) {
+        return true;
+      }
+      const htmlBody = props.message.htmlBody;
+      if (htmlBody === null) return true;
+      const contentId = normalizeContentId(attachment.contentId).toLowerCase();
+      return ![...htmlBody.matchAll(/cid:\s*<?([^"'\s>)]+)>?/gi)].some(
+        (match) =>
+          match[1] !== undefined &&
+          normalizeContentId(match[1]).toLowerCase() === contentId,
+      );
+    });
 
-  const toRecipients = () =>
-    props.message.recipients.filter(
-      (recipient) => recipient.kind === "TO" || recipient.kind === "ENVELOPE",
+  const deduplicateRecipients = (
+    recipients: readonly (typeof props.message.recipients)[number][],
+  ) => {
+    const seen = new Set<string>();
+    return recipients.filter((recipient) => {
+      const key = recipient.address.trim().toLowerCase();
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  };
+  const headerRecipients = () =>
+    deduplicateRecipients(
+      props.message.recipients.filter(
+        (recipient) => recipient.kind === "TO" || recipient.kind === "CC",
+      ),
     );
+  const toRecipients = () =>
+    headerRecipients().filter((recipient) => recipient.kind === "TO");
   const ccRecipients = () =>
-    props.message.recipients.filter((recipient) => recipient.kind === "CC");
+    headerRecipients().filter((recipient) => recipient.kind === "CC");
+  const bccRecipients = () =>
+    props.message.direction === "OUTBOUND"
+      ? deduplicateRecipients(
+          props.message.recipients.filter(
+            (recipient) => recipient.kind === "BCC",
+          ),
+        )
+      : [];
+  const envelopeRecipients = () => {
+    const recipients = deduplicateRecipients(
+      props.message.recipients.filter(
+        (recipient) => recipient.kind === "ENVELOPE",
+      ),
+    );
+    const headerAddresses = new Set(
+      [...toRecipients(), ...ccRecipients()].map((recipient) =>
+        recipient.address.trim().toLowerCase(),
+      ),
+    );
+    return recipients.length > 0 &&
+      recipients.some(
+        (recipient) =>
+          !headerAddresses.has(recipient.address.trim().toLowerCase()),
+      )
+      ? recipients
+      : [];
+  };
+  const recipientLines = () => [
+    ...(toRecipients().length > 0
+      ? [{ label: "To", recipients: toRecipients() }]
+      : []),
+    ...(ccRecipients().length > 0
+      ? [{ label: "Cc", recipients: ccRecipients() }]
+      : []),
+    ...(bccRecipients().length > 0
+      ? [{ label: "Bcc", recipients: bccRecipients() }]
+      : []),
+  ];
 
   // "Who is this?" lookup hook: resolves the sender and recipient addresses
   // through contactsByEmail (via `contact-lookup.ts`'s short-lived cache),
@@ -124,6 +202,13 @@ export function MessageView(props: {
   return (
     <article class="message-view">
       <div class="message-view-toolbar">
+        <button
+          type="button"
+          class="message-view-back"
+          onClick={() => props.onBack()}
+        >
+          Back to messages
+        </button>
         <button
           type="button"
           class="icon-button"
@@ -237,13 +322,20 @@ export function MessageView(props: {
                 </a>
               </Show>
             </strong>
-            <span class="muted message-view-recipients">
-              To: {formatRecipients(toRecipients())}
-              <Show when={ccRecipients().length > 0}>
-                {" "}
-                Cc: {formatRecipients(ccRecipients())}
+            <div class="muted message-view-recipients">
+              <For each={recipientLines()}>
+                {(line) => (
+                  <span class="message-view-recipient-line">
+                    {line.label}: {formatRecipients(line.recipients)}
+                  </span>
+                )}
+              </For>
+              <Show when={envelopeRecipients().length > 0}>
+                <span class="message-view-recipient-line message-view-delivered-to">
+                  Delivered to: {formatRecipients(envelopeRecipients())}
+                </span>
               </Show>
-            </span>
+            </div>
             <Show when={recipientContacts().length > 0}>
               <span class="muted message-view-contact-hints">
                 Known contacts:{" "}
@@ -329,10 +421,10 @@ export function MessageView(props: {
         </Show>
       </section>
 
-      <Show when={props.message.attachments.length > 0}>
+      <Show when={visibleAttachments().length > 0}>
         <section class="message-view-attachments">
           <h2>Attachments</h2>
-          <For each={props.message.attachments}>
+          <For each={visibleAttachments()}>
             {(attachment) => <AttachmentTile attachment={attachment} />}
           </For>
         </section>

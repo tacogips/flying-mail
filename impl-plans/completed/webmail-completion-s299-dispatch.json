@@ -1,0 +1,604 @@
+{
+  "taskId": "webmail-completion-s299",
+  "workflowMode": "issue-resolution",
+  "implementationBranch": "main",
+  "baseBranch": "main",
+  "remote": "origin",
+  "originalHead": "8815b099c2b78623221bb1ae00cc0a130f96a005",
+  "designDocPaths": [
+    "design-docs/specs/design-webmail-completion.md",
+    "design-docs/user-qa/pending-webmail-completion.md",
+    "design-docs/specs/design-graphql-api.md",
+    "design-docs/specs/design-storage-and-file-links.md"
+  ],
+  "evidenceRoot": "tmp/webmail-completion-s299",
+  "reviewContext": {
+    "issueReference": "workflowInput:opus-luna-design-and-implement-review-loop-session-297/comm-004763, resumed in opus-luna-design-and-implement-review-loop-session-302 (no GitHub issue URL or number supplied); design review step3, plan review step4 comm-004784 and comm-004786, plan review step5 comm-004787 (accepted, no findings), wave-1 resume plan review step5 comm-004803 (accepted, two low residual findings)",
+    "userProblem": "flying-mail must become a production-ready multi-domain webmail: one account sends and receives for several managed domains (tacoserve.online, mutvar-test.online) from one unified UI, with compose (From/To/Cc/Bcc, rich HTML plus plain-text alternative, multiple attachments), reply/reply-all/forward with original attachments, drafts with autosave/reopen/discard, sandboxed HTML receive, correct outbound delivery, and every operation available through GraphQL (REST only for binary upload/download).",
+    "requiredOutcomes": [
+      "Compose supports From (any sendable address on any managed domain), To, Cc, Bcc, Subject, rich HTML body with plain-text alternative, and multiple file attachments with remove-before-send.",
+      "Reply, reply-all and forward work in UI and via GraphQL; forward carries the original attachments without re-upload and is authorization-checked.",
+      "Drafts: autosave, reopen with all fields restored, discard/delete, send; available both in UI and GraphQL.",
+      "Received HTML mail renders sandboxed with cid inline images and blocked-by-default remote images; attachments download via REST with correct headers.",
+      "Outbound delivery adapter delivers cc and bcc recipients, html+text, attachments and threading headers; bcc never appears in transmitted headers; unit tests cover this.",
+      "Inbound mail for multiple managed domains lands in one account's unified inbox with domain/mailbox filtering.",
+      "Every UI capability has a corresponding GraphQL operation; file upload/download is REST; documented with examples.",
+      "No remaining calendar code paths; user-visible branding says flying-mail while operational MAILCAL_* names are unchanged.",
+      "mise run lint (biome + format check + typecheck), bun run test (all workspaces including apps/web vitest), and mise run build-web all pass.",
+      "New behavior has unit/integration tests; existing tests still pass (baseline: 1579 + 192 tests passing)."
+    ],
+    "nonGoals": [
+      "No deploy, no remote wrangler, no remote D1 migrations, no DNS changes (orchestrator owns deployment and live verification).",
+      "No git commit, push, stash, reset, checkout or history rewrite by workers.",
+      "No rich-text editor dependency; no framework change away from SolidJS.",
+      "No server-side HTML sanitization of composed or quoted HTML (D7).",
+      "No Reply-To field in the compose UI.",
+      "No reintroduction of calendar features; AttachmentKind.CALENDAR, sameCalendarDay and the CardDAV calendarserver namespace stay (D11).",
+      "No admin page changes beyond existing coverage (/settings/domains, /settings/users already satisfy create/TXT/verify/mailboxes/permissions)."
+    ],
+    "constraints": [
+      "AGENTS.md/CLAUDE.md: English only, no emojis, maximum TypeScript strictness, Biome clean, ts-coding-standards skill.",
+      "Any touched TypeScript file at 1000+ lines must be split; plans keep new tests in new files where existing test files exceed 800 lines.",
+      "Never edit migrations 0001-0012; new migration is apps/api/migrations/0013_webmail_completion.sql and its comments must contain no semicolon.",
+      "Keep MAILCAL_* env names, _mailcal TXT label, mailcal-verification= prefix, mailcal-api worker, mailcal-db D1, mailcal-mail R2, ~/.config/mailcal, data/mailcal.db, data-mailcal-blocked-src unchanged.",
+      "Preserve the roughly 251 uncommitted mailcal->flying-mail rename changes in the working tree; never revert diffs a worker did not make.",
+      "Workers edit only their plan writePaths/sharedPaths and their own plan Progress Log/checkboxes; impl-plans/PROGRESS.json and impl-plans/README.md are serial-reconciliation only.",
+      "Record sha256 of each file before and after every edit; on drift re-read and merge, never overwrite.",
+      "Wave-2 and wave-3 server plans (06, 07, 08, 09, 12) use the scoped server-workspace typecheck, never the root bun run typecheck; apps/web may carry a transient mailbox-page.tsx error between webmail-10 and webmail-11.",
+      "Secrets only via kinko exec / wrangler secret; never commit secret values."
+    ],
+    "designDecisionsAndRationale": [
+      "D1: forward reuses blobs through new attachment rows sharing blob_key with reference-checked deletion (idx_attachments_blob_key); no R2 copy.",
+      "D2: forward authorization is exactly loadReadableMessage on the source, and each forwarded attachment must belong to that source.",
+      "D3: attachmentIds accept only staged uploads or rows already on the same draft, closing the attachment-move IDOR.",
+      "D4: SaveDraftInput.attachmentIds is a full replacement set so remove-before-send works for API callers.",
+      "D5: reply/reply-all/forward prefill is computed server-side (compose-prefill.ts) and exposed as composeFromMessage for UI/API parity.",
+      "D6: draft races closed with conditional UPDATE/DELETE WHERE status='DRAFT' (saveIfDraft, deleteDraftIfDraft) plus a serialized client saver; autosave never delivers.",
+      "D7: composed HTML sanitized client-side with a strict DOMPurify allowlist separate from received-mail sanitizer.",
+      "D8: multi-recipient inbound stores one INBOUND row per (Message-ID, recipient domain) with one ENVELOPE row per delivered mailbox on that domain; dedup scoped to (INBOUND, domain_id); per-domain copies share thread_id. Rationale: messages.domain_id is single-valued and keys both the domain filter (message-repository-queries.ts:215-219) and permission pairing (message-repository-queries.ts:94-103, authorization.ts:148-232); this resolves prior mid finding step3-design-review-attempt-1-finding-1.",
+      "D9: one builder-form EMAIL.send call with to/cc/bcc arrays, replyTo, contentId attachments, In-Reply-To/References headers; Message-ID is never sent as a header (live check: E_VALIDATION_ERROR); provider messageId persisted without brackets as rfc_message_id.",
+      "D10: deliveryError stays String and carries address-free reason codes (SENDER_NOT_VERIFIED, RECIPIENT_NOT_ALLOWED, RATE_LIMITED, MESSAGE_REJECTED, PROVIDER_ERROR, RELAY_ERROR, NOT_CONFIGURED, ...).",
+      "D11: keep AttachmentKind.CALENDAR, sameCalendarDay, CardDAV namespace; only the empty caldav/ics directories are removed.",
+      "D12: new SDL in schema-compose.graphql.ts and resolvers in resolvers/compose.ts; new tests in new files to respect file-size policy.",
+      "D13: DISABLED mailbox from is refused with BAD_USER_INPUT; listSendableAddresses fallback uses only the USER's own ALLOW patterns (ADMIN gets *@domain unless DENY)."
+    ],
+    "intentionalTradeoffs": [
+      "A mail delivered to mailboxes on N different managed domains is N rows with independent read state, tags, spam verdict and Trash state; All mail shows N entries.",
+      "Spam scoring and rules run on the first delivery per domain; later same-domain recipients inherit the verdict.",
+      "Forwarded inline source images travel as ordinary attachments (inline=false, contentId=null).",
+      "The stored .eml keeps our generated Message-ID while rfc_message_id holds the provider id; a cross-domain inbound copy arriving before the post-send update may start a new thread (low residual risk).",
+      "Staged uploads have no owner column; CSPRNG attachment ids (crypto.randomUUID) are the protection.",
+      "REST Email Sending header whitelist is assumed to match the binding; omitting Message-ID is safe either way (orchestrator re-verifies live).",
+      "Staged-upload sweep order changes to rows first, then blobs, so a failed blob delete leaves an orphan, never a dangling row."
+    ],
+    "supportedEdgeCases": [
+      "Same Message-ID to two mailboxes on one domain: one row, two ENVELOPE rows, one raw blob, including concurrent duplicate delivery via DuplicateMessageError.",
+      "Same Message-ID to alice@tacoserve.online and bob@mutvar-test.online: two INBOUND rows (one per domain) sharing thread_id, each visible in its own domain/mailbox scope and readable by users allowed only on that domain; a DENY on the other domain does not hide it.",
+      "Inbound copy of our own outbound mail to another managed mailbox lands as a new INBOUND row (dedup ignores OUTBOUND).",
+      "No orphan raw blob on any DUPLICATE path; Message-ID read before any R2 write.",
+      "Inbound without Message-ID is never deduplicated (existing behavior).",
+      "Attachment id bound to another message is rejected NOT_FOUND; forward from unreadable source or foreign attachment is NOT_FOUND; forwardAttachmentIds without source is BAD_USER_INPUT; draft as forward source is BAD_USER_INPUT.",
+      "sendDraft twice: second is CONFLICT/NOT_FOUND and provider called once; saveDraft after send is CONFLICT.",
+      "Repeated autosave with the same forwardAttachmentIds creates no duplicate copies.",
+      "Shared-blob purge: deleting one message keeps the blob while another row references it.",
+      "Non-ASCII attachment filename download uses filename*=UTF-8'' with ASCII fallback; 413 body carries code PAYLOAD_TOO_LARGE and maxBytes.",
+      "Provider receipt <AE8o@tacoserve.online> stored as AE8o@tacoserve.online; SMTP relay keeps our id.",
+      "Legacy ?view=ADDRESS&address=x URL parses to INBOX with mailbox scope; drafts never appear in Sent."
+    ],
+    "outOfScopeEdgeCases": [
+      "Better inline-part filename fallback than the generic 'attachment' name on ingest (cosmetic; postal-mime-parser.ts:86-95 cid rendering unaffected).",
+      "Live end-to-end send/receive verification between the two domains and REST Message-ID rejection (orchestrator owns it after deployment).",
+      "Multi-file single POST to /api/attachments (one file per request stays).",
+      "Custom header persistence on stored messages."
+    ],
+    "knownDocumentationNotes": [
+      "design-docs/specs/design-mail-pipeline.md and design-docs/specs/design-web-client.md carry 2026-10-07 webmail pointer sections but their uncommitted diffs are entangled with the uncommitted rename, so they are not part of this checkpoint commit; design-webmail-completion.md is authoritative and wins on conflict (its section header states this).",
+      "The design-mail-pipeline.md Outbound pointer still lists a Message-ID header; this is superseded by design-webmail-completion.md section 8 and D9 (Message-ID is never sent as a binding or REST header).",
+      "design-docs/user-qa/pending-webmail-completion.md item 2.1 is stale but answered later in the same file.",
+      "impl-plans/README.md (webmail wave table) and impl-plans/PROGRESS.json (webmail phase 12-15 entries) were reviewed in comm-004803 but their uncommitted diffs also carry the uncommitted rename-flying-mail index entries, so they stay out of the checkpoint commit; PROGRESS.json drift from the plan files (webmail-01..05 still Ready/Not Started) is expected and resolved by serial reconciliation after each wave joins."
+    ],
+    "residualRisks": [
+      "Wave 3: webmail-11 and webmail-12 both touch apps/web only if webmail-12 must fix schema-types.ts drift; mitigated by sha256 re-read/merge, conditional web typecheck, and webmail-13 final gates.",
+      "Wave 1 plans webmail-01, -02 and -04 run root bun run typecheck while web plans webmail-03 and -05 edit apps/web concurrently; plan text instructs recording unrelated breakage and stopping instead of editing other plans' files."
+    ],
+    "sourcePaths": [
+      "design-docs/specs/design-webmail-completion.md",
+      "design-docs/user-qa/pending-webmail-completion.md",
+      "design-docs/user-qa/README.md",
+      "design-docs/specs/design-graphql-api.md",
+      "design-docs/specs/design-storage-and-file-links.md",
+      "design-docs/specs/design-mail-pipeline.md",
+      "design-docs/specs/design-web-client.md",
+      "impl-plans/PROGRESS.json",
+      "impl-plans/README.md",
+      "impl-plans/completed/webmail-01-data-layer.md",
+      "impl-plans/completed/webmail-02-outbound-delivery.md",
+      "impl-plans/completed/webmail-03-web-compose-libs.md",
+      "impl-plans/completed/webmail-04-rest-attachments-limits.md",
+      "impl-plans/completed/webmail-05-web-api-contract.md",
+      "impl-plans/completed/webmail-06-send-drafts-forward.md",
+      "impl-plans/completed/webmail-07-attachment-deletion.md",
+      "impl-plans/completed/webmail-08-ingest-multi-domain.md",
+      "impl-plans/completed/webmail-09-compose-prefill.md",
+      "impl-plans/completed/webmail-10-web-compose-ui.md",
+      "impl-plans/completed/webmail-11-web-mailbox-ui.md",
+      "impl-plans/completed/webmail-12-graphql-compose-api.md",
+      "impl-plans/completed/webmail-13-docs-and-final-verification.md"
+    ],
+    "wave1Resume": "Wave-1 resume (orchestrator, 2026-10-07): webmail-01..05 code from session 299 is present uncommitted in the working tree and must be continued, not overwritten. The orchestrator applied the two serial-reconciliation fixes: (1) packages/adapter/src/migrations/runner.test.ts now expects 0013_webmail_completion.sql (owned by webmail-01); (2) apps/web/src/components/message-view.test.tsx fixture now sets replyTo, forwardedFromMessageId, inReplyTo to null (sharedPath of webmail-05; webmail-11 re-reads and merges later). After the fixes: bun run typecheck exit 0, bunx vitest run packages/adapter/src/migrations exit 0 (32 passed), bun run --cwd apps/web test exit 0 (208 passed). Wave-1 workers must re-run their recorded verification commands, record fresh evidence (new fingerprints), tick remaining checkboxes, and change source only if a rerun fails."
+  },
+  "plans": [
+    {
+      "planId": "webmail-01-data-layer",
+      "planPath": "impl-plans/completed/webmail-01-data-layer.md",
+      "dependsOn": [],
+      "writePaths": [
+        "apps/api/migrations/0013_webmail_completion.sql",
+        "packages/domain/src/entities/message.ts",
+        "packages/domain/src/entities/message.test.ts",
+        "packages/domain/src/entities/attachment.ts",
+        "packages/domain/src/entities/attachment.test.ts",
+        "packages/application/src/ports/message-repository.ts",
+        "packages/application/src/test-support/message-repository-fake.ts",
+        "packages/application/src/usecases/attachment-blobs.ts",
+        "packages/application/src/usecases/attachment-blobs.test.ts",
+        "packages/adapter/src/repositories/message-repository.ts",
+        "packages/adapter/src/repositories/message-repository-webmail.ts",
+        "packages/adapter/src/repositories/message-repository-webmail.test.ts",
+        "packages/adapter/src/migrations/webmail-completion-migration.test.ts",
+        "impl-plans/completed/webmail-01-data-layer.md",
+        "packages/adapter/src/migrations/runner.test.ts"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "Migration 0013 is added and applies cleanly in tests.",
+        "Message/Attachment domain changes and tests are done.",
+        "Port methods and DuplicateMessageError are added; adapter and fake are implemented.",
+        "attachment-blobs.ts helpers and tests are done.",
+        "All verification commands pass, with exit codes logged."
+      ],
+      "verification": [
+        "bunx vitest run packages/domain packages/adapter/src/migrations packages/adapter/src/repositories packages/application/src/usecases/attachment-blobs.test.ts",
+        "bun run typecheck",
+        "bunx biome check apps/api/migrations packages/domain/src/entities packages/application/src/ports/message-repository.ts packages/application/src/test-support/message-repository-fake.ts packages/application/src/usecases/attachment-blobs.ts packages/application/src/usecases/attachment-blobs.test.ts packages/adapter/src/repositories --diagnostic-level=warn",
+        "wc -l packages/adapter/src/repositories/message-repository.ts packages/application/src/test-support/message-repository-fake.ts"
+      ]
+    },
+    {
+      "planId": "webmail-02-outbound-delivery",
+      "planPath": "impl-plans/completed/webmail-02-outbound-delivery.md",
+      "dependsOn": [],
+      "writePaths": [
+        "packages/application/src/ports/mail-sender.ts",
+        "packages/application/src/ports/mime.ts",
+        "packages/application/src/test-support/runtime-fakes.ts",
+        "packages/adapter/src/mail/delivery-error.ts",
+        "packages/adapter/src/mail/delivery-error.test.ts",
+        "packages/adapter/src/mail/cloudflare-email.ts",
+        "packages/adapter/src/mail/cloudflare-email.test.ts",
+        "packages/adapter/src/mail/cloudflare-email-api.ts",
+        "packages/adapter/src/mail/cloudflare-email-api.test.ts",
+        "packages/adapter/src/mime/mime-builder.ts",
+        "packages/adapter/src/mime/mime-builder.test.ts",
+        "impl-plans/completed/webmail-02-outbound-delivery.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "Port types and readDeliveryReason are added.",
+        "delivery-error.ts is added with tests.",
+        "The binding adapter makes a single builder call with cc/bcc/replyTo/attachments/In-Reply-To/References and a receipt, and never sends a Message-ID header.",
+        "The REST adapter has contentId, In-Reply-To/References, replyTo and code mapping, and never sends a Message-ID header.",
+        "The MIME builder emits no Bcc and does emit Reply-To.",
+        "All verification passes, with exit codes logged."
+      ],
+      "verification": [
+        "bunx vitest run packages/adapter/src/mail packages/adapter/src/mime packages/application/src/usecases/auth.test.ts packages/application/src/usecases/send.test.ts",
+        "bun run typecheck",
+        "bunx biome check packages/adapter/src/mail packages/adapter/src/mime packages/application/src/ports/mail-sender.ts packages/application/src/ports/mime.ts packages/application/src/test-support/runtime-fakes.ts --diagnostic-level=warn",
+        "rg -n \"setBcc\" packages/adapter/src/mime"
+      ]
+    },
+    {
+      "planId": "webmail-03-web-compose-libs",
+      "planPath": "impl-plans/completed/webmail-03-web-compose-libs.md",
+      "dependsOn": [],
+      "writePaths": [
+        "apps/web/src/lib/compose-html.ts",
+        "apps/web/src/lib/compose-html.test.ts",
+        "apps/web/src/lib/draft-autosave.ts",
+        "apps/web/src/lib/draft-autosave.test.ts",
+        "apps/web/src/lib/upload.ts",
+        "apps/web/src/lib/upload.test.ts",
+        "impl-plans/completed/webmail-03-web-compose-libs.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "Three modules with the exact exported signatures in the plan.",
+        "All listed tests pass.",
+        "Typecheck and Biome are clean."
+      ],
+      "verification": [
+        "bun run --cwd apps/web test -- src/lib/compose-html.test.ts src/lib/draft-autosave.test.ts src/lib/upload.test.ts",
+        "bun run --cwd apps/web typecheck",
+        "bunx biome check apps/web/src/lib/compose-html.ts apps/web/src/lib/compose-html.test.ts apps/web/src/lib/draft-autosave.ts apps/web/src/lib/draft-autosave.test.ts apps/web/src/lib/upload.ts apps/web/src/lib/upload.test.ts --diagnostic-level=warn"
+      ]
+    },
+    {
+      "planId": "webmail-04-rest-attachments-limits",
+      "planPath": "impl-plans/completed/webmail-04-rest-attachments-limits.md",
+      "dependsOn": [],
+      "writePaths": [
+        "packages/application/src/usecases/mail-limits.ts",
+        "packages/application/src/usecases/mail-limits.test.ts",
+        "packages/infrastructure/src/http/attachments.ts",
+        "packages/infrastructure/src/http/attachments.test.ts",
+        "impl-plans/completed/webmail-04-rest-attachments-limits.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "mail-limits.ts exists and is used by attachments.ts.",
+        "The 413 body carries code and maxBytes.",
+        "RFC 5987 and the content-type behavior are pinned by tests.",
+        "Verification passes, with exit codes logged."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/http packages/application/src/usecases/mail-limits.test.ts",
+        "bun run typecheck",
+        "bunx biome check packages/infrastructure/src/http packages/application/src/usecases/mail-limits.ts packages/application/src/usecases/mail-limits.test.ts --diagnostic-level=warn"
+      ]
+    },
+    {
+      "planId": "webmail-05-web-api-contract",
+      "planPath": "impl-plans/completed/webmail-05-web-api-contract.md",
+      "dependsOn": [],
+      "writePaths": [
+        "apps/web/src/api/schema-types.ts",
+        "apps/web/src/api/documents.ts",
+        "apps/web/src/store/app-store.ts",
+        "apps/web/src/store/app-store-compose.ts",
+        "apps/web/src/store/app-store-compose.test.ts",
+        "apps/web/src/lib/compose-types.ts",
+        "apps/web/src/components/compose-host.tsx",
+        "impl-plans/completed/webmail-05-web-api-contract.md"
+      ],
+      "sharedPaths": [
+        "apps/web/src/components/message-view.test.tsx"
+      ],
+      "sharedPathNotes": [
+        {
+          "path": "apps/web/src/components/message-view.test.tsx",
+          "intendedEdit": "add replyTo, forwardedFromMessageId and inReplyTo (null) to the MessageDetailView fixture only; webmail-11 keeps its later edits under re-read and merge"
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "Mirror types and documents match design section 3 field names exactly.",
+        "Store methods are added, with tests.",
+        "compose-types.ts and the ComposeHost stub exist with the exact signatures in the plan.",
+        "Verification passes, with exit codes logged."
+      ],
+      "verification": [
+        "bun run --cwd apps/web typecheck",
+        "bun run --cwd apps/web test",
+        "bunx biome check apps/web/src/api apps/web/src/store apps/web/src/lib/compose-types.ts apps/web/src/components/compose-host.tsx --diagnostic-level=warn"
+      ]
+    },
+    {
+      "planId": "webmail-06-send-drafts-forward",
+      "planPath": "impl-plans/completed/webmail-06-send-drafts-forward.md",
+      "dependsOn": [
+        "webmail-01-data-layer",
+        "webmail-02-outbound-delivery"
+      ],
+      "writePaths": [
+        "packages/application/src/usecases/attachment-binding.ts",
+        "packages/application/src/usecases/attachment-binding.test.ts",
+        "packages/application/src/usecases/outbound-assembly.ts",
+        "packages/application/src/usecases/outbound-assembly.test.ts",
+        "packages/application/src/usecases/send.ts",
+        "packages/application/src/usecases/send.test.ts",
+        "packages/application/src/usecases/send-webmail.test.ts",
+        "packages/application/src/usecases/drafts.ts",
+        "packages/application/src/usecases/drafts.test.ts",
+        "packages/application/src/usecases/drafts-webmail.test.ts",
+        "packages/application/src/usecases/delete-draft.ts",
+        "packages/application/src/usecases/delete-draft.test.ts",
+        "impl-plans/completed/webmail-06-send-drafts-forward.md"
+      ],
+      "sharedPaths": [
+        "packages/application/src/usecases.ts"
+      ],
+      "sharedPathNotes": [
+        {
+          "path": "packages/application/src/usecases.ts",
+          "intendedEdit": "Add only the deleteDraft entry to the UseCases interface (next to saveDraft/sendDraft) and wire createDeleteDraftUseCase(deps); touch nothing else. webmail-12 edits this file later (depends on this plan)."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "All file-level changes are done (attachment binding, forward sources, outbound assembly, send/drafts/retrySend changes, sender rules, deleteDraft).",
+        "Every listed test exists and passes.",
+        "deleteDraft is wired in usecases.ts.",
+        "Verification passes, with exit codes logged, including the server-workspace typecheck (exit 0); the root bun run typecheck is not used."
+      ],
+      "verification": [
+        "bunx vitest run packages/application",
+        "bun run --cwd packages/domain typecheck && bun run --cwd packages/application typecheck && bun run --cwd packages/adapter typecheck && bun run --cwd packages/infrastructure typecheck && bun run --cwd apps/api typecheck && bun run --cwd apps/cli typecheck",
+        "bunx biome check packages/application/src --diagnostic-level=warn",
+        "wc -l packages/application/src/usecases/send.ts packages/application/src/usecases/drafts.ts"
+      ]
+    },
+    {
+      "planId": "webmail-07-attachment-deletion",
+      "planPath": "impl-plans/completed/webmail-07-attachment-deletion.md",
+      "dependsOn": [
+        "webmail-01-data-layer"
+      ],
+      "writePaths": [
+        "packages/application/src/usecases/messages.ts",
+        "packages/application/src/usecases/email-auth.ts",
+        "packages/application/src/usecases/attachment-deletion.test.ts",
+        "packages/application/src/usecases/messages.test.ts",
+        "packages/application/src/usecases/auth.test.ts",
+        "impl-plans/completed/webmail-07-attachment-deletion.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "Both deletion paths (hardDeleteMessages and the staged-upload sweep) use the reference-checked helpers.",
+        "The new tests pass, and the existing tests still pass.",
+        "Verification is logged with exit codes, including the server-workspace typecheck (exit 0)."
+      ],
+      "verification": [
+        "bunx vitest run packages/application/src/usecases/attachment-deletion.test.ts packages/application/src/usecases/messages.test.ts packages/application/src/usecases/auth.test.ts",
+        "bun run --cwd packages/domain typecheck && bun run --cwd packages/application typecheck && bun run --cwd packages/adapter typecheck && bun run --cwd packages/infrastructure typecheck && bun run --cwd apps/api typecheck && bun run --cwd apps/cli typecheck",
+        "bunx biome check packages/application/src/usecases/messages.ts packages/application/src/usecases/email-auth.ts packages/application/src/usecases/attachment-deletion.test.ts --diagnostic-level=warn"
+      ]
+    },
+    {
+      "planId": "webmail-08-ingest-multi-domain",
+      "planPath": "impl-plans/completed/webmail-08-ingest-multi-domain.md",
+      "dependsOn": [
+        "webmail-01-data-layer"
+      ],
+      "writePaths": [
+        "packages/application/src/usecases/ingest.ts",
+        "packages/application/src/usecases/ingest-multi-domain.test.ts",
+        "packages/adapter/src/repositories/message-repository-multi-domain.test.ts",
+        "impl-plans/completed/webmail-08-ingest-multi-domain.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "The ingest flow matches plan steps 1-7 (pre-R2 dedup scoped to (INBOUND, domain_id), post-parse dedup, threading step 0, Reply-To, DuplicateMessageError handling).",
+        "Tests (a)-(e) and the Reply-To test pass.",
+        "The existing ingest.test.ts and external-fetch.test.ts pass.",
+        "Verification is logged with exit codes, including the server-workspace typecheck (exit 0)."
+      ],
+      "verification": [
+        "bunx vitest run packages/application/src/usecases/ingest packages/adapter/src/repositories/message-repository-multi-domain.test.ts packages/application/src/usecases/external-fetch.test.ts",
+        "bun run --cwd packages/domain typecheck && bun run --cwd packages/application typecheck && bun run --cwd packages/adapter typecheck && bun run --cwd packages/infrastructure typecheck && bun run --cwd apps/api typecheck && bun run --cwd apps/cli typecheck",
+        "bunx biome check packages/application/src/usecases/ingest.ts packages/application/src/usecases/ingest-multi-domain.test.ts packages/adapter/src/repositories/message-repository-multi-domain.test.ts --diagnostic-level=warn"
+      ]
+    },
+    {
+      "planId": "webmail-09-compose-prefill",
+      "planPath": "impl-plans/completed/webmail-09-compose-prefill.md",
+      "dependsOn": [
+        "webmail-01-data-layer",
+        "webmail-04-rest-attachments-limits"
+      ],
+      "writePaths": [
+        "packages/application/src/usecases/compose-prefill.ts",
+        "packages/application/src/usecases/compose-prefill.test.ts",
+        "packages/application/src/usecases/readable-addresses.ts",
+        "packages/application/src/usecases/readable-addresses.test.ts",
+        "packages/application/src/usecases/compose-usecases.ts",
+        "packages/application/src/usecases/compose-usecases.test.ts",
+        "impl-plans/completed/webmail-09-compose-prefill.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "Three modules with the exact signatures in the plan (compose-prefill, readable-addresses, compose-usecases).",
+        "All tests pass.",
+        "Verification is logged with exit codes, including the server-workspace typecheck (exit 0)."
+      ],
+      "verification": [
+        "bunx vitest run packages/application/src/usecases/compose-prefill.test.ts packages/application/src/usecases/compose-usecases.test.ts packages/application/src/usecases/readable-addresses.test.ts",
+        "bun run --cwd packages/domain typecheck && bun run --cwd packages/application typecheck && bun run --cwd packages/adapter typecheck && bun run --cwd packages/infrastructure typecheck && bun run --cwd apps/api typecheck && bun run --cwd apps/cli typecheck",
+        "bunx biome check packages/application/src/usecases/compose-prefill.ts packages/application/src/usecases/readable-addresses.ts packages/application/src/usecases/compose-usecases.ts packages/application/src/usecases/compose-prefill.test.ts packages/application/src/usecases/compose-usecases.test.ts packages/application/src/usecases/readable-addresses.test.ts --diagnostic-level=warn"
+      ]
+    },
+    {
+      "planId": "webmail-10-web-compose-ui",
+      "planPath": "impl-plans/completed/webmail-10-web-compose-ui.md",
+      "dependsOn": [
+        "webmail-03-web-compose-libs",
+        "webmail-05-web-api-contract"
+      ],
+      "writePaths": [
+        "apps/web/src/components/compose-editor.tsx",
+        "apps/web/src/components/compose-editor.test.tsx",
+        "apps/web/src/components/compose-attachments.tsx",
+        "apps/web/src/components/compose-form.tsx",
+        "apps/web/src/components/compose-form.test.tsx",
+        "apps/web/src/components/compose-form.css",
+        "impl-plans/completed/webmail-10-web-compose-ui.md"
+      ],
+      "sharedPaths": [
+        "apps/web/src/components/compose-host.tsx"
+      ],
+      "sharedPathNotes": [
+        {
+          "path": "apps/web/src/components/compose-host.tsx",
+          "intendedEdit": "Replace the webmail-05 stub body with the full ComposeHost implementation; keep the exported ComposeHost name and ComposeHostProps unchanged."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "Editor, attachments, form and host are implemented as specified.",
+        "The compose-form and compose-editor tests pass.",
+        "Typecheck and build pass, or fail only in apps/web/src/pages/mailbox-page.tsx, and that is logged.",
+        "Verification is logged."
+      ],
+      "verification": [
+        "bun run --cwd apps/web test -- src/components/compose-form.test.tsx src/components/compose-editor.test.tsx",
+        "bun run --cwd apps/web test",
+        "bun run --cwd apps/web typecheck",
+        "bunx biome check apps/web/src/components --diagnostic-level=warn",
+        "mise run build-web"
+      ]
+    },
+    {
+      "planId": "webmail-11-web-mailbox-ui",
+      "planPath": "impl-plans/completed/webmail-11-web-mailbox-ui.md",
+      "dependsOn": [
+        "webmail-05-web-api-contract",
+        "webmail-10-web-compose-ui"
+      ],
+      "writePaths": [
+        "apps/web/src/lib/filter-params.ts",
+        "apps/web/src/lib/filter-params-scope.test.ts",
+        "apps/web/src/components/mailbox-sidebar.tsx",
+        "apps/web/src/components/mailbox-sidebar.css",
+        "apps/web/src/pages/mailbox-page.tsx",
+        "apps/web/src/components/message-view.tsx",
+        "apps/web/src/components/message-view.test.tsx",
+        "apps/web/src/lib/quote-reply.ts",
+        "apps/web/src/lib/address-format.ts",
+        "apps/web/src/lib/helpers.test.ts",
+        "apps/web/src/lib/mail-html.ts",
+        "apps/web/src/lib/mail-html.test.ts",
+        "impl-plans/completed/webmail-11-web-mailbox-ui.md"
+      ],
+      "sharedPaths": [
+        "apps/web/src/store/app-store.ts"
+      ],
+      "sharedPathNotes": [
+        {
+          "path": "apps/web/src/store/app-store.ts",
+          "intendedEdit": "Only the MailboxView initial value ({folder: INBOX, scope: {}}) and the setView/viewToFilter call sites move to the new folder x scope shape; re-read fresh first because webmail-05 created the compose store methods."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "The folder x scope model, sidebar scopes and URL encoding work.",
+        "The mailbox page renders ComposeHost with requests.",
+        "The attachment tile filter (hide cid-referenced inline images) is in place.",
+        "The client prefill helpers (quote-reply.ts, buildReplyRecipients) are removed and the tests are updated.",
+        "Verification is logged; apps/web typecheck and mise run build-web exit 0 with no exceptions."
+      ],
+      "verification": [
+        "bun run --cwd apps/web test",
+        "bun run --cwd apps/web typecheck",
+        "bunx biome check apps/web/src --diagnostic-level=warn",
+        "mise run build-web",
+        "rg -n \"quote-reply|buildReplyRecipients\" apps/web/src"
+      ]
+    },
+    {
+      "planId": "webmail-12-graphql-compose-api",
+      "planPath": "impl-plans/completed/webmail-12-graphql-compose-api.md",
+      "dependsOn": [
+        "webmail-04-rest-attachments-limits",
+        "webmail-05-web-api-contract",
+        "webmail-06-send-drafts-forward",
+        "webmail-09-compose-prefill"
+      ],
+      "writePaths": [
+        "packages/infrastructure/src/graphql/schema-compose.graphql.ts",
+        "packages/infrastructure/src/graphql/schema-compose.test.ts",
+        "packages/infrastructure/src/graphql/resolvers/compose.ts",
+        "packages/infrastructure/src/graphql/schema.ts",
+        "packages/infrastructure/src/graphql/resolvers/mutation.ts",
+        "impl-plans/completed/webmail-12-graphql-compose-api.md"
+      ],
+      "sharedPaths": [
+        "packages/application/src/usecases.ts",
+        "apps/web/src/api/schema-types.ts"
+      ],
+      "sharedPathNotes": [
+        {
+          "path": "packages/application/src/usecases.ts",
+          "intendedEdit": "Add composeFromMessage, listReadableAddresses and getMailLimits to UseCases (typed via ComposeUseCases) and spread createComposeUseCases(deps) in the factory; keep the deleteDraft entry added by webmail-06."
+        },
+        {
+          "path": "apps/web/src/api/schema-types.ts",
+          "intendedEdit": "Verification only: diff mirror field names against the new SDL and fix drift from webmail-05 if any, logging it; change nothing else."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "The SDL extension (schema-compose.graphql.ts) and resolvers (resolvers/compose.ts) are wired in schema.ts.",
+        "The compose use cases are wired in usecases.ts.",
+        "The sendMessage/saveDraft input pass-through (replyTo, forwardedFromMessageId, forwardAttachmentIds) is in place.",
+        "All tests pass.",
+        "The web mirror is verified.",
+        "Verification is logged with exit codes; the server-workspace typecheck exits 0; when schema-types.ts was edited, the conditional web typecheck shows no error in it and any tolerated webmail-11 errors are logged."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure packages/application",
+        "bun run --cwd packages/domain typecheck && bun run --cwd packages/application typecheck && bun run --cwd packages/adapter typecheck && bun run --cwd packages/infrastructure typecheck && bun run --cwd apps/api typecheck && bun run --cwd apps/cli typecheck",
+        "bunx biome check packages/infrastructure/src/graphql packages/application/src/usecases.ts --diagnostic-level=warn",
+        "wc -l packages/infrastructure/src/graphql/resolvers/mutation.ts packages/application/src/usecases.ts"
+      ]
+    },
+    {
+      "planId": "webmail-13-docs-and-final-verification",
+      "planPath": "impl-plans/completed/webmail-13-docs-and-final-verification.md",
+      "dependsOn": [
+        "webmail-01-data-layer",
+        "webmail-02-outbound-delivery",
+        "webmail-03-web-compose-libs",
+        "webmail-04-rest-attachments-limits",
+        "webmail-05-web-api-contract",
+        "webmail-06-send-drafts-forward",
+        "webmail-07-attachment-deletion",
+        "webmail-08-ingest-multi-domain",
+        "webmail-09-compose-prefill",
+        "webmail-10-web-compose-ui",
+        "webmail-11-web-mailbox-ui",
+        "webmail-12-graphql-compose-api"
+      ],
+      "writePaths": [
+        "design-docs/specs/design-graphql-api.md",
+        "README.md",
+        "packages/adapter/src/caldav",
+        "packages/adapter/src/ics",
+        "impl-plans/completed/webmail-13-docs-and-final-verification.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "The operation catalogue and REST table are in design-docs/specs/design-graphql-api.md.",
+        "The README has the API section with curl examples, the updated deployed-instance text, and the documentation table row.",
+        "The empty packages/adapter/src/caldav and packages/adapter/src/ics directories are removed.",
+        "All 9 verification steps pass, with exit codes and log paths (/tmp/flying-mail-verify-*.log) recorded; any failure is logged as a blocker naming the owning plan."
+      ],
+      "verification": [
+        "mise run lint > /tmp/flying-mail-verify-lint.log 2>&1; echo $?",
+        "bun run test > /tmp/flying-mail-verify-test.log 2>&1; echo $?",
+        "mise run build-web > /tmp/flying-mail-verify-build-web.log 2>&1; echo $?",
+        "bun run --cwd apps/api cf:deploy -- --dry-run --outdir /tmp/flying-mail-dryrun > /tmp/flying-mail-verify-dryrun.log 2>&1; echo $?",
+        "rg -n -i \"calendar\" apps packages --glob '!**/node_modules/**' --glob '!**/dist/**'",
+        "rg -n \"mailcal\" apps/web/src apps/web/index.html",
+        "git diff --cached --stat",
+        "git status --short | grep -v '^ M\\|^??'",
+        "find apps packages -name '*.ts' -o -name '*.tsx' | grep -v node_modules | xargs wc -l | awk '$1 >= 1000 && $2 != \"total\"'"
+      ]
+    }
+  ]
+}

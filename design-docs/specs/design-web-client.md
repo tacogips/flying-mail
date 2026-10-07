@@ -6,7 +6,7 @@ API of its own -- and is served two ways:
 
 1. Bundled into the Worker as static assets (`[assets] binding = "ASSETS"`),
    so a deployment is self-contained at `https://<worker-host>/`.
-2. Locally by `mailcal client serve`, which serves the built bundle and proxies
+2. Locally by `flying-mail client serve`, which serves the built bundle and proxies
    `/graphql`, `/api` and `/files` to a configured remote endpoint. See
    `command.md`.
 
@@ -97,3 +97,29 @@ searches for it.
 - **Optimistic tagging.** Tag and read/unread toggles update the store
   immediately and roll back on error with a toast, because those mutations are
   frequent and individually cheap.
+
+## Webmail completion (updated 2026-10-07)
+
+See `design-webmail-completion.md` section 7.
+
+**Compose**
+- Gains Bcc, a pattern-aware From picker, and a dependency-free
+  contenteditable HTML editor with a derived plain-text alternative.
+- Attachment chips show progress and can be removed. Forwarded attachments
+  are included.
+- Debounced, serialized autosave never delivers. Discard calls
+  `deleteDraft`.
+
+**Reply, reply-all and forward**
+- Prefill comes from the `composeFromMessage` query.
+
+**Sidebar**
+- The sidebar becomes folder x scope: domain or mailbox from
+  `viewer.readableAddresses`.
+
+**Received mail**
+- Correction to "Behaviors worth stating": the HTML frame uses
+  `sandbox="allow-same-origin"` without `allow-scripts`, so the parent can
+  measure height. Script execution is impossible, and the CSP is
+  `default-src 'none'`, so the boundary is no scripts plus no network rather
+  than origin isolation.

@@ -7,21 +7,21 @@ import {
   isGlobalCapability,
   revokeApiKey,
   scopesAuthorizeGlobal,
-} from "@mailcal/domain/entities/api-key";
+} from "@flying-mail/domain/entities/api-key";
 import {
   type AddressPattern,
   createAddressPattern,
   MATCH_ALL_ADDRESSES,
   matchAddressPattern,
-} from "@mailcal/domain/value-objects/address-pattern";
-import { parseEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/value-objects/address-pattern";
+import { parseEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   type ApiKeyId,
   type ApiKeyScopeId,
   createApiKeyId,
   createApiKeyScopeId,
   type DomainId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { BadUserInputError, ForbiddenError, NotFoundError } from "../errors";
 import { requireGlobalCapability } from "../policies/authorization";

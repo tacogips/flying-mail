@@ -1,6 +1,6 @@
 # Architecture Design
 
-mailcal is a self-hosted, multi-domain mail service that runs entirely on
+flying-mail is a self-hosted, multi-domain mail service that runs entirely on
 Cloudflare Workers. It receives mail through Cloudflare Email Routing,
 stores messages and attachments in D1 + R2, and exposes everything through a
 single GraphQL endpoint designed to be driven by AI agents and programmatic
@@ -35,7 +35,7 @@ Two independent client shapes talk to the same `/graphql`:
 | Caller | Credential | Transport |
 |--------|-----------|-----------|
 | AI agent / programmatic client | API key (`Authorization: Bearer ybm_...`) | GraphQL over HTTPS |
-| Browser mail client (`mailcal client serve`, or the Worker's own SPA) | `HttpOnly` session cookie | GraphQL over HTTPS |
+| Browser mail client (`flying-mail client serve`, or the Worker's own SPA) | `HttpOnly` session cookie | GraphQL over HTTPS |
 
 ## Layering
 
@@ -45,16 +45,16 @@ layering as the reference project `xxip`. The dependency rule points inward:
 
 | Package | Depends on | Responsibility |
 |---------|-----------|----------------|
-| `@mailcal/domain` | - | Entities, branded value objects, invariants, `DomainError` |
-| `@mailcal/application` | domain | Ports (interfaces), use cases, permission policies, `ApplicationError` |
-| `@mailcal/adapter` | application, domain | Concrete ports: D1/libsql, R2/S3/memory, WebCrypto, MIME parse/build, Cloudflare mail, repositories, migration runner |
-| `@mailcal/infrastructure` | adapter, application, domain | GraphQL schema/resolvers, hono HTTP app, auth middleware, file-link routes, composition root |
+| `@flying-mail/domain` | - | Entities, branded value objects, invariants, `DomainError` |
+| `@flying-mail/application` | domain | Ports (interfaces), use cases, permission policies, `ApplicationError` |
+| `@flying-mail/adapter` | application, domain | Concrete ports: D1/libsql, R2/S3/memory, WebCrypto, MIME parse/build, Cloudflare mail, repositories, migration runner |
+| `@flying-mail/infrastructure` | adapter, application, domain | GraphQL schema/resolvers, hono HTTP app, auth middleware, file-link routes, composition root |
 
 | App | Runtime | Responsibility |
 |-----|---------|----------------|
 | `apps/api` | Workers / Bun / Node | `fetch` + `email` handlers, wrangler config, D1 migrations |
 | `apps/web` | Browser (Vite + SolidJS) | Mail client SPA |
-| `apps/cli` | Bun / Node | `mailcal` CLI, including `mailcal client serve` |
+| `apps/cli` | Bun / Node | `flying-mail` CLI, including `flying-mail client serve` |
 
 ## Storage
 
@@ -130,7 +130,7 @@ can hold address books whose contacts are visible to whoever holds mail
 permissions on that address, and the cross-address view is the merged set
 over every address the viewer can read -- no separate contact permission
 system exists. CardDAV support is client-side sync with an external server
-(iCloud in practice); mailcal never serves DAV.
+(iCloud in practice); flying-mail never serves DAV.
 
 See `design-contacts.md`.
 
@@ -141,7 +141,7 @@ managed mail address: fetch pulls new remote messages over JMAP or POP3
 (implicit TLS) through the ordinary ingest pipeline into that mailbox, and
 sending as that address relays through the provider's SMTP submission
 server (465/587 via `cloudflare:sockets`; port 25 is unreachable from
-Workers by platform rule). mailcal is a client of all three protocols and
+Workers by platform rule). flying-mail is a client of all three protocols and
 serves none of them.
 
 See `design-external-mail.md`.
@@ -170,3 +170,4 @@ See `design-deployment.md`.
 | `design-contacts.md` | Address books, contacts, cross-address view, CardDAV sync |
 | `design-external-mail.md` | External accounts, JMAP/POP3 fetch, SMTP relay |
 | `design-deployment.md` | Bindings, env vars, Cloudflare setup steps |
+| `design-webmail-completion.md` | Compose/HTML editor, forward with attachments, drafts lifecycle, multi-recipient inbound, single-call outbound, unified inbox |

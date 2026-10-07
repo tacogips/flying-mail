@@ -1,5 +1,5 @@
-import type { AppDependencies } from "@mailcal/application/dependencies";
-import type { UseCases } from "@mailcal/application/usecases";
+import type { AppDependencies } from "@flying-mail/application/dependencies";
+import type { UseCases } from "@flying-mail/application/usecases";
 import { type Context, Hono } from "hono";
 import { buildGraphQLContext } from "../graphql/context";
 import { buildGraphQLSchema, createGraphQLYoga } from "../graphql/schema";

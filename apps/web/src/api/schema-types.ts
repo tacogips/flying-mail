@@ -3,7 +3,7 @@
  *
  * Deliberately not generated: the surface is small, and a codegen step would
  * add a build dependency plus a drift-detection problem of its own. The
- * `schema.graphql.ts` SDL in `@mailcal/infrastructure` is the source of
+ * `schema.graphql.ts` SDL in `@flying-mail/infrastructure` is the source of
  * truth; these are the projections the UI actually reads.
  */
 
@@ -14,9 +14,11 @@ export type FetchStatus = "NOT_FETCHED" | "FETCHED";
 export type TagKind = "USER" | "SYSTEM";
 export type SystemTagSlug = "TRASH" | "ARCHIVED" | "STARRED";
 export type MailStatus = "DRAFT" | "SENT" | "RECEIVED";
+export type ComposeMode = "REPLY" | "REPLY_ALL" | "FORWARD";
 export type MessageEventKind = "DEADLINE" | "REMINDER" | "FOLLOW_UP" | "OTHER";
 export type SpamMarkedBy = "SYSTEM" | "USER" | "RULE";
 export type DomainStatus = "PENDING" | "ACTIVE" | "DISABLED";
+export type InboundMxStatus = "READY" | "NOT_CLOUDFLARE" | "NONE" | "UNKNOWN";
 export type UserRole = "ADMIN" | "MEMBER" | "VIEWER";
 export type MailAddressStatus = "ACTIVE" | "DISABLED";
 export type UserPermissionEffect = "ALLOW" | "DENY";
@@ -232,6 +234,28 @@ export interface MessageDetailView extends MessageView {
   readonly bodyTruncated: boolean;
   readonly rfcMessageId: string | null;
   readonly rawSize: number;
+  readonly replyTo: string | null;
+  readonly forwardedFromMessageId: string | null;
+  readonly inReplyTo: string | null;
+}
+
+export interface ComposePrefillView {
+  readonly from: string | null;
+  readonly to: readonly string[];
+  readonly cc: readonly string[];
+  readonly subject: string;
+  readonly inReplyToMessageId: string | null;
+  readonly forwardedFromMessageId: string | null;
+  readonly forwardAttachments: readonly AttachmentView[];
+  readonly quotedText: string;
+  readonly quotedHtml: string | null;
+}
+
+export interface MailLimitsView {
+  readonly maxAttachmentBytes: number;
+  readonly maxOutboundTotalBytes: number;
+  readonly maxAttachmentsPerMessage: number;
+  readonly maxRecipientsPerMessage: number;
 }
 
 export interface MessagePageView {
@@ -261,6 +285,7 @@ export interface MailDomainView {
   readonly id: string;
   readonly name: string;
   readonly status: DomainStatus;
+  readonly inboundMx?: InboundMxStatus;
   readonly catchAll: boolean;
   readonly verificationToken: string | null;
   readonly verifiedAt: string | null;
@@ -317,6 +342,15 @@ export interface ViewerView {
   readonly apiKey: { readonly id: string; readonly keyPrefix: string } | null;
   readonly capabilities: readonly Capability[];
   readonly sendableAddresses: readonly string[];
+  readonly readableAddresses: readonly string[];
+  readonly addressActivity: readonly AddressActivityView[];
+}
+
+export interface AddressActivityView {
+  readonly address: string;
+  readonly domainId: string;
+  readonly lastActivityAt: string | null;
+  readonly unreadCount: number;
 }
 
 export interface CreatedFileLinkView {
@@ -359,6 +393,9 @@ export interface SendMessageVariables {
   readonly text?: string;
   readonly html?: string;
   readonly inReplyToMessageId?: string;
+  readonly replyTo?: string;
+  readonly forwardedFromMessageId?: string;
+  readonly forwardAttachmentIds?: readonly string[];
   readonly attachmentIds?: readonly string[];
 }
 

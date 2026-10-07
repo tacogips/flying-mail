@@ -6,25 +6,25 @@ import {
   setUserRole,
   type User,
   UserRole,
-} from "@mailcal/domain/entities/user";
+} from "@flying-mail/domain/entities/user";
 import {
   createUserMailPermission,
   type UserMailPermission,
   UserPermissionEffect,
-} from "@mailcal/domain/entities/user-mail-permission";
+} from "@flying-mail/domain/entities/user-mail-permission";
 import {
   type AddressPattern,
   createAddressPattern,
   MATCH_ALL_ADDRESSES,
-} from "@mailcal/domain/value-objects/address-pattern";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/value-objects/address-pattern";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createUserId,
   createUserMailPermissionId,
   type DomainId,
   type UserId,
   type UserMailPermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
 import type { Viewer } from "../policies/viewer";

@@ -1,24 +1,25 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import type { AttachmentKind } from "@mailcal/domain/entities/attachment";
-import type { MailStatus } from "@mailcal/domain/entities/message";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import type { AttachmentKind } from "@flying-mail/domain/entities/attachment";
+import type { MailStatus } from "@flying-mail/domain/entities/message";
 import {
   markMessageRead,
   type Message,
   type MessageDirection,
-} from "@mailcal/domain/entities/message";
-import { SystemTagSlug } from "@mailcal/domain/entities/tag";
+} from "@flying-mail/domain/entities/message";
+import { SystemTagSlug } from "@flying-mail/domain/entities/tag";
 import {
   createEmailAddress,
   type EmailAddress,
-} from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/value-objects/email-address";
 import type {
   DomainId,
   MessageId,
   TagId,
   ThreadId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { BadUserInputError } from "../errors";
+import { deleteUnreferencedBlobs } from "./attachment-blobs";
 import {
   authorizesAnyAddress,
   mailPermissionListFilter,
@@ -438,23 +439,25 @@ async function hardDeleteMessages(
 
     const removed = await deps.messageRepository.delete(messageIds);
 
-    const blobKeys: string[] = [];
+    const rawKeys: string[] = [];
+    const attachmentBlobKeys: string[] = [];
     for (const message of messages) {
       if (message.rawKey !== null) {
-        blobKeys.push(message.rawKey);
+        rawKeys.push(message.rawKey);
       }
       for (const attachment of attachmentsByMessage.get(message.id) ?? []) {
-        blobKeys.push(attachment.blobKey);
+        attachmentBlobKeys.push(attachment.blobKey);
       }
     }
     await Promise.all(
-      blobKeys.map((key) =>
+      rawKeys.map((key) =>
         deps.blobs.delete(key).catch(() => {
           // Best-effort: the rows are already gone, so a failed object
           // delete leaves reclaimable garbage rather than a broken read.
         }),
       ),
     );
+    await deleteUnreferencedBlobs(deps, attachmentBlobKeys);
     return removed;
   }
 }

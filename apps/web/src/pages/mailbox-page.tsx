@@ -1,50 +1,34 @@
 import { useNavigate, useSearchParams } from "@solidjs/router";
 import { createEffect, createSignal, type JSX, on, Show } from "solid-js";
-import { MESSAGE_QUERY } from "../api/documents";
+import { MESSAGE_QUERY, UNREAD_COUNT_QUERY } from "../api/documents";
 import { graphqlRequest } from "../api/graphql-client";
 import type {
   MessageDetailView,
   MessageView,
-  SendMessageVariables,
   TagView,
 } from "../api/schema-types";
 import { AppShell } from "../components/app-shell";
-import {
-  type ComposeContent,
-  type ComposeDraft,
-  ComposeForm,
-} from "../components/compose-form";
+import { DomainRail, domainForAddress } from "../components/domain-rail";
+import { ComposeHost } from "../components/compose-host";
 import { TemplateSendPanel } from "../components/template-send-panel";
 import { EnvelopeIcon } from "../components/icons";
 import { MailboxSidebar } from "../components/mailbox-sidebar";
 import { MessageList } from "../components/message-list";
 import { MessageView as MessageDetail } from "../components/message-view";
 import { Topbar } from "../components/topbar";
-import { buildReplyRecipients } from "../lib/address-format";
+import type { ComposeRequest } from "../lib/compose-types";
 import {
   type MailboxView,
+  type MailboxScope,
   searchParamsToView,
   viewTitle,
-  viewToSearchParams,
+  fullSearchParamsForView,
 } from "../lib/filter-params";
 import { describeErrors } from "../lib/mutation-error";
-import {
-  forwardBody,
-  forwardSubject,
-  quoteBody,
-  replySubject,
-} from "../lib/quote-reply";
+import { readableActiveDomains } from "../lib/domain-rail";
 import { pushToast } from "../lib/toast";
 import { useStore } from "../store/store-context";
 import "./mailbox-page.css";
-
-const EMPTY_DRAFT: ComposeDraft = {
-  from: "",
-  to: "",
-  cc: "",
-  subject: "",
-  text: "",
-};
 
 export default function MailboxPage(): JSX.Element {
   const store = useStore();
@@ -52,12 +36,51 @@ export default function MailboxPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [active, setActive] = createSignal<MessageDetailView | null>(null);
-  const [draft, setDraft] = createSignal<ComposeDraft | null>(null);
+  const [unreadByDomain, setUnreadByDomain] = createSignal<
+    Readonly<Record<string, number>>
+  >({});
+  const [sidebarOpen, setSidebarOpen] = createSignal(false);
+  const [composeRequest, setComposeRequest] =
+    createSignal<ComposeRequest | null>(null);
   const [templateSendOpen, setTemplateSendOpen] = createSignal(false);
   /** The catalogue is only fetched when the panel is actually opened: a
    * mailbox visitor who never sends from a template should not pay for it. */
   const canUseTemplates = (): boolean =>
     store.viewer()?.capabilities.includes("TEMPLATE_READ") ?? false;
+
+  let unreadRequest = 0;
+  createEffect(() => {
+    // Re-fetch per-domain totals whenever the inbox count is refreshed after
+    // a read or unread mutation.
+    store.inboxUnreadCount();
+    const domains = readableActiveDomains(
+      store.domains(),
+      store.viewer()?.readableAddresses ?? [],
+    );
+    const requestId = ++unreadRequest;
+    void Promise.all(
+      domains.map(async (domain) => {
+        const result = await graphqlRequest<
+          { readonly messages: { readonly totalCount: number } },
+          Record<string, unknown>
+        >(UNREAD_COUNT_QUERY, {
+          filter: {
+            direction: "INBOUND",
+            domainId: domain.id,
+            unreadOnly: true,
+          },
+        });
+        return result.ok
+          ? ([domain.id, result.data.messages.totalCount] as const)
+          : null;
+      }),
+    ).then((counts) => {
+      if (requestId !== unreadRequest) return;
+      setUnreadByDomain(
+        Object.fromEntries(counts.filter((entry) => entry !== null)),
+      );
+    });
+  });
   function openTemplateSend(): void {
     void store.loadMailTemplates();
     setTemplateSendOpen(true);
@@ -79,15 +102,36 @@ export default function MailboxPage(): JSX.Element {
   );
 
   function selectView(view: MailboxView): void {
+    setSidebarOpen(false);
     setActive(null);
-    setSearchParams(Object.fromEntries(viewToSearchParams(view)));
+    setSearchParams(fullSearchParamsForView(view));
   }
 
+  function selectScope(scope: MailboxScope): void {
+    selectView({ folder: store.view().folder, scope });
+  }
+
+  const selectedDomainId = (): string | undefined => {
+    const scope = store.view().scope;
+    if (scope.domainId !== undefined) return scope.domainId;
+    const address = scope.address;
+    return address === undefined
+      ? undefined
+      : domainForAddress(address, store.domains())?.id;
+  };
+
   async function openMessage(message: MessageView): Promise<void> {
+    setSidebarOpen(false);
+    if (message.status === "DRAFT") {
+      setActive(null);
+      setComposeRequest({ kind: "DRAFT", messageId: message.id });
+      return;
+    }
     return openMessageById(message.id);
   }
 
   async function openMessageById(messageId: string): Promise<void> {
+    setSidebarOpen(false);
     const result = await graphqlRequest<
       { readonly message: MessageDetailView | null },
       Record<string, unknown>
@@ -102,25 +146,11 @@ export default function MailboxPage(): JSX.Element {
       return;
     }
     if (result.data.message.status === "DRAFT") {
-      const detail = result.data.message;
-      const joined = (kind: string): string =>
-        detail.recipients
-          .filter((recipient) => recipient.kind === kind)
-          .map((recipient) => recipient.address)
-          .join(", ");
       setActive(null);
-      setDraft({
-        draftId: detail.id,
-        from: detail.from.address,
-        to: joined("TO"),
-        cc: joined("CC"),
-        subject: detail.subject,
-        text: detail.textBody ?? "",
-      });
+      setComposeRequest({ kind: "DRAFT", messageId });
       return;
     }
     setActive(result.data.message);
-    setDraft(null);
     if (result.data.message.readAt === null) {
       // Opening a message marks it read, matching every mail client; the
       // list is refreshed by the store so the unread styling clears.
@@ -132,102 +162,9 @@ export default function MailboxPage(): JSX.Element {
   }
 
   function startCompose(): void {
-    const sender = store.viewer()?.sendableAddresses[0] ?? "";
+    setSidebarOpen(false);
     setActive(null);
-    setDraft({ ...EMPTY_DRAFT, from: sender });
-  }
-
-  /** The mailbox that received a message, used as the sender for a reply
-   * or forward: the envelope recipient when known, else the reader's
-   * first sendable address. */
-  function resolveSelfAddress(message: MessageDetailView): string | null {
-    const viewer = store.viewer();
-    const envelope = message.recipients.find(
-      (recipient) => recipient.kind === "ENVELOPE",
-    );
-    return envelope?.address ?? viewer?.sendableAddresses[0] ?? null;
-  }
-
-  function startReply(replyAll: boolean): void {
-    const message = active();
-    if (message === null) {
-      return;
-    }
-    const viewer = store.viewer();
-    const self = resolveSelfAddress(message);
-    const { to, cc } = buildReplyRecipients({
-      from: message.from,
-      recipients: message.recipients,
-      replyAll,
-      selfAddress: self,
-    });
-    setDraft({
-      from: self ?? viewer?.sendableAddresses[0] ?? "",
-      to: to.join(", "),
-      cc: cc.join(", "),
-      subject: replySubject(message.subject),
-      text: quoteBody(message),
-      inReplyToMessageId: message.id,
-    });
-  }
-
-  function startForward(): void {
-    const message = active();
-    if (message === null) {
-      return;
-    }
-    const viewer = store.viewer();
-    const self = resolveSelfAddress(message);
-    setDraft({
-      from: self ?? viewer?.sendableAddresses[0] ?? "",
-      to: "",
-      cc: "",
-      subject: forwardSubject(message.subject),
-      text: forwardBody(message),
-    });
-  }
-
-  async function send(input: SendMessageVariables): Promise<boolean> {
-    const sent = await store.send(input);
-    if (sent) {
-      await store.reloadMessages();
-    }
-    return sent;
-  }
-
-  async function saveDraft(content: ComposeContent): Promise<string | null> {
-    const saved = await store.saveDraft({
-      from: content.from,
-      to: content.to,
-      cc: content.cc,
-      subject: content.subject,
-      text: content.text,
-      ...(content.draftId === undefined ? {} : { draftId: content.draftId }),
-      ...(content.inReplyToMessageId === undefined
-        ? {}
-        : { inReplyToMessageId: content.inReplyToMessageId }),
-      ...(content.attachmentIds.length > 0
-        ? { attachmentIds: content.attachmentIds }
-        : {}),
-    });
-    if (saved !== null) {
-      await store.reloadMessages();
-    }
-    return saved?.id ?? null;
-  }
-
-  /** Send for a stored draft: persist the latest edits first, then
-   * dispatch, so what goes out is what is on screen. */
-  async function sendDraft(content: ComposeContent): Promise<boolean> {
-    const savedId = await saveDraft(content);
-    if (savedId === null) {
-      return false;
-    }
-    const sent = await store.sendDraft(savedId);
-    if (sent) {
-      await store.reloadMessages();
-    }
-    return sent;
+    setComposeRequest({ kind: "NEW" });
   }
 
   async function deleteActive(): Promise<void> {
@@ -316,14 +253,34 @@ export default function MailboxPage(): JSX.Element {
 
   return (
     <AppShell
+      rail={
+        <DomainRail
+          domains={store.domains()}
+          readableAddresses={store.viewer()?.readableAddresses ?? []}
+          selectedDomainId={selectedDomainId()}
+          allUnread={store.inboxUnreadCount()}
+          unreadByDomain={unreadByDomain()}
+          isAdmin={store.viewer()?.user?.role === "ADMIN"}
+          onSelectDomain={(domainId) =>
+            selectScope(domainId === undefined ? {} : { domainId })
+          }
+        />
+      }
+      sidebarOpen={sidebarOpen()}
+      messageOpen={active() !== null}
+      onCloseSidebar={() => setSidebarOpen(false)}
       topbar={
         <Topbar
           viewer={store.viewer()}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen())}
           onSearch={(query) =>
             selectView(
               query.trim().length === 0
-                ? { kind: "INBOX" }
-                : { kind: "SEARCH", query: query.trim() },
+                ? { folder: { kind: "INBOX" }, scope: store.view().scope }
+                : {
+                    folder: { kind: "SEARCH", query: query.trim() },
+                    scope: store.view().scope,
+                  },
             )
           }
           onLogout={() => {
@@ -335,10 +292,12 @@ export default function MailboxPage(): JSX.Element {
         <MailboxSidebar
           current={store.view()}
           domains={store.domains()}
+          readableAddresses={store.viewer()?.readableAddresses ?? []}
           tags={store.tags()}
           upcomingEvents={store.upcomingEvents()}
           inboxUnread={store.inboxUnreadCount()}
           onSelect={selectView}
+          onSelectScope={selectScope}
           onOpenEvent={(messageId) => void openMessageById(messageId)}
           onCompose={startCompose}
           onComposeFromTemplate={
@@ -348,7 +307,7 @@ export default function MailboxPage(): JSX.Element {
       }
     >
       <MessageList
-        title={viewTitle(store.view())}
+        title={viewTitle(store.view(), store.domains())}
         totalCount={store.totalCount()}
         unreadOnly={store.unreadOnly()}
         messages={store.messages()}
@@ -386,8 +345,22 @@ export default function MailboxPage(): JSX.Element {
       >
         <MessageDetail
           message={active() as MessageDetailView}
-          onReply={startReply}
-          onForward={startForward}
+          onBack={() => setActive(null)}
+          onReply={(replyAll) => {
+            const message = active();
+            if (message !== null) {
+              setComposeRequest({
+                kind: replyAll ? "REPLY_ALL" : "REPLY",
+                messageId: message.id,
+              });
+            }
+          }}
+          onForward={() => {
+            const message = active();
+            if (message !== null) {
+              setComposeRequest({ kind: "FORWARD", messageId: message.id });
+            }
+          }}
           onNotSpam={() => void markActiveNotSpam()}
           onMarkSpam={() => void markActiveSpam()}
           onMarkUnread={() => void markActiveUnread()}
@@ -414,16 +387,12 @@ export default function MailboxPage(): JSX.Element {
         />
       </Show>
 
-      <Show when={draft() !== null}>
-        <ComposeForm
-          draft={draft() as ComposeDraft}
-          sendableAddresses={store.viewer()?.sendableAddresses ?? []}
-          onCancel={() => setDraft(null)}
-          onSend={send}
-          onSaveDraft={saveDraft}
-          onSendDraft={sendDraft}
-        />
-      </Show>
+      <ComposeHost
+        request={composeRequest()}
+        scope={store.view().scope}
+        onClose={() => setComposeRequest(null)}
+        onMailboxChanged={() => void store.reloadMessages()}
+      />
     </AppShell>
   );
 }

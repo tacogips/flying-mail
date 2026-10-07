@@ -1,4 +1,4 @@
-import type { BuildMimeInput } from "@mailcal/application/ports/mime";
+import type { BuildMimeInput } from "@flying-mail/application/ports/mime";
 import { describe, expect, test } from "vitest";
 import { createMimeTextBuilder, HeaderInjectionError } from "./mime-builder";
 
@@ -58,6 +58,18 @@ describe("createMimeTextBuilder", () => {
       baseInput({ cc: [{ address: "cc@other.com", name: null }] }),
     );
     expect(raw).toContain("cc@other.com");
+  });
+
+  test("never emits Bcc and emits Reply-To", () => {
+    const raw = builder.build(
+      baseInput({
+        bcc: [{ address: "hidden@other.com", name: null }],
+        replyTo: { address: "reply@example.com", name: "Support" },
+      }),
+    );
+    expect(raw).toMatch(/^Reply-To:/im);
+    expect(raw).toContain("reply@example.com");
+    expect(raw).not.toMatch(/^Bcc:/im);
   });
 
   test("emits a custom X- header", () => {

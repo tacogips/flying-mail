@@ -1,5 +1,8 @@
-import type { FileLink } from "@mailcal/domain/entities/file-link";
-import type { FileLinkId, MessageId } from "@mailcal/domain/value-objects/ids";
+import type { FileLink } from "@flying-mail/domain/entities/file-link";
+import type {
+  FileLinkId,
+  MessageId,
+} from "@flying-mail/domain/value-objects/ids";
 
 export interface FileLinkRepository {
   findById(id: FileLinkId): Promise<FileLink | null>;

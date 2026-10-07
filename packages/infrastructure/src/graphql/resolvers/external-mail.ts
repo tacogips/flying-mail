@@ -3,21 +3,21 @@ import type {
   ExternalAccountTestResult,
   FetchExternalMailSummary,
   UpdateExternalAccountInput,
-} from "@mailcal/application/usecases/external-mail-usecases";
+} from "@flying-mail/application/usecases/external-mail-usecases";
 import type {
   ExternalFetchInput,
   SmtpSubmissionInput,
   UpdateExternalFetchInput,
-} from "@mailcal/application/usecases/external-accounts";
+} from "@flying-mail/application/usecases/external-accounts";
 import type {
   ExternalFetchConfig,
   ExternalMailAccount,
   ExternalAccountStatus,
-} from "@mailcal/domain/entities/external-mail-account";
+} from "@flying-mail/domain/entities/external-mail-account";
 import {
   createExternalAccountId,
   createMailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { GraphQLContext } from "../context";
 import { requireViewerOrThrow } from "./helpers";
 

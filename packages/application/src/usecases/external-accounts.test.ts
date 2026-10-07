@@ -1,16 +1,16 @@
-import { ExternalAccountStatus } from "@mailcal/domain/entities/external-mail-account";
+import { ExternalAccountStatus } from "@flying-mail/domain/entities/external-mail-account";
 import {
   createMailDomain,
   verifyMailDomain,
-} from "@mailcal/domain/entities/mail-domain";
-import { createMailAddress } from "@mailcal/domain/entities/mail-address";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
+} from "@flying-mail/domain/entities/mail-domain";
+import { createMailAddress } from "@flying-mail/domain/entities/mail-address";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
 import {
   createDomainId,
   createExternalAccountId,
   createMailAddressId,
   type MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import {
   BadUserInputError,

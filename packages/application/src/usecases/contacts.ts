@@ -1,5 +1,5 @@
-import type { AddressBook } from "@mailcal/domain/entities/address-book";
-import { createAddressBook } from "@mailcal/domain/entities/address-book";
+import type { AddressBook } from "@flying-mail/domain/entities/address-book";
+import { createAddressBook } from "@flying-mail/domain/entities/address-book";
 import {
   type Contact,
   type ContactEmailInput,
@@ -7,15 +7,15 @@ import {
   type ContactPostalAddressInput,
   createContact,
   updateContact,
-} from "@mailcal/domain/entities/contact";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/contact";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   type AddressBookId,
   createAddressBookId,
   createContactId,
   type ContactId,
   type MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { BadUserInputError, NotFoundError } from "../errors";
 import {
@@ -230,7 +230,7 @@ export function createCreateContactUseCase(
       const contact = createContact({
         id: createContactId(deps.random.uuid()),
         addressBookId: book.id,
-        // A vCard UID for a locally created contact: mailcal mints it once
+        // A vCard UID for a locally created contact: flying-mail mints it once
         // and preserves it verbatim thereafter.
         uid: deps.random.uuid(),
         displayName: input.displayName,

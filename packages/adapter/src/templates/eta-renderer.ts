@@ -1,8 +1,8 @@
 import type {
   TemplateEscapeMode,
   TemplateRenderer,
-} from "@mailcal/application/ports/template-renderer";
-import { TemplateSyntaxError } from "@mailcal/application/ports/template-renderer";
+} from "@flying-mail/application/ports/template-renderer";
+import { TemplateSyntaxError } from "@flying-mail/application/ports/template-renderer";
 import { Eta } from "eta";
 import {
   evaluateExpression,
@@ -15,7 +15,7 @@ import {
  * A template renderer built on Eta's *parser* only.
  *
  * Eta's own `compile`/`render` assemble a JavaScript function with
- * `new Function`. mailcal cannot use them:
+ * `new Function`. flying-mail cannot use them:
  *
  * 1. The API runs on Cloudflare Workers, which forbid runtime code
  *    generation -- a compiled template would work locally and throw

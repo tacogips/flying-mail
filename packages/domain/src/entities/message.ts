@@ -62,6 +62,8 @@ export interface Message {
   /** RFC 5322 `Message-ID`, angle brackets stripped. */
   readonly rfcMessageId: string | null;
   readonly inReplyTo: string | null;
+  readonly replyTo: EmailAddress | null;
+  readonly forwardedFromMessageId: MessageId | null;
   readonly references: readonly string[];
   readonly subject: string;
   readonly fromAddress: EmailAddress;
@@ -99,6 +101,8 @@ interface CommonMessageInput {
   readonly threadId: ThreadId;
   readonly rfcMessageId: string | null;
   readonly inReplyTo: string | null;
+  readonly replyTo?: EmailAddress | null;
+  readonly forwardedFromMessageId?: MessageId | null;
   readonly references: readonly string[];
   readonly subject: string;
   readonly fromAddress: EmailAddress;
@@ -154,6 +158,8 @@ function baseMessage(
     threadId: input.threadId,
     rfcMessageId: input.rfcMessageId,
     inReplyTo: input.inReplyTo,
+    replyTo: input.replyTo ?? null,
+    forwardedFromMessageId: input.forwardedFromMessageId ?? null,
     references: [...input.references],
     subject: input.subject,
     fromAddress: input.fromAddress,
@@ -228,6 +234,12 @@ export interface DraftContentPatch {
   readonly fromName?: string | null;
   readonly textBody?: string | null;
   readonly htmlBody?: string | null;
+  readonly replyTo?: EmailAddress | null;
+  readonly domainId?: DomainId;
+  readonly threadId?: ThreadId;
+  readonly inReplyTo?: string | null;
+  readonly references?: readonly string[];
+  readonly forwardedFromMessageId?: MessageId | null;
 }
 
 function assertDraft(message: Message): void {
@@ -257,6 +269,16 @@ export function updateDraftMessage(
     fromName: patch.fromName === undefined ? message.fromName : patch.fromName,
     textBody,
     htmlBody,
+    replyTo: patch.replyTo === undefined ? message.replyTo : patch.replyTo,
+    domainId: patch.domainId ?? message.domainId,
+    threadId: patch.threadId ?? message.threadId,
+    inReplyTo:
+      patch.inReplyTo === undefined ? message.inReplyTo : patch.inReplyTo,
+    references: patch.references ?? message.references,
+    forwardedFromMessageId:
+      patch.forwardedFromMessageId === undefined
+        ? message.forwardedFromMessageId
+        : patch.forwardedFromMessageId,
     snippet: buildSnippet(textBody, htmlBody),
     occurredAt: at,
     updatedAt: at,

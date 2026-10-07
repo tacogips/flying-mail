@@ -1,5 +1,5 @@
 {
-  "name": "@mailcal/infrastructure",
+  "name": "@flying-mail/infrastructure",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -25,9 +25,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@mailcal/adapter": "workspace:*",
-    "@mailcal/application": "workspace:*",
-    "@mailcal/domain": "workspace:*",
+    "@flying-mail/adapter": "workspace:*",
+    "@flying-mail/application": "workspace:*",
+    "@flying-mail/domain": "workspace:*",
     "graphql": "17.0.2",
     "graphql-yoga": "5.21.3",
     "hono": "4.13.2"

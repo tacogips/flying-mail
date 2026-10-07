@@ -1,11 +1,11 @@
-import type { MailDomainRepository } from "@mailcal/application/ports/mail-domain-repository";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { MailDomainRepository } from "@flying-mail/application/ports/mail-domain-repository";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   DomainStatus,
   type MailDomain,
-} from "@mailcal/domain/entities/mail-domain";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
-import { createDomainId } from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/entities/mail-domain";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
+import { createDomainId } from "@flying-mail/domain/value-objects/ids";
 import { assertEnumValue, boolToSql, sqlToBool } from "./sql-helpers";
 
 interface DomainRow {

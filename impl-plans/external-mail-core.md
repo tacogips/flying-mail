@@ -421,7 +421,7 @@ bookkeeping and message-event recording; no duplicated logic.
 
 **Completion Criteria**:
 - [x] `usecases.ts` grows by an import, an `extends`, and one spread only
-- [x] `@mailcal/application` typecheck passes
+- [x] `@flying-mail/application` typecheck passes
 
 ## Module Status
 

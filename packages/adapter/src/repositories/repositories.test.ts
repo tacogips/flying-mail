@@ -1,51 +1,51 @@
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   Capability,
   createApiKey,
   createApiKeyScope,
   revokeApiKey,
-} from "@mailcal/domain/entities/api-key";
-import { createAttachment } from "@mailcal/domain/entities/attachment";
+} from "@flying-mail/domain/entities/api-key";
+import { createAttachment } from "@flying-mail/domain/entities/attachment";
 import {
   createAttachmentFileLink,
   consumeFileLink,
   createRawMessageFileLink,
   FileLinkTarget,
   revokeFileLink,
-} from "@mailcal/domain/entities/file-link";
+} from "@flying-mail/domain/entities/file-link";
 import {
   createMailDomain,
   DomainStatus,
   setMailDomainStatus,
   verifyMailDomain,
-} from "@mailcal/domain/entities/mail-domain";
+} from "@flying-mail/domain/entities/mail-domain";
 import {
   createInboundMessage,
   createOutboundMessage,
   RecipientKind,
-} from "@mailcal/domain/entities/message";
-import { createSession } from "@mailcal/domain/entities/session";
+} from "@flying-mail/domain/entities/message";
+import { createSession } from "@flying-mail/domain/entities/session";
 import {
   createUserTag,
   renameTag,
   SystemTagSlug,
   TagKind,
-} from "@mailcal/domain/entities/tag";
+} from "@flying-mail/domain/entities/tag";
 import {
   createEmailAuthChallenge,
   consumeEmailAuthChallenge,
-} from "@mailcal/domain/entities/email-auth-challenge";
+} from "@flying-mail/domain/entities/email-auth-challenge";
 import {
   createUser,
   deactivateUser,
   UserRole,
-} from "@mailcal/domain/entities/user";
+} from "@flying-mail/domain/entities/user";
 import {
   createAddressPattern,
   MATCH_ALL_ADDRESSES,
-} from "@mailcal/domain/value-objects/address-pattern";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/value-objects/address-pattern";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createApiKeyId,
   createApiKeyScopeId,
@@ -58,7 +58,7 @@ import {
   createTagId,
   createThreadId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createApiKeyRepository } from "./api-key-repository";
 import {

@@ -1,13 +1,13 @@
 # Command Design
 
-The `mailcal` CLI (`apps/cli`) is a thin operator/developer tool over the same
+The `flying-mail` CLI (`apps/cli`) is a thin operator/developer tool over the same
 GraphQL API. It holds no business logic of its own: every subcommand is a
 GraphQL call, apart from `client serve`, which serves the browser mail client.
 
 ## Subcommands
 
 ```
-mailcal
+flying-mail
 ├── client
 │   └── serve            Serve the browser mail client locally
 ├── domain
@@ -28,15 +28,15 @@ mailcal
     └── set <key> <value>
 ```
 
-### `mailcal client serve`
+### `flying-mail client serve`
 
 The headline command. Serves the built SolidJS bundle from `apps/web/dist` on
 a local port and reverse-proxies `/graphql`, `/api/*` and `/files/*` to the
-configured mailcal endpoint, so a developer or operator gets a full mail client
+configured flying-mail endpoint, so a developer or operator gets a full mail client
 against a remote deployment without hosting anything.
 
 ```bash
-mailcal client serve --endpoint https://mail.example.com --port 5173 --open
+flying-mail client serve --endpoint https://mail.example.com --port 5173 --open
 ```
 
 The proxy injects `Authorization: Bearer <api key>` when one is configured, so
@@ -52,7 +52,7 @@ that key.
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--endpoint <url>` | string | `$MAILCAL_ENDPOINT` or config file | Base URL of the mailcal deployment |
+| `--endpoint <url>` | string | `$MAILCAL_ENDPOINT` or config file | Base URL of the flying-mail deployment |
 | `--api-key <key>` | string | `$MAILCAL_API_KEY` or config file | API key used for requests |
 | `--json` | boolean | `false` | Emit machine-readable JSON instead of tables |
 | `--quiet` | boolean | `false` | Suppress non-essential output |

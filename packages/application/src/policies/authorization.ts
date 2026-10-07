@@ -6,23 +6,23 @@ import {
   scopesAuthorizeGlobal,
   scopesForCapability,
   type TemplateCapability,
-} from "@mailcal/domain/entities/api-key";
-import { resolveUserTemplateCapability } from "@mailcal/domain/entities/user-template-permission";
-import { UserRole } from "@mailcal/domain/entities/user";
+} from "@flying-mail/domain/entities/api-key";
+import { resolveUserTemplateCapability } from "@flying-mail/domain/entities/user-template-permission";
+import { UserRole } from "@flying-mail/domain/entities/user";
 import {
   type AddressPattern,
   matchAddressPattern,
-} from "@mailcal/domain/value-objects/address-pattern";
-import type { EmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/value-objects/address-pattern";
+import type { EmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import type {
   DomainId,
   MailAddressId,
   UserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { ForbiddenError, UnauthenticatedError } from "../errors";
 import { isAdminViewer, type Viewer } from "./viewer";
 
-/** Every authorization decision in mailcal goes through this module. Use
+/** Every authorization decision in flying-mail goes through this module. Use
  * cases call it rather than inspecting `Viewer` directly, so the rules exist
  * in exactly one place and can be audited as a unit. */
 

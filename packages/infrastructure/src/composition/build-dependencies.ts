@@ -1,59 +1,60 @@
-import { createMemoryBlobStore } from "@mailcal/adapter/blob/memory";
-import { createR2BlobStore } from "@mailcal/adapter/blob/r2";
-import { createS3BlobStore } from "@mailcal/adapter/blob/s3";
+import { createMemoryBlobStore } from "@flying-mail/adapter/blob/memory";
+import { createR2BlobStore } from "@flying-mail/adapter/blob/r2";
+import { createS3BlobStore } from "@flying-mail/adapter/blob/s3";
 import {
   createCryptoRandomSource,
   createSha256TokenHasher,
-} from "@mailcal/adapter/crypto";
-import { createAddressBookRepository } from "@mailcal/adapter/repositories/address-book-repository";
-import { createCarddavAccountRepository } from "@mailcal/adapter/repositories/carddav-account-repository";
-import { createCarddavClient } from "@mailcal/adapter/carddav/carddav-client";
-import { createContactRepository } from "@mailcal/adapter/repositories/contact-repository";
-import { createVcardCodec } from "@mailcal/adapter/vcard/vcard-codec";
-import { createCredentialCipher } from "@mailcal/adapter/crypto/credential-cipher";
-import { createDohResolver } from "@mailcal/adapter/dns/doh-resolver";
-import { createCloudflareEmailApiSender } from "@mailcal/adapter/mail/cloudflare-email-api";
+} from "@flying-mail/adapter/crypto";
+import { createAddressBookRepository } from "@flying-mail/adapter/repositories/address-book-repository";
+import { createCarddavAccountRepository } from "@flying-mail/adapter/repositories/carddav-account-repository";
+import { createCarddavClient } from "@flying-mail/adapter/carddav/carddav-client";
+import { createContactRepository } from "@flying-mail/adapter/repositories/contact-repository";
+import { createVcardCodec } from "@flying-mail/adapter/vcard/vcard-codec";
+import { createCredentialCipher } from "@flying-mail/adapter/crypto/credential-cipher";
+import { createDohResolver } from "@flying-mail/adapter/dns/doh-resolver";
+import { createCloudflareEmailApiSender } from "@flying-mail/adapter/mail/cloudflare-email-api";
 import {
   createCloudflareMailSender,
   createUnavailableMailSender,
-} from "@mailcal/adapter/mail/cloudflare-email";
-import { createMimeTextBuilder } from "@mailcal/adapter/mime/mime-builder";
-import { createPostalMimeParser } from "@mailcal/adapter/mime/postal-mime-parser";
-import { createApiKeyRepository } from "@mailcal/adapter/repositories/api-key-repository";
+} from "@flying-mail/adapter/mail/cloudflare-email";
+import { createMimeTextBuilder } from "@flying-mail/adapter/mime/mime-builder";
+import { createPostalMimeParser } from "@flying-mail/adapter/mime/postal-mime-parser";
+import { createApiKeyRepository } from "@flying-mail/adapter/repositories/api-key-repository";
 import {
   createEmailAuthChallengeRepository,
   createSessionRepository,
   createUserRepository,
-} from "@mailcal/adapter/repositories/auth-repository";
-import { createClassificationRuleRepository } from "@mailcal/adapter/repositories/classification-rule-repository";
-import { createMailTemplateRepository } from "@mailcal/adapter/repositories/mail-template-repository";
-import { createUserTemplatePermissionRepository } from "@mailcal/adapter/repositories/user-template-permission-repository";
-import { createEtaTemplateRenderer } from "@mailcal/adapter/templates/eta-renderer";
-import { createExternalMailAccountRepository } from "@mailcal/adapter/repositories/external-mail-account-repository";
-import { createExternalMessageStateRepository } from "@mailcal/adapter/repositories/external-message-state-repository";
-import { createFileLinkRepository } from "@mailcal/adapter/repositories/file-link-repository";
-import { createJmapClient } from "@mailcal/adapter/jmap/jmap-client";
-import { createMessageEventRepository } from "@mailcal/adapter/repositories/message-event-repository";
-import { createMailAddressRepository } from "@mailcal/adapter/repositories/mail-address-repository";
-import { createMailDomainRepository } from "@mailcal/adapter/repositories/mail-domain-repository";
-import { createMessageRepository } from "@mailcal/adapter/repositories/message-repository";
-import { createPop3Client } from "@mailcal/adapter/pop3/pop3-client";
-import { createSmtpSubmissionClient } from "@mailcal/adapter/smtp/smtp-client";
-import { createTagRepository } from "@mailcal/adapter/repositories/tag-repository";
-import { createCloudflareTcpDialer } from "@mailcal/adapter/tcp/cloudflare-tcp-dialer";
-import { createNodeTcpDialer } from "@mailcal/adapter/tcp/node-tcp-dialer";
-import { createUserMailPermissionRepository } from "@mailcal/adapter/repositories/user-mail-permission-repository";
-import { createD1Database } from "@mailcal/adapter/sql/d1";
-import { createLibsqlDatabase } from "@mailcal/adapter/sql/libsql";
-import type { AppDependencies } from "@mailcal/application/dependencies";
-import type { BlobStore } from "@mailcal/application/ports/blob-store";
-import type { TcpDialer } from "@mailcal/application/ports/external-mail";
-import type { MailSender } from "@mailcal/application/ports/mail-sender";
-import type { Clock } from "@mailcal/application/ports/runtime-ports";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+} from "@flying-mail/adapter/repositories/auth-repository";
+import { createClassificationRuleRepository } from "@flying-mail/adapter/repositories/classification-rule-repository";
+import { createMailTemplateRepository } from "@flying-mail/adapter/repositories/mail-template-repository";
+import { createUserTemplatePermissionRepository } from "@flying-mail/adapter/repositories/user-template-permission-repository";
+import { createEtaTemplateRenderer } from "@flying-mail/adapter/templates/eta-renderer";
+import { createExternalMailAccountRepository } from "@flying-mail/adapter/repositories/external-mail-account-repository";
+import { createExternalMessageStateRepository } from "@flying-mail/adapter/repositories/external-message-state-repository";
+import { createFileLinkRepository } from "@flying-mail/adapter/repositories/file-link-repository";
+import { createJmapClient } from "@flying-mail/adapter/jmap/jmap-client";
+import { createMessageEventRepository } from "@flying-mail/adapter/repositories/message-event-repository";
+import { createMailAddressRepository } from "@flying-mail/adapter/repositories/mail-address-repository";
+import { createMailDomainRepository } from "@flying-mail/adapter/repositories/mail-domain-repository";
+import { createMessageRepository } from "@flying-mail/adapter/repositories/message-repository";
+import { createPop3Client } from "@flying-mail/adapter/pop3/pop3-client";
+import { createSmtpSubmissionClient } from "@flying-mail/adapter/smtp/smtp-client";
+import { createTagRepository } from "@flying-mail/adapter/repositories/tag-repository";
+import { createCloudflareTcpDialer } from "@flying-mail/adapter/tcp/cloudflare-tcp-dialer";
+import { createNodeTcpDialer } from "@flying-mail/adapter/tcp/node-tcp-dialer";
+import { createUserMailPermissionRepository } from "@flying-mail/adapter/repositories/user-mail-permission-repository";
+import { createD1Database } from "@flying-mail/adapter/sql/d1";
+import { createLibsqlDatabase } from "@flying-mail/adapter/sql/libsql";
+import type { AppDependencies } from "@flying-mail/application/dependencies";
+import type { BlobStore } from "@flying-mail/application/ports/blob-store";
+import type { TcpDialer } from "@flying-mail/application/ports/external-mail";
+import type { MailSender } from "@flying-mail/application/ports/mail-sender";
+import type { Clock } from "@flying-mail/application/ports/runtime-ports";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   type BuildDependenciesConfig,
   DEFAULT_FILE_LINK_MAX_TTL_SECONDS,
+  DEFAULT_INBOUND_MX_SUFFIX,
   DEFAULT_SPAM_THRESHOLD,
   DEFAULT_SQLITE_URL,
   type ExternalMailRuntime,
@@ -238,6 +239,10 @@ export function buildDependencies(
       spamPhrases: config.spamPhrases ?? [],
       fileLinkMaxTtlSeconds:
         config.fileLinkMaxTtlSeconds ?? DEFAULT_FILE_LINK_MAX_TTL_SECONDS,
+      inboundMxSuffix:
+        config.inboundMxSuffix === undefined
+          ? DEFAULT_INBOUND_MX_SUFFIX
+          : config.inboundMxSuffix,
     },
   };
 }

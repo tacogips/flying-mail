@@ -1,6 +1,6 @@
-import type { AppDependencies } from "@mailcal/application/dependencies";
-import type { Viewer } from "@mailcal/application/policies";
-import type { UseCases } from "@mailcal/application/usecases";
+import type { AppDependencies } from "@flying-mail/application/dependencies";
+import type { Viewer } from "@flying-mail/application/policies";
+import type { UseCases } from "@flying-mail/application/usecases";
 import { createRequestLoaders, type RequestLoaders } from "./loaders";
 
 /** One queued `Set-Cookie` header, recorded by a resolver and rendered by

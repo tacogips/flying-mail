@@ -1,8 +1,8 @@
-import { createAddressBook } from "@mailcal/domain/entities/address-book";
-import { Capability } from "@mailcal/domain/entities/api-key";
-import { createMailAddress } from "@mailcal/domain/entities/mail-address";
-import { createMailDomain } from "@mailcal/domain/entities/mail-domain";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
+import { createAddressBook } from "@flying-mail/domain/entities/address-book";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { createMailAddress } from "@flying-mail/domain/entities/mail-address";
+import { createMailDomain } from "@flying-mail/domain/entities/mail-domain";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
 import {
   type AddressBookId,
   createAddressBookId,
@@ -10,7 +10,7 @@ import {
   createMailAddressId,
   type DomainId,
   type MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { Viewer } from "../policies/viewer";
 import type { FakeDependencies } from "./fakes";
 import { apiKeyViewer } from "./viewer-fixtures";

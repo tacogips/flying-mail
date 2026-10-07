@@ -3,14 +3,14 @@ import type {
   CarddavBookLink,
   CarddavContactState,
   CarddavDeletion,
-} from "@mailcal/domain/entities/carddav-account";
+} from "@flying-mail/domain/entities/carddav-account";
 import type {
   AddressBookId,
   CarddavAccountId,
   CarddavBookId,
   ContactId,
   UserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 
 export interface CarddavAccountRepository {
   findAccountById(id: CarddavAccountId): Promise<CarddavAccount | null>;
@@ -122,7 +122,7 @@ export class CarddavTransportError extends Error {
   }
 }
 
-/** mailcal is a CardDAV *client* only. Nothing here serves CardDAV to
+/** flying-mail is a CardDAV *client* only. Nothing here serves CardDAV to
  * anyone else -- see the design doc's out-of-scope list. */
 export interface CarddavClient {
   discover(credentials: CarddavCredentials): Promise<CarddavDiscovery>;

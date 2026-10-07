@@ -7,22 +7,22 @@ import type {
   SyncCarddavBookResult,
   UpdateAddressBookUseCaseInput,
   UpdateContactUseCaseInput,
-} from "@mailcal/application/usecases/contact-usecases";
-import type { AddressBook } from "@mailcal/domain/entities/address-book";
-import type { CarddavBookLink } from "@mailcal/domain/entities/carddav-account";
+} from "@flying-mail/application/usecases/contact-usecases";
+import type { AddressBook } from "@flying-mail/domain/entities/address-book";
+import type { CarddavBookLink } from "@flying-mail/domain/entities/carddav-account";
 import type {
   Contact,
   ContactEmailInput,
   ContactPhoneInput,
   ContactPostalAddressInput,
-} from "@mailcal/domain/entities/contact";
+} from "@flying-mail/domain/entities/contact";
 import {
   createAddressBookId,
   createCarddavAccountId,
   createCarddavBookId,
   createContactId,
   createMailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { GraphQLContext } from "../context";
 import { requireViewerOrThrow } from "./helpers";
 

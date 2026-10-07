@@ -1,5 +1,5 @@
 {
-  "name": "mailcal-api",
+  "name": "flying-mail-api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,10 +16,10 @@
   "dependencies": {
     "@hono/node-server": "2.1.1",
     "@libsql/client": "0.17.4",
-    "@mailcal/adapter": "workspace:*",
-    "@mailcal/application": "workspace:*",
-    "@mailcal/domain": "workspace:*",
-    "@mailcal/infrastructure": "workspace:*",
+    "@flying-mail/adapter": "workspace:*",
+    "@flying-mail/application": "workspace:*",
+    "@flying-mail/domain": "workspace:*",
+    "@flying-mail/infrastructure": "workspace:*",
     "hono": "4.13.2"
   },
   "devDependencies": {

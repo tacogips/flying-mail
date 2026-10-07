@@ -1,20 +1,21 @@
-import type { ApiKey, ApiKeyScope } from "@mailcal/domain/entities/api-key";
-import { Capability } from "@mailcal/domain/entities/api-key";
-import type { Attachment } from "@mailcal/domain/entities/attachment";
-import { FetchStatus } from "@mailcal/domain/entities/fetch-state";
-import type { FileLink } from "@mailcal/domain/entities/file-link";
-import type { MailDomain } from "@mailcal/domain/entities/mail-domain";
+import type { ApiKey, ApiKeyScope } from "@flying-mail/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { InboundMxStatus } from "@flying-mail/application/usecases/domains";
+import type { Attachment } from "@flying-mail/domain/entities/attachment";
+import { FetchStatus } from "@flying-mail/domain/entities/fetch-state";
+import type { FileLink } from "@flying-mail/domain/entities/file-link";
+import type { MailDomain } from "@flying-mail/domain/entities/mail-domain";
 import type {
   Message,
   MessageRecipient,
-} from "@mailcal/domain/entities/message";
-import { RecipientKind } from "@mailcal/domain/entities/message";
-import type { ClassificationRule } from "@mailcal/domain/entities/classification-rule";
-import type { MessageEvent } from "@mailcal/domain/entities/message-event";
-import type { SpamMark } from "@mailcal/domain/entities/spam-mark";
-import type { Tag } from "@mailcal/domain/entities/tag";
-import { isUserActive, type User } from "@mailcal/domain/entities/user";
-import type { UserMailPermission } from "@mailcal/domain/entities/user-mail-permission";
+} from "@flying-mail/domain/entities/message";
+import { RecipientKind } from "@flying-mail/domain/entities/message";
+import type { ClassificationRule } from "@flying-mail/domain/entities/classification-rule";
+import type { MessageEvent } from "@flying-mail/domain/entities/message-event";
+import type { SpamMark } from "@flying-mail/domain/entities/spam-mark";
+import type { Tag } from "@flying-mail/domain/entities/tag";
+import { isUserActive, type User } from "@flying-mail/domain/entities/user";
+import type { UserMailPermission } from "@flying-mail/domain/entities/user-mail-permission";
 import type { GraphQLContext } from "../context";
 import { holdsCapability, viewerCapabilities } from "./helpers";
 
@@ -156,6 +157,20 @@ export const mailDomainResolvers = {
 
   dnsRecords(domain: MailDomain, _args: unknown, ctx: GraphQLContext) {
     return ctx.usecases.domainDnsRecords(domain);
+  },
+
+  async inboundMx(
+    domain: MailDomain,
+    _args: unknown,
+    ctx: GraphQLContext,
+  ): Promise<InboundMxStatus> {
+    if (
+      ctx.viewer === null ||
+      !holdsCapability(ctx.viewer, Capability.DomainAdmin)
+    ) {
+      return InboundMxStatus.Unknown;
+    }
+    return ctx.usecases.inboundMxStatus(domain);
   },
 
   async messageCount(
@@ -317,6 +332,14 @@ export const viewerResolvers = {
     ctx: GraphQLContext,
   ): Promise<readonly string[]> {
     return ctx.usecases.listSendableAddresses(source.viewer);
+  },
+
+  async addressActivity(
+    source: ViewerSource,
+    _args: unknown,
+    ctx: GraphQLContext,
+  ) {
+    return ctx.usecases.listAddressActivity(source.viewer);
   },
 };
 

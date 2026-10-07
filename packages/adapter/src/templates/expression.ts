@@ -1,7 +1,7 @@
-import { TemplateSyntaxError } from "@mailcal/application/ports/template-renderer";
+import { TemplateSyntaxError } from "@flying-mail/application/ports/template-renderer";
 
 /**
- * The expression half of the Eta subset mailcal supports.
+ * The expression half of the Eta subset flying-mail supports.
  *
  * ```
  * expression := operand ( ("||" | "??") operand )*

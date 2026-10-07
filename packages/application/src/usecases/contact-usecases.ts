@@ -1,16 +1,16 @@
-import type { AddressBook } from "@mailcal/domain/entities/address-book";
+import type { AddressBook } from "@flying-mail/domain/entities/address-book";
 import type {
   CarddavAccount,
   CarddavBookLink,
-} from "@mailcal/domain/entities/carddav-account";
-import type { Contact } from "@mailcal/domain/entities/contact";
+} from "@flying-mail/domain/entities/carddav-account";
+import type { Contact } from "@flying-mail/domain/entities/contact";
 import type {
   AddressBookId,
   CarddavAccountId,
   CarddavBookId,
   ContactId,
   MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import type { Viewer } from "../policies/viewer";
 import type { ContactPage } from "../ports/contact-repository";

@@ -10,7 +10,7 @@ export type ApplicationErrorCode =
   | "SERVICE_UNAVAILABLE";
 
 /** Base class for every application-layer error surfaced at the
- * GraphQL/REST boundary. Use cases translate `@mailcal/domain` `DomainError`
+ * GraphQL/REST boundary. Use cases translate `@flying-mail/domain` `DomainError`
  * subtypes into one of the concrete subclasses below -- see
  * `usecases/translate-domain-error.ts`. */
 export abstract class ApplicationError extends Error {

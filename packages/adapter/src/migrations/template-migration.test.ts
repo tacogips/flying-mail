@@ -1,4 +1,4 @@
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import { describe, expect, test } from "vitest";
 import { loadMigrationFiles } from "../repositories/test-support";
 import { createInMemoryDatabase } from "../sql/libsql";

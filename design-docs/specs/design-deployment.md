@@ -90,7 +90,7 @@ secret-dependent commands run under `kinko exec`.
    ```
 
 8. Using that key, `createDomain` + `verifyDomain` through GraphQL, the CLI,
-   or the settings UI, so mailcal itself will accept mail for the domain.
+   or the settings UI, so flying-mail itself will accept mail for the domain.
 9. Issue narrowly scoped API keys for agents, and revoke the bootstrap key
    once they exist -- it is unrestricted by design and is only needed for
    the setup above.

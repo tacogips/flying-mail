@@ -1,5 +1,5 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import { createCarddavBookId } from "@mailcal/domain/value-objects/ids";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { createCarddavBookId } from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import {
   BadUserInputError,

@@ -1,14 +1,18 @@
-import { createUseCases, type UseCases } from "@mailcal/application/usecases";
-import { drainBlobCleanupQueue } from "@mailcal/adapter/migrations/blob-cleanup";
-import type { BlobStore } from "@mailcal/application/ports/blob-store";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
-import { buildDependencies } from "@mailcal/infrastructure/composition/build-dependencies";
+import {
+  createUseCases,
+  type UseCases,
+} from "@flying-mail/application/usecases";
+import { drainBlobCleanupQueue } from "@flying-mail/adapter/migrations/blob-cleanup";
+import type { BlobStore } from "@flying-mail/application/ports/blob-store";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
+import { buildDependencies } from "@flying-mail/infrastructure/composition/build-dependencies";
 import {
   assertMailOriginConsistency,
   type BuildDependenciesConfig,
   resolveBlobBackend,
   resolveCredentialKey,
   resolveFileLinkMaxTtl,
+  resolveInboundMxSuffix,
   resolveEmailSendingAccountId,
   resolveEmailSendingToken,
   resolveMailFrom,
@@ -17,9 +21,9 @@ import {
   resolveSignupMode,
   resolveSpamPhrases,
   resolveSpamThreshold,
-} from "@mailcal/infrastructure/composition/config";
-import { createApp } from "@mailcal/infrastructure/http/app";
-import type { AuthVariables } from "@mailcal/infrastructure/http/auth-middleware";
+} from "@flying-mail/infrastructure/composition/config";
+import { createApp } from "@flying-mail/infrastructure/http/app";
+import type { AuthVariables } from "@flying-mail/infrastructure/http/auth-middleware";
 import type { Hono } from "hono";
 import {
   type Env,
@@ -53,6 +57,7 @@ export function buildWorkerConfig(env: Env): BuildDependenciesConfig {
     spamThreshold: resolveSpamThreshold(record),
     spamPhrases: resolveSpamPhrases(record),
     fileLinkMaxTtlSeconds: resolveFileLinkMaxTtl(record),
+    inboundMxSuffix: resolveInboundMxSuffix(record),
     email: env.EMAIL,
     ...(publicOrigin === undefined ? {} : { publicOrigin }),
     ...(mailFrom === undefined ? {} : { mailFrom }),

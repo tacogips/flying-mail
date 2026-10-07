@@ -393,7 +393,7 @@ TASK-005 (POP3 client), TASK-006 (SMTP client), TASK-007 (JMAP client)
   cannot possibly succeed" without the Cloudflare half being conditionally
   skipped in a way that is really just a second suite with extra steps.
   Both still assert against the identical `TcpDialer`/`TextSocket` contract
-  from `@mailcal/application/ports/external-mail`.
+  from `@flying-mail/application/ports/external-mail`.
 - **`tcp/chunked-line-buffer.ts`** (not in the original plan) factors the
   async line/byte buffering logic shared by both TCP dialers into one
   runtime-agnostic file (imports neither `node:*` nor `cloudflare:sockets`),

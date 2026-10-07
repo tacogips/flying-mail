@@ -1,5 +1,10 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import { attachToMessage } from "@mailcal/domain/entities/attachment";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import {
+  attachToMessage,
+  buildRawMessageBlobKey,
+  copyAttachmentForForward,
+} from "@flying-mail/domain/entities/attachment";
+import { isMailAddressActive } from "@flying-mail/domain/entities/mail-address";
 import {
   createDraftMessage,
   MailStatus,
@@ -7,32 +12,37 @@ import {
   RecipientKind,
   submitDraft,
   updateDraftMessage,
-} from "@mailcal/domain/entities/message";
+} from "@flying-mail/domain/entities/message";
 import {
   createEmailAddress,
   type EmailAddress,
   emailDomainName,
-} from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/value-objects/email-address";
 import {
   type AttachmentId,
+  createAttachmentId,
   createMessageId,
   createThreadId,
   type MessageId,
-} from "@mailcal/domain/value-objects/ids";
-import { buildRawMessageBlobKey } from "@mailcal/domain/entities/attachment";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
-import { BadUserInputError, NotFoundError } from "../errors";
-import { assertCanSendMail } from "@mailcal/domain/entities/mail-domain";
+import { BadUserInputError, ConflictError, NotFoundError } from "../errors";
+import { assertCanSendMail } from "@flying-mail/domain/entities/mail-domain";
 import { requireAddressCapability } from "../policies/authorization";
 import type { Viewer } from "../policies/viewer";
 import {
   buildRecipientRows,
   deliver,
-  loadOutboundAttachments,
-  readAttachmentBytes,
   resolveThreadContext,
   type ValidatedRecipients,
 } from "./send";
+import {
+  assertOutboundAttachmentLimits,
+  resolveForwardSources,
+  resolveOwnAttachments,
+} from "./attachment-binding";
+import { assembleOutbound } from "./outbound-assembly";
+import { deleteAttachmentsAndUnreferencedBlobs } from "./attachment-blobs";
 import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
 
 export interface SaveDraftInput {
@@ -41,6 +51,9 @@ export interface SaveDraftInput {
   /** Threads the draft as a reply to this message; resolved at save time
    * so the eventual send carries the right In-Reply-To and References. */
   readonly inReplyToMessageId?: MessageId;
+  readonly replyTo?: string;
+  readonly forwardedFromMessageId?: MessageId;
+  readonly forwardAttachmentIds?: readonly AttachmentId[];
   readonly from: string;
   readonly to?: readonly string[];
   readonly cc?: readonly string[];
@@ -81,9 +94,16 @@ async function requireDraftAuthority(
   // Draft authorship is gated on the same capability the eventual send
   // needs; a key that could never send the mail has no business staging it.
   requireAddressCapability(viewer, Capability.MailSend, domain.id, [from]);
+  const provisioned = await deps.mailAddressRepository.findByAddress(from);
+  if (provisioned !== null && !isMailAddressActive(provisioned)) {
+    throw new BadUserInputError(
+      "A disabled mail address cannot be used as a sender",
+      "from",
+    );
+  }
 }
 
-async function loadOwnDraft(
+export async function loadOwnDraft(
   deps: AppDependencies,
   viewer: Viewer,
   draftId: MessageId,
@@ -106,37 +126,25 @@ export function createSaveDraftUseCase(
       const from = createEmailAddress(input.from, "from");
       await requireDraftAuthority(deps, viewer, from);
       const recipients = parseDraftRecipients(input);
-      const attachments = await loadOutboundAttachments(
+      const ownAttachments = await resolveOwnAttachments(
         deps,
         input.attachmentIds,
+        input.draftId ?? null,
       );
-      const now = deps.clock.now().toISOString();
-
-      if (input.draftId !== undefined) {
-        const existing = await loadOwnDraft(deps, viewer, input.draftId);
-        const updated = updateDraftMessage(
-          existing,
-          {
-            subject: input.subject ?? "",
-            fromAddress: from,
-            textBody: input.text ?? null,
-            htmlBody: input.html ?? null,
-          },
-          now,
-        );
-        await deps.messageRepository.save(updated);
-        await deps.messageRepository.replaceRecipients(
-          updated.id,
-          buildRecipientRows(recipients),
-        );
-        for (const attachment of attachments) {
-          await deps.messageRepository.saveAttachment(
-            attachToMessage(attachment, updated.id),
-          );
-        }
-        return updated;
-      }
-
+      const forward = await resolveForwardSources(
+        deps,
+        viewer,
+        input.forwardedFromMessageId,
+        input.forwardAttachmentIds,
+      );
+      assertOutboundAttachmentLimits([
+        ...ownAttachments,
+        ...forward.attachments,
+      ]);
+      const replyTo =
+        input.replyTo === undefined
+          ? null
+          : createEmailAddress(input.replyTo, "replyTo");
       const domain = await deps.mailDomainRepository.findByName(
         emailDomainName(from),
       );
@@ -146,8 +154,97 @@ export function createSaveDraftUseCase(
           "from",
         );
       }
+      const now = deps.clock.now().toISOString();
+
+      if (input.draftId !== undefined) {
+        const existing = await loadOwnDraft(deps, viewer, input.draftId);
+        const thread =
+          input.inReplyToMessageId === undefined
+            ? null
+            : await resolveThreadContext(
+                deps,
+                viewer,
+                input.inReplyToMessageId,
+              );
+        const updated = updateDraftMessage(
+          existing,
+          {
+            subject: input.subject ?? "",
+            fromAddress: from,
+            replyTo,
+            textBody: input.text ?? null,
+            htmlBody: input.html ?? null,
+            domainId: domain.id,
+            ...(thread === null
+              ? {}
+              : {
+                  threadId:
+                    thread.threadId === null
+                      ? createThreadId(existing.id)
+                      : createThreadId(thread.threadId),
+                  inReplyTo: thread.inReplyTo,
+                  references: thread.references,
+                }),
+            ...(input.forwardedFromMessageId === undefined
+              ? {}
+              : {
+                  forwardedFromMessageId: input.forwardedFromMessageId,
+                }),
+          },
+          now,
+        );
+        if (!(await deps.messageRepository.saveIfDraft(updated))) {
+          throw new ConflictError("Draft was already sent or deleted");
+        }
+        await deps.messageRepository.replaceRecipients(
+          updated.id,
+          buildRecipientRows(recipients),
+        );
+        const currentAttachments =
+          (await deps.messageRepository.listAttachments([updated.id])).get(
+            updated.id,
+          ) ?? [];
+        const keepIds = new Set(ownAttachments.map(({ id }) => id));
+        const removed = currentAttachments.filter(
+          (attachment) => !keepIds.has(attachment.id),
+        );
+        await deleteAttachmentsAndUnreferencedBlobs(deps, removed);
+        for (const attachment of ownAttachments) {
+          if (attachment.messageId === null) {
+            await deps.messageRepository.saveAttachment(
+              attachToMessage(attachment, updated.id),
+            );
+          }
+        }
+        const currentAfterReplacement =
+          (await deps.messageRepository.listAttachments([updated.id])).get(
+            updated.id,
+          ) ?? [];
+        const existingBlobKeys = new Set(
+          currentAfterReplacement.map(({ blobKey }) => blobKey),
+        );
+        for (const attachment of forward.attachments) {
+          if (existingBlobKeys.has(attachment.blobKey)) {
+            continue;
+          }
+          await deps.messageRepository.saveAttachment(
+            copyAttachmentForForward(attachment, {
+              id: createAttachmentId(deps.random.uuid()),
+              messageId: updated.id,
+              createdAt: now,
+            }),
+          );
+          existingBlobKeys.add(attachment.blobKey);
+        }
+        return updated;
+      }
+
       const messageId = createMessageId(deps.random.uuid());
-      const thread = await resolveThreadContext(deps, input.inReplyToMessageId);
+      const thread = await resolveThreadContext(
+        deps,
+        viewer,
+        input.inReplyToMessageId,
+      );
       const draft = createDraftMessage({
         id: messageId,
         domainId: domain.id,
@@ -157,6 +254,8 @@ export function createSaveDraftUseCase(
             : createThreadId(thread.threadId),
         rfcMessageId: null,
         inReplyTo: thread.inReplyTo,
+        replyTo,
+        forwardedFromMessageId: input.forwardedFromMessageId ?? null,
         references: thread.references,
         subject: input.subject ?? "",
         fromAddress: from,
@@ -171,9 +270,18 @@ export function createSaveDraftUseCase(
       await deps.messageRepository.insertWithRelations({
         message: draft,
         recipients: buildRecipientRows(recipients),
-        attachments: attachments.map((attachment) =>
-          attachToMessage(attachment, messageId),
-        ),
+        attachments: [
+          ...ownAttachments.map((attachment) =>
+            attachToMessage(attachment, messageId),
+          ),
+          ...forward.attachments.map((attachment) =>
+            copyAttachmentForForward(attachment, {
+              id: createAttachmentId(deps.random.uuid()),
+              messageId,
+              createdAt: now,
+            }),
+          ),
+        ],
         tagIds: [],
         taggedAt: now,
       });
@@ -205,8 +313,6 @@ export function createSendDraftUseCase(
           .filter((row) => row.kind === kind)
           .map((row) => row.address);
       const to = byKind(RecipientKind.To);
-      const cc = byKind(RecipientKind.Cc);
-      const bcc = byKind(RecipientKind.Bcc);
       if (to.length === 0) {
         throw new BadUserInputError("The draft has no To recipient", "draftId");
       }
@@ -214,52 +320,23 @@ export function createSendDraftUseCase(
         throw new BadUserInputError("The draft has no body", "draftId");
       }
 
-      const attachments =
-        (await deps.messageRepository.listAttachments([draft.id])).get(
-          draft.id,
-        ) ?? [];
       const now = deps.clock.now().toISOString();
       const rfcMessageId = `${draft.id}@${domain.name}`;
-      const raw = deps.mimeBuilder.build({
-        from: { address: draft.fromAddress, name: draft.fromName },
-        to: to.map((address) => ({ address, name: null })),
-        cc: cc.map((address) => ({ address, name: null })),
-        bcc: bcc.map((address) => ({ address, name: null })),
-        subject: draft.subject,
-        ...(draft.textBody === null ? {} : { text: draft.textBody }),
-        ...(draft.htmlBody === null ? {} : { html: draft.htmlBody }),
-        messageId: rfcMessageId,
-        // The thread context resolved at save time, so a reply draft
-        // still threads correctly however long it sat unsent.
-        ...(draft.inReplyTo === null ? {} : { inReplyTo: draft.inReplyTo }),
-        references: draft.references,
-        date: now,
-        headers: new Map(),
-        attachments: await readAttachmentBytes(deps, attachments),
-      });
       const rawKey = buildRawMessageBlobKey(draft.id);
-      await deps.blobs.put(rawKey, new TextEncoder().encode(raw), {
-        contentType: "message/rfc822",
-      });
-
       const submitted = {
         ...submitDraft(draft, now),
         rfcMessageId,
         rawKey,
-        rawSize: raw.length,
       };
-      await deps.messageRepository.save(submitted);
-
-      return deliver(deps, submitted, {
-        from: draft.fromAddress,
-        to,
-        cc,
-        bcc,
-        subject: draft.subject,
-        text: draft.textBody ?? "",
-        ...(draft.htmlBody === null ? {} : { html: draft.htmlBody }),
-        headers: new Map(),
-        raw,
+      if (!(await deps.messageRepository.saveIfDraft(submitted))) {
+        throw new ConflictError("Draft was already sent or deleted");
+      }
+      const outbound = await assembleOutbound(deps, submitted);
+      await deps.blobs.put(rawKey, new TextEncoder().encode(outbound.raw), {
+        contentType: "message/rfc822",
       });
+      const ready = { ...submitted, rawSize: outbound.raw.length };
+      await deps.messageRepository.save(ready);
+      return deliver(deps, ready, outbound.mail);
     });
 }

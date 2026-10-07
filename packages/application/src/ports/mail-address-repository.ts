@@ -1,8 +1,8 @@
-import type { MailAddress } from "@mailcal/domain/entities/mail-address";
+import type { MailAddress } from "@flying-mail/domain/entities/mail-address";
 import type {
   DomainId,
   MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 
 /** Persistence boundary for explicitly provisioned mailboxes. */
 export interface MailAddressRepository {

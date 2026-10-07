@@ -1,4 +1,4 @@
-import type { OutboundMail } from "@mailcal/application/ports/mail-sender";
+import type { OutboundMail } from "@flying-mail/application/ports/mail-sender";
 import { describe, expect, test } from "vitest";
 import { MailDeliveryError } from "./cloudflare-email";
 import {
@@ -12,7 +12,11 @@ interface Captured {
   readonly body: Record<string, unknown>;
 }
 
-function recordingFetch(options?: { status?: number; throwOn?: boolean }): {
+function recordingFetch(options?: {
+  status?: number;
+  throwOn?: boolean;
+  responseBody?: string;
+}): {
   readonly calls: Captured[];
   readonly fetch: typeof fetch;
 } {
@@ -28,7 +32,10 @@ function recordingFetch(options?: { status?: number; throwOn?: boolean }): {
       body: JSON.parse(String(init?.body)) as Record<string, unknown>,
     });
     const status = options?.status ?? 200;
-    return new Response(status === 200 ? "{}" : "provider said no", { status });
+    return new Response(
+      options?.responseBody ?? (status === 200 ? "{}" : "provider said no"),
+      { status },
+    );
   }) as unknown as typeof fetch;
   return { calls, fetch: fake };
 }
@@ -152,6 +159,63 @@ describe("createCloudflareEmailApiSender", () => {
     ]);
   });
 
+  test("passes inline contentId and threading/reply fields without Message-ID", async () => {
+    const { calls, send } = sender();
+    await send({
+      ...mail,
+      replyTo: "reply@example.com",
+      messageId: "stored@example.com",
+      inReplyTo: "parent@example.com",
+      references: ["root@example.com", "parent@example.com"],
+      headers: new Map([
+        ["Message-ID", "<spoof@example.com>"],
+        ["Bcc", "hidden@example.com"],
+        ["X-Campaign-Id", "abc"],
+      ]),
+      attachments: [
+        {
+          fileName: "logo.png",
+          contentType: "image/png",
+          content: new Uint8Array([1]),
+          inline: true,
+          contentId: "logo-1",
+        },
+      ],
+    });
+    expect(calls[0]?.body["reply_to"]).toBe("reply@example.com");
+    expect(calls[0]?.body["attachments"]).toEqual([
+      {
+        content: "AQ==",
+        filename: "logo.png",
+        type: "image/png",
+        disposition: "inline",
+        contentId: "logo-1",
+      },
+    ]);
+    const headers = calls[0]?.body["headers"] as Record<string, string>;
+    expect(headers).toMatchObject({
+      "In-Reply-To": "<parent@example.com>",
+      References: "<root@example.com> <parent@example.com>",
+      "X-Campaign-Id": "abc",
+    });
+    expect(Object.keys(headers)).not.toContain("Message-ID");
+    expect(Object.keys(headers)).not.toContain("Bcc");
+  });
+
+  test("returns provider message id when the REST API supplies one", async () => {
+    const { fetch: fakeFetch } = recordingFetch({
+      responseBody: JSON.stringify({ result: { message_id: "provider@cf" } }),
+    });
+    const send = createCloudflareEmailApiSender({
+      accountId: "acc-1",
+      apiToken: "tok-secret",
+      fetch: fakeFetch,
+    }).send;
+    await expect(send(mail)).resolves.toEqual({
+      providerMessageId: "provider@cf",
+    });
+  });
+
   test("encodes a large attachment without overflowing the stack", async () => {
     const { calls, send } = sender();
     const big = new Uint8Array(200_000).fill(65);
@@ -207,6 +271,24 @@ describe("createCloudflareEmailApiSender", () => {
       expect(message).not.toContain("a@other.com");
       expect(message).not.toContain("Hello");
     }
+  });
+
+  test("maps a provider code without leaking response addresses", async () => {
+    const { fetch: fakeFetch } = recordingFetch({
+      status: 422,
+      responseBody: JSON.stringify({
+        errors: [{ code: "E_RATE_LIMIT_EXCEEDED", message: "a@other.com" }],
+      }),
+    });
+    const send = createCloudflareEmailApiSender({
+      accountId: "acc-1",
+      apiToken: "tok-secret",
+      fetch: fakeFetch,
+    }).send;
+    await expect(send(mail)).rejects.toMatchObject({
+      reason: "RATE_LIMITED",
+      message: "Email delivery is unavailable",
+    });
   });
 
   test("masks a transport failure", async () => {

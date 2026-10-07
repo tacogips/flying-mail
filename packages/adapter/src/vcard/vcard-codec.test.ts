@@ -1,8 +1,8 @@
-import { createContact } from "@mailcal/domain/entities/contact";
+import { createContact } from "@flying-mail/domain/entities/contact";
 import {
   createAddressBookId,
   createContactId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { describe, expect, test } from "vitest";
 import { createVcardCodec } from "./vcard-codec";
 import {

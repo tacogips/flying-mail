@@ -3,8 +3,8 @@ import {
   type CarddavBookLink,
   createCarddavAccount,
   normalizeCarddavServerUrl,
-} from "@mailcal/domain/entities/carddav-account";
-import { createAddressBook } from "@mailcal/domain/entities/address-book";
+} from "@flying-mail/domain/entities/carddav-account";
+import { createAddressBook } from "@flying-mail/domain/entities/address-book";
 import {
   type AddressBookId,
   type CarddavAccountId,
@@ -13,7 +13,7 @@ import {
   createCarddavAccountId,
   createCarddavBookId,
   type MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import {
   BadUserInputError,

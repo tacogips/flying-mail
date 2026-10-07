@@ -109,7 +109,7 @@ describe("ruleMatches", () => {
     });
     expect(ruleMatches(byList, INPUT)).toBe(false);
     expect(
-      ruleMatches(byList, { ...INPUT, listId: "dev.mailcal.example" }),
+      ruleMatches(byList, { ...INPUT, listId: "dev.flying-mail.example" }),
     ).toBe(true);
   });
 

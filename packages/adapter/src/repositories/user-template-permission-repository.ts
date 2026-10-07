@@ -1,15 +1,15 @@
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
-import type { UserTemplatePermissionRepository } from "@mailcal/application/ports/user-template-permission-repository";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
+import type { UserTemplatePermissionRepository } from "@flying-mail/application/ports/user-template-permission-repository";
 import {
   Capability,
   isTemplateCapability,
-} from "@mailcal/domain/entities/api-key";
-import { UserPermissionEffect } from "@mailcal/domain/entities/user-mail-permission";
-import type { UserTemplatePermission } from "@mailcal/domain/entities/user-template-permission";
+} from "@flying-mail/domain/entities/api-key";
+import { UserPermissionEffect } from "@flying-mail/domain/entities/user-mail-permission";
+import type { UserTemplatePermission } from "@flying-mail/domain/entities/user-template-permission";
 import {
   createUserId,
   createUserTemplatePermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { assertEnumValue, buildInPlaceholders } from "./sql-helpers";
 
 interface UserTemplatePermissionRow {

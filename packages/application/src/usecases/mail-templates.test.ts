@@ -1,18 +1,18 @@
 import {
   Capability,
   createApiKeyScope,
-} from "@mailcal/domain/entities/api-key";
+} from "@flying-mail/domain/entities/api-key";
 import {
   type MailTemplateContentInput,
   TemplateVariableType,
-} from "@mailcal/domain/entities/mail-template";
-import { UserPermissionEffect } from "@mailcal/domain/entities/user-mail-permission";
-import { MATCH_ALL_ADDRESSES } from "@mailcal/domain/value-objects/address-pattern";
+} from "@flying-mail/domain/entities/mail-template";
+import { UserPermissionEffect } from "@flying-mail/domain/entities/user-mail-permission";
+import { MATCH_ALL_ADDRESSES } from "@flying-mail/domain/value-objects/address-pattern";
 import {
   createApiKeyId,
   createApiKeyScopeId,
   createMailTemplateId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import {
   BadUserInputError,

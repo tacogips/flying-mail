@@ -1,12 +1,12 @@
 import type {
   MailAuthorizationRule,
   MailPermissionFilter,
-} from "@mailcal/application/policies/authorization";
-import type { MessageListFilter } from "@mailcal/application/ports/message-repository";
-import type { SqlValue } from "@mailcal/application/ports/sql-database";
-import { FetchStatus } from "@mailcal/domain/entities/fetch-state";
-import { RecipientKind } from "@mailcal/domain/entities/message";
-import { addressPatternToLikeExpression } from "@mailcal/domain/value-objects/address-pattern";
+} from "@flying-mail/application/policies/authorization";
+import type { MessageListFilter } from "@flying-mail/application/ports/message-repository";
+import type { SqlValue } from "@flying-mail/application/ports/sql-database";
+import { FetchStatus } from "@flying-mail/domain/entities/fetch-state";
+import { RecipientKind } from "@flying-mail/domain/entities/message";
+import { addressPatternToLikeExpression } from "@flying-mail/domain/value-objects/address-pattern";
 import {
   buildInPlaceholders,
   decodeCursor,

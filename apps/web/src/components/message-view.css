@@ -19,6 +19,10 @@
   flex: 1;
 }
 
+.message-view-back {
+  display: none;
+}
+
 .message-view-rawlink {
   display: block;
   word-break: break-all;
@@ -32,6 +36,7 @@
 .message-view-subject {
   font-size: 20px;
   margin: 0 0 16px;
+  overflow-wrap: anywhere;
 }
 
 .message-view-sender-row {
@@ -55,8 +60,22 @@
 }
 
 .message-view-recipients {
+  display: flex;
+  flex-direction: column;
   font-size: 12px;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.message-view-recipient-line {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.message-view-delivered-to {
+  color: var(--text-muted);
 }
 
 .message-view-contact-hint {
@@ -85,6 +104,10 @@
 .message-view-date {
   font-size: 12px;
   white-space: nowrap;
+}
+
+.message-view-sender-col > strong {
+  overflow-wrap: anywhere;
 }
 
 .mailing-list-banner {
@@ -117,7 +140,8 @@
 
 .message-view-text {
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: normal;
   font: inherit;
   margin: 0;
 }
@@ -133,4 +157,17 @@
   font-size: 13px;
   color: var(--text-muted);
   margin: 0;
+}
+
+@media (max-width: 759px) {
+  .message-view-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .message-view-back {
+    display: block;
+    width: 100%;
+    margin-bottom: 2px;
+    text-align: left;
+  }
 }

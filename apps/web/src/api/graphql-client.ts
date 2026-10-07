@@ -7,7 +7,10 @@
  * `verifyEmailAuthToken`, so this module never holds a token. Browsers
  * attach it automatically to same-origin requests; explicitly public
  * operations opt out with `credentials: "omit"` so an existing session can
- * neither authenticate nor influence them.
+ * neither authenticate nor influence them. The email-link verification
+ * exchange is public but must accept its response cookie, so it uses a
+ * separate same-origin mode that still does not attach an Authorization
+ * header or clear the current session on an unauthenticated response.
  */
 
 import { createSignal } from "solid-js";
@@ -25,6 +28,10 @@ export interface GraphQLClientError {
   readonly message: string;
   readonly code: GraphQLErrorCode;
   readonly path?: readonly (string | number)[];
+  readonly entity?: string;
+  readonly resource?: string;
+  readonly field?: string;
+  readonly id?: string;
 }
 
 export type GraphQLResult<T> =
@@ -36,7 +43,7 @@ export interface GraphQLRequestOptions {
 }
 
 interface RequestBehavior {
-  readonly attachSession: boolean;
+  readonly credentials: RequestCredentials;
   readonly clearSessionOnUnauthenticated: boolean;
 }
 
@@ -111,7 +118,20 @@ export function mapGraphQLError(rawError: unknown): GraphQLClientError {
       : "Unknown GraphQL error";
   const code = extractCode(record);
   const path = extractPath(record);
-  return path === undefined ? { message, code } : { message, code, path };
+  const extensions = asRecord(record["extensions"]);
+  const entity = extensions?.["entity"];
+  const resource = extensions?.["resource"];
+  const field = extensions?.["field"];
+  const id = extensions?.["id"];
+  return {
+    message,
+    code,
+    ...(path === undefined ? {} : { path }),
+    ...(typeof entity === "string" ? { entity } : {}),
+    ...(typeof resource === "string" ? { resource } : {}),
+    ...(typeof field === "string" ? { field } : {}),
+    ...(typeof id === "string" ? { id } : {}),
+  };
 }
 
 function extractRawErrors(payload: unknown): readonly unknown[] {
@@ -183,7 +203,7 @@ async function executeGraphQLRequest<
     // session cookie. A public request explicitly opts out, so it can never
     // be authenticated by -- or influenced by -- a session the visitor
     // happens to be carrying.
-    credentials: behavior.attachSession ? "same-origin" : "omit",
+    credentials: behavior.credentials,
   };
   if (options?.signal !== undefined) {
     init.signal = options.signal;
@@ -244,7 +264,7 @@ export function graphqlRequest<
   options?: GraphQLRequestOptions,
 ): Promise<GraphQLResult<TData>> {
   return executeGraphQLRequest<TData, TVariables>(query, variables, options, {
-    attachSession: true,
+    credentials: "same-origin",
     clearSessionOnUnauthenticated: true,
   });
 }
@@ -259,7 +279,22 @@ export function publicGraphqlRequest<
   options?: GraphQLRequestOptions,
 ): Promise<GraphQLResult<TData>> {
   return executeGraphQLRequest<TData, TVariables>(query, variables, options, {
-    attachSession: false,
+    credentials: "omit",
+    clearSessionOnUnauthenticated: false,
+  });
+}
+
+/** Public session-establishing request that accepts a same-origin response cookie. */
+export function sessionEstablishingGraphqlRequest<
+  TData,
+  TVariables extends Record<string, unknown> = Record<string, never>,
+>(
+  query: string,
+  variables?: TVariables,
+  options?: GraphQLRequestOptions,
+): Promise<GraphQLResult<TData>> {
+  return executeGraphQLRequest<TData, TVariables>(query, variables, options, {
+    credentials: "same-origin",
     clearSessionOnUnauthenticated: false,
   });
 }

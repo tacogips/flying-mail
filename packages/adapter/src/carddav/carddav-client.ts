@@ -10,7 +10,7 @@ import {
   type CarddavPutResult,
   CarddavTransportError,
   type RemoteAddressBookRef,
-} from "@mailcal/application/ports/carddav";
+} from "@flying-mail/application/ports/carddav";
 import {
   escapeXmlText,
   findChild,
@@ -22,7 +22,7 @@ import {
 import { resolveHref } from "../webdav/url";
 
 /** RFC 6352 CardDAV client. Discovery, sync, multiget, and writes share
- * protocol-generic URL and multistatus XML handling from `webdav/`. mailcal
+ * protocol-generic URL and multistatus XML handling from `webdav/`. flying-mail
  * acts only as a CardDAV client. */
 
 export interface CarddavClientOptions {
@@ -38,7 +38,8 @@ export interface CarddavClientOptions {
 
 const DEFAULT_MULTIGET_CHUNK = 50;
 const DEFAULT_MAX_REDIRECTS = 5;
-const DEFAULT_USER_AGENT = "mailcal/0.1 (+https://github.com/tacogips/mailcal)";
+const DEFAULT_USER_AGENT =
+  "flying-mail/0.1 (+https://github.com/tacogips/flying-mail)";
 
 const XML_CONTENT_TYPE = 'application/xml; charset="utf-8"';
 

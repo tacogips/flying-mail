@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
+  REQUEST_EMAIL_AUTH_MUTATION,
+  VERIFY_EMAIL_AUTH_MUTATION,
+} from "./documents";
+import {
   graphqlRequest,
   httpStatusToErrorCode,
   mapGraphQLError,
   publicGraphqlRequest,
+  sessionEstablishingGraphqlRequest,
   sessionStore,
   uploadAttachment,
 } from "./graphql-client";
@@ -41,6 +46,20 @@ describe("mapGraphQLError", () => {
         path: ["messages", 0],
       }),
     ).toEqual({ message: "nope", code: "FORBIDDEN", path: ["messages", 0] });
+  });
+
+  test("preserves entity and field extensions for typed error handling", () => {
+    expect(
+      mapGraphQLError({
+        message: "Draft not found",
+        extensions: { code: "NOT_FOUND", entity: "Draft", field: "draftId" },
+      }),
+    ).toEqual({
+      message: "Draft not found",
+      code: "NOT_FOUND",
+      entity: "Draft",
+      field: "draftId",
+    });
   });
 
   test("falls back to UNKNOWN for an unrecognized code", () => {
@@ -184,9 +203,9 @@ describe("publicGraphqlRequest", () => {
     sessionStore.clear();
   });
 
-  test("omits credentials entirely", async () => {
+  test("requestEmailAuth omits credentials entirely", async () => {
     const calls = stubFetch(() => jsonResponse({ data: { ok: true } }));
-    await publicGraphqlRequest("{ ok }");
+    await publicGraphqlRequest(REQUEST_EMAIL_AUTH_MUTATION, { email: "a@b" });
     expect(calls[0]?.init.credentials).toBe("omit");
   });
 
@@ -198,6 +217,37 @@ describe("publicGraphqlRequest", () => {
       }),
     );
     await publicGraphqlRequest("{ ok }");
+    expect(sessionStore.isEstablished()).toBe(true);
+  });
+});
+
+describe("sessionEstablishingGraphqlRequest", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    sessionStore.clear();
+  });
+
+  test("accepts the email verification cookie without attaching authorization", async () => {
+    const calls = stubFetch(() => jsonResponse({ data: { ok: true } }));
+    await sessionEstablishingGraphqlRequest(VERIFY_EMAIL_AUTH_MUTATION, {
+      token: "one-time-token",
+    });
+    expect(calls[0]?.init.credentials).toBe("same-origin");
+    expect(new Headers(calls[0]?.init.headers).has("authorization")).toBe(
+      false,
+    );
+  });
+
+  test("does not clear the session on its own unauthenticated error", async () => {
+    sessionStore.markEstablished();
+    stubFetch(() =>
+      jsonResponse({
+        errors: [{ message: "x", extensions: { code: "UNAUTHENTICATED" } }],
+      }),
+    );
+    await sessionEstablishingGraphqlRequest(VERIFY_EMAIL_AUTH_MUTATION, {
+      token: "expired-token",
+    });
     expect(sessionStore.isEstablished()).toBe(true);
   });
 });

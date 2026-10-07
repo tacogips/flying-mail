@@ -38,7 +38,7 @@ MAILCAL_PUBLIC_ORIGIN = "https://mailcal-api.tacotest.workers.dev"
 # its sender was authorized for, so a multi-address, multi-domain instance
 # needs nothing configured here to send ordinary mail -- only the send_email
 # binding above.
-# MAILCAL_MAIL_FROM = "postmaster@example.com"
+MAILCAL_MAIL_FROM = "flying-mail@tacoserve.online"
 
 # Self-service signup is closed by default: this is a mail server, not a SaaS
 # trial. Set to "open" only when you intend anyone to be able to register.
@@ -49,6 +49,8 @@ MAILCAL_SPAM_THRESHOLD = "0.6"
 
 # Hard cap, in seconds, on a file link's requested ttlSeconds (7 days).
 MAILCAL_FILE_LINK_MAX_TTL = "604800"
+# MAILCAL_INBOUND_MX_SUFFIX defaults to "mx.cloudflare.net" when unset.
+# Set it to an empty string only when inbound mail uses another delivery path.
 
 # Shared CardDAV and external-mail credential encryption key: base64 of 32
 # random bytes, AES-256-GCM.

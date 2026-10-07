@@ -1,6 +1,6 @@
 # Domain Model
 
-Entities, branded value objects and invariants owned by `@mailcal/domain`.
+Entities, branded value objects and invariants owned by `@flying-mail/domain`.
 The domain layer never generates IDs, timestamps or randomness -- those are
 supplied by the caller (application layer) through the `Clock`/`RandomSource`
 ports, keeping every entity factory pure and deterministic under test.

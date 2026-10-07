@@ -1,16 +1,16 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   type ExternalMailAccount,
   isExternalAccountActive,
   markExternalMailAccountFetched,
-} from "@mailcal/domain/entities/external-mail-account";
-import { createExternalMessageState } from "@mailcal/domain/entities/external-message-state";
-import type { MailAddress } from "@mailcal/domain/entities/mail-address";
-import type { EmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/external-mail-account";
+import { createExternalMessageState } from "@flying-mail/domain/entities/external-message-state";
+import type { MailAddress } from "@flying-mail/domain/entities/mail-address";
+import type { EmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createMessageId,
   type ExternalAccountId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { ConflictError, NotFoundError } from "../errors";
 import { authorizesAnyAddress } from "../policies/authorization";

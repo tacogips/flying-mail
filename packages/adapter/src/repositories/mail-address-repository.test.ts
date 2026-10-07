@@ -1,15 +1,15 @@
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   createMailAddress,
   MailAddressStatus,
   renameMailAddress,
   setMailAddressStatus,
-} from "@mailcal/domain/entities/mail-address";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
+} from "@flying-mail/domain/entities/mail-address";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
 import {
   createDomainId,
   createMailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createMailAddressRepository } from "./mail-address-repository";
 import { createMigratedDatabase, seedDomain } from "./test-support";

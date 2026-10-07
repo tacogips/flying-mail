@@ -1,15 +1,15 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   createMailTemplate,
   type MailTemplate,
   type MailTemplateContentInput,
   templateSources,
   updateMailTemplate,
-} from "@mailcal/domain/entities/mail-template";
+} from "@flying-mail/domain/entities/mail-template";
 import {
   createMailTemplateId,
   type MailTemplateId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { BadUserInputError, ConflictError, NotFoundError } from "../errors";
 import { requireTemplateCapability } from "../policies/authorization";

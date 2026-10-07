@@ -1,6 +1,6 @@
-import type { R2BucketLike } from "@mailcal/adapter/blob/r2";
-import type { CloudflareSendEmailBinding } from "@mailcal/adapter/mail/cloudflare-email";
-import type { D1DatabaseLike } from "@mailcal/adapter/sql/d1";
+import type { R2BucketLike } from "@flying-mail/adapter/blob/r2";
+import type { CloudflareSendEmailBinding } from "@flying-mail/adapter/mail/cloudflare-email";
+import type { D1DatabaseLike } from "@flying-mail/adapter/sql/d1";
 
 /** Minimal structural surface of the Workers Static Assets binding, used by
  * `worker.ts`'s SPA fallthrough. Kept local (see `D1DatabaseLike` and
@@ -20,7 +20,7 @@ export interface ExecutionContextLike {
   waitUntil(promise: Promise<unknown>): void;
   passThroughOnException(): void;
   /** Present for structural compatibility with hono's own `ExecutionContext`
-   * type; mailcal never reads it. */
+   * type; flying-mail never reads it. */
   readonly props: unknown;
 }
 
@@ -56,6 +56,7 @@ export interface Env {
   readonly MAILCAL_SPAM_THRESHOLD?: string;
   readonly MAILCAL_SPAM_PHRASES?: string;
   readonly MAILCAL_FILE_LINK_MAX_TTL?: string;
+  readonly MAILCAL_INBOUND_MX_SUFFIX?: string;
   readonly MAILCAL_BLOB_BACKEND?: string;
   readonly MAILCAL_S3_ENDPOINT?: string;
   readonly MAILCAL_S3_BUCKET?: string;
@@ -77,6 +78,7 @@ export function envToRecord(env: Env): Record<string, string | undefined> {
     MAILCAL_SPAM_THRESHOLD: env.MAILCAL_SPAM_THRESHOLD,
     MAILCAL_SPAM_PHRASES: env.MAILCAL_SPAM_PHRASES,
     MAILCAL_FILE_LINK_MAX_TTL: env.MAILCAL_FILE_LINK_MAX_TTL,
+    MAILCAL_INBOUND_MX_SUFFIX: env.MAILCAL_INBOUND_MX_SUFFIX,
     MAILCAL_BLOB_BACKEND: env.MAILCAL_BLOB_BACKEND,
     MAILCAL_S3_ENDPOINT: env.MAILCAL_S3_ENDPOINT,
     MAILCAL_S3_BUCKET: env.MAILCAL_S3_BUCKET,

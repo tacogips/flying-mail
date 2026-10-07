@@ -1,5 +1,5 @@
-import type { MailTemplate } from "@mailcal/domain/entities/mail-template";
-import type { MailTemplateId } from "@mailcal/domain/value-objects/ids";
+import type { MailTemplate } from "@flying-mail/domain/entities/mail-template";
+import type { MailTemplateId } from "@flying-mail/domain/value-objects/ids";
 
 /** Persistence boundary for the instance-wide mail-template catalogue.
  *

@@ -138,14 +138,14 @@ describe("config", () => {
   });
 
   test("a malformed config file is not an error", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "mailcal-cli-"));
+    const dir = await mkdtemp(join(tmpdir(), "flying-mail-cli-"));
     const path = join(dir, "config.json");
     await writeFile(path, "not json");
     expect(await readConfigFile(path)).toEqual({});
   });
 
   test("writes the config 0600 and reads it back", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "mailcal-cli-"));
+    const dir = await mkdtemp(join(tmpdir(), "flying-mail-cli-"));
     const path = join(dir, "nested", "config.json");
     await writeConfigFile(path, { endpoint: ENDPOINT, apiKey: "ybm_a_b" });
 
@@ -160,7 +160,7 @@ describe("config", () => {
 
   describe("precedence", () => {
     test("a flag beats the environment and the file", async () => {
-      const dir = await mkdtemp(join(tmpdir(), "mailcal-cli-"));
+      const dir = await mkdtemp(join(tmpdir(), "flying-mail-cli-"));
       const path = join(dir, "config.json");
       await writeConfigFile(path, {
         endpoint: "https://from-file.example.com",
@@ -180,7 +180,7 @@ describe("config", () => {
     });
 
     test("the environment beats the file", async () => {
-      const dir = await mkdtemp(join(tmpdir(), "mailcal-cli-"));
+      const dir = await mkdtemp(join(tmpdir(), "flying-mail-cli-"));
       const path = join(dir, "config.json");
       await writeConfigFile(path, {
         endpoint: "https://from-file.example.com",
@@ -413,8 +413,8 @@ describe("client serve app", () => {
   });
 
   async function createDist(): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), "mailcal-dist-"));
-    await writeFile(join(dir, "index.html"), "<html>mailcal</html>");
+    const dir = await mkdtemp(join(tmpdir(), "flying-mail-dist-"));
+    await writeFile(join(dir, "index.html"), "<html>flying-mail</html>");
     await writeFile(join(dir, "app.js"), "console.log(1)");
     return dir;
   }
@@ -431,7 +431,7 @@ describe("client serve app", () => {
     });
 
     const index = await app.request("http://localhost/");
-    expect(await index.text()).toContain("mailcal");
+    expect(await index.text()).toContain("flying-mail");
     expect(index.headers.get("content-type")).toContain("text/html");
 
     const asset = await app.request("http://localhost/app.js");
@@ -439,7 +439,7 @@ describe("client serve app", () => {
 
     const route = await app.request("http://localhost/settings/domains");
     expect(route.status).toBe(200);
-    expect(await route.text()).toContain("mailcal");
+    expect(await route.text()).toContain("flying-mail");
 
     // A missing *asset* is an honest 404, not the SPA shell.
     const missing = await app.request("http://localhost/missing.js");
@@ -468,7 +468,7 @@ describe("client serve app", () => {
       expect(body).not.toContain("root:");
       expect([200, 404]).toContain(response.status);
       if (response.status === 200) {
-        expect(body).toContain("mailcal");
+        expect(body).toContain("flying-mail");
       }
     }
   });

@@ -1,17 +1,17 @@
-import type { ExternalMailAccountRepository } from "@mailcal/application/ports/external-mail";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { ExternalMailAccountRepository } from "@flying-mail/application/ports/external-mail";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   ExternalAccountStatus,
   type ExternalFetchConfig,
   type ExternalMailAccount,
   type SmtpSecurity,
   type SmtpSubmissionConfig,
-} from "@mailcal/domain/entities/external-mail-account";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/external-mail-account";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createExternalAccountId,
   createMailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { assertEnumValue } from "./sql-helpers";
 
 interface ExternalMailAccountRow {

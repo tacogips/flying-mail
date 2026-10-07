@@ -1,5 +1,5 @@
 {
-  "name": "mailcal",
+  "name": "flying-mail",
   "version": "0.1.0",
   "private": true,
   "description": "Self-hosted multi-domain mailer on Cloudflare Workers with a GraphQL API for AI agents",

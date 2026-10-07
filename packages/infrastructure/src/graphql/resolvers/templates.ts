@@ -1,13 +1,13 @@
-import type { MailTemplateContentInput } from "@mailcal/application/usecases";
-import type { SendTemplatedMessageInput } from "@mailcal/application/usecases/mail-template-send";
-import type { UserTemplatePermissionInput } from "@mailcal/application/usecases/user-template-permissions";
-import type { TemplateCapability } from "@mailcal/domain/entities/api-key";
+import type { MailTemplateContentInput } from "@flying-mail/application/usecases";
+import type { SendTemplatedMessageInput } from "@flying-mail/application/usecases/mail-template-send";
+import type { UserTemplatePermissionInput } from "@flying-mail/application/usecases/user-template-permissions";
+import type { TemplateCapability } from "@flying-mail/domain/entities/api-key";
 import type {
   MailTemplate,
   TemplateVariableType,
-} from "@mailcal/domain/entities/mail-template";
-import type { TemplateValueEntry } from "@mailcal/domain/entities/template-values";
-import type { UserPermissionEffect } from "@mailcal/domain/entities/user-mail-permission";
+} from "@flying-mail/domain/entities/mail-template";
+import type { TemplateValueEntry } from "@flying-mail/domain/entities/template-values";
+import type { UserPermissionEffect } from "@flying-mail/domain/entities/user-mail-permission";
 import {
   createAttachmentId,
   createMailTemplateId,
@@ -15,7 +15,7 @@ import {
   createTagId,
   createUserId,
   createUserTemplatePermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { GraphQLContext } from "../context";
 import { requireViewerOrThrow } from "./helpers";
 

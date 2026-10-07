@@ -1,16 +1,16 @@
-import type { ClassificationRuleRepository } from "@mailcal/application/ports/classification-rule-repository";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { ClassificationRuleRepository } from "@flying-mail/application/ports/classification-rule-repository";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   type ClassificationRule,
   RuleAction,
   RuleField,
   RuleMatcher,
-} from "@mailcal/domain/entities/classification-rule";
+} from "@flying-mail/domain/entities/classification-rule";
 import {
   createClassificationRuleId,
   createDomainId,
   createTagId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { assertEnumValue, boolToSql, sqlToBool } from "./sql-helpers";
 
 interface RuleRow {

@@ -1,16 +1,16 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   createMailAddress,
   type MailAddress,
   MailAddressStatus,
   renameMailAddress,
   setMailAddressStatus,
-} from "@mailcal/domain/entities/mail-address";
+} from "@flying-mail/domain/entities/mail-address";
 import {
   createMailAddressId,
   type DomainId,
   type MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { ConflictError, NotFoundError } from "../errors";
 import { requireGlobalCapability } from "../policies/authorization";

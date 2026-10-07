@@ -1,9 +1,9 @@
-import type { Contact } from "@mailcal/domain/entities/contact";
-import type { EmailAddress } from "@mailcal/domain/value-objects/email-address";
+import type { Contact } from "@flying-mail/domain/entities/contact";
+import type { EmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import type {
   AddressBookId,
   ContactId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 
 export interface ContactListPageInput {
   readonly addressBookIds: readonly AddressBookId[];
@@ -25,7 +25,7 @@ export interface ContactPage {
 export interface ContactRepository {
   findById(id: ContactId): Promise<Contact | null>;
   /** `(addressBookId, uid)` is the CardDAV upsert key -- the only stable
-   * identity a remote server and mailcal share. */
+   * identity a remote server and flying-mail share. */
   findByUid(addressBookId: AddressBookId, uid: string): Promise<Contact | null>;
   /** Atomic write of the contact row plus its emails/phones/postal
    * addresses/urls child rows. */

@@ -1,16 +1,16 @@
 import type {
   AddressBookListFilter,
   AddressBookRepository,
-} from "@mailcal/application/ports/address-book-repository";
+} from "@flying-mail/application/ports/address-book-repository";
 import type {
   SqlDatabase,
   SqlValue,
-} from "@mailcal/application/ports/sql-database";
-import type { AddressBook } from "@mailcal/domain/entities/address-book";
+} from "@flying-mail/application/ports/sql-database";
+import type { AddressBook } from "@flying-mail/domain/entities/address-book";
 import {
   createAddressBookId,
   createMailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import {
   buildAllowedPatternsColumnCondition,
   buildMailPermissionColumnFilterCondition,

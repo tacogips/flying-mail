@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img"
-     aria-labelledby="mailcal-icon-title mailcal-icon-desc">
-  <title id="mailcal-icon-title">mailcal</title>
-  <desc id="mailcal-icon-desc">A stylized mailcal: a folded letter bound with a
+     aria-labelledby="flying-mail-icon-title flying-mail-icon-desc">
+  <title id="flying-mail-icon-title">flying-mail</title>
+  <desc id="flying-mail-icon-desc">A flying letter: a folded letter bound with a
     cord to the shaft of an arrow in flight.</desc>
 
   <!--
@@ -10,7 +10,7 @@
     axis-aligned keeps every coordinate readable; the single transform on
     `#mark` is what gives the arrow its upward flight.
 
-    Two deliberate choices keep this reading as a mailcal rather than as a
+    Two deliberate choices keep this reading as flying mail rather than as a
     rocket, which is what a fat centred capsule and swept tail fins produce:
 
       1. The letter is a sharp-cornered rectangle, tilted against the shaft.
@@ -20,13 +20,13 @@
          the cargo, is the dominant silhouette.
   -->
   <defs>
-    <linearGradient id="mailcal-ground" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="flying-mail-ground" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#233a61"/>
       <stop offset="1" stop-color="#13203a"/>
     </linearGradient>
   </defs>
 
-  <rect width="64" height="64" rx="14" fill="url(#mailcal-ground)"/>
+  <rect width="64" height="64" rx="14" fill="url(#flying-mail-ground)"/>
 
   <g id="mark"
      transform="translate(32,32) scale(0.94) rotate(-45) translate(-32,-32)">

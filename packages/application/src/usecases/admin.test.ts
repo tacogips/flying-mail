@@ -1,16 +1,16 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   createMailDomain,
   DomainStatus,
   verifyMailDomain,
-} from "@mailcal/domain/entities/mail-domain";
-import { SystemTagSlug } from "@mailcal/domain/entities/tag";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
+} from "@flying-mail/domain/entities/mail-domain";
+import { SystemTagSlug } from "@flying-mail/domain/entities/tag";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
 import {
   createApiKeyId,
   createDomainId,
   createTagId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import {
   BadUserInputError,
@@ -115,6 +115,113 @@ describe("domains", () => {
     const verified = await verify(adminViewer(), domain.id);
     expect(verified.status).toBe(DomainStatus.Active);
     expect(verified.verifiedAt).toBe(NOW);
+  });
+
+  test.each([
+    ["an MX host below the configured suffix", "route1.mx.cloudflare.net"],
+    [
+      "an uppercase MX host with a trailing root dot",
+      "ROUTE1.MX.CLOUDFLARE.NET.",
+    ],
+    ["the configured suffix itself", "mx.cloudflare.net"],
+  ])("verification accepts %s", async (_label, exchange) => {
+    const create = createCreateDomainUseCase(fake.deps);
+    const domain = await create(adminViewer(), "example.com", true);
+    fake.dns.setTxt("_mailcal.example.com", [
+      `mailcal-verification=${domain.verificationToken}`,
+    ]);
+    fake.dns.setMx("example.com", [{ priority: 10, exchange }]);
+    await expect(
+      createVerifyDomainUseCase(fake.deps)(adminViewer(), domain.id),
+    ).resolves.toMatchObject({ status: DomainStatus.Active });
+  });
+
+  test.each([
+    [
+      "a non-Cloudflare exchange",
+      [{ priority: 1, exchange: "aspmx.l.google.com" }],
+    ],
+    [
+      "a Cloudflare suffix with an attacker domain appended",
+      [{ priority: 1, exchange: "evil-mx.cloudflare.net.attacker.com" }],
+    ],
+    [
+      "a fake Cloudflare MX name",
+      [{ priority: 1, exchange: "fakemx.cloudflare.net" }],
+    ],
+    ["no MX records", []],
+  ])("verification keeps a domain pending with %s", async (_label, records) => {
+    const create = createCreateDomainUseCase(fake.deps);
+    const domain = await create(adminViewer(), "example.com", true);
+    fake.dns.setTxt("_mailcal.example.com", [
+      `mailcal-verification=${domain.verificationToken}`,
+    ]);
+    fake.dns.setMx("example.com", records);
+    await expect(
+      createVerifyDomainUseCase(fake.deps)(adminViewer(), domain.id),
+    ).rejects.toMatchObject({
+      name: "ConflictError",
+      message: expect.stringContaining(
+        records.length === 0
+          ? "Current MX: none"
+          : `Current MX: ${records.map(({ exchange }) => exchange).join(", ")}`,
+      ),
+    });
+    await expect(
+      fake.deps.mailDomainRepository.findById(domain.id),
+    ).resolves.toMatchObject({
+      status: DomainStatus.Pending,
+      verifiedAt: null,
+    });
+  });
+
+  test("verification reports MX lookup failures as SERVICE_UNAVAILABLE", async () => {
+    const create = createCreateDomainUseCase(fake.deps);
+    const domain = await create(adminViewer(), "example.com", true);
+    fake.dns.setTxt("_mailcal.example.com", [
+      `mailcal-verification=${domain.verificationToken}`,
+    ]);
+    fake.dns.failNextMxLookup(new Error("resolver down"));
+    await expect(
+      createVerifyDomainUseCase(fake.deps)(adminViewer(), domain.id),
+    ).rejects.toBeInstanceOf(ServiceUnavailableError);
+    await expect(
+      fake.deps.mailDomainRepository.findById(domain.id),
+    ).resolves.toMatchObject({
+      status: DomainStatus.Pending,
+      verifiedAt: null,
+    });
+  });
+
+  test("empty inbound suffix disables the MX gate", async () => {
+    fake = createFakeDependencies({
+      now: NOW,
+      instanceConfig: { inboundMxSuffix: null },
+    });
+    const domain = await createCreateDomainUseCase(fake.deps)(
+      adminViewer(),
+      "example.com",
+      true,
+    );
+    fake.dns.setTxt("_mailcal.example.com", [
+      `mailcal-verification=${domain.verificationToken}`,
+    ]);
+    fake.dns.setMx("example.com", []);
+    await expect(
+      createVerifyDomainUseCase(fake.deps)(adminViewer(), domain.id),
+    ).resolves.toMatchObject({ status: DomainStatus.Active });
+  });
+
+  test("already verified domains return before DNS lookups", async () => {
+    const create = createCreateDomainUseCase(fake.deps);
+    const pending = await create(adminViewer(), "example.com", true);
+    const verified = verifyMailDomain(pending, NOW);
+    await fake.deps.mailDomainRepository.save(verified);
+    fake.dns.failNextLookup(new Error("must not look up TXT"));
+    fake.dns.failNextMxLookup(new Error("must not look up MX"));
+    await expect(
+      createVerifyDomainUseCase(fake.deps)(adminViewer(), pending.id),
+    ).resolves.toEqual(verified);
   });
 
   test("verification fails while the TXT record is absent or wrong", async () => {

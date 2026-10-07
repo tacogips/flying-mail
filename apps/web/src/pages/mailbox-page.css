@@ -17,3 +17,17 @@
 .mailbox-empty p {
   margin: 0;
 }
+
+@media (max-width: 759px) {
+  .mailbox-empty {
+    padding: 16px;
+  }
+
+  .message-list-header {
+    padding-inline: 16px;
+  }
+
+  .message-row {
+    padding-inline: 16px;
+  }
+}

@@ -1,21 +1,23 @@
 import type {
+  AddressActivity,
   InsertMessageInput,
   MessagePage,
   MessageRepository,
-} from "@mailcal/application/ports/message-repository";
+} from "@flying-mail/application/ports/message-repository";
+import { DuplicateMessageError } from "@flying-mail/application/ports/message-repository";
 import type {
   SqlDatabase,
   SqlStatement,
   SqlValue,
-} from "@mailcal/application/ports/sql-database";
+} from "@flying-mail/application/ports/sql-database";
 import {
   type Attachment,
   AttachmentKind,
-} from "@mailcal/domain/entities/attachment";
+} from "@flying-mail/domain/entities/attachment";
 import {
   FetchStatus,
   type MessageFetchState,
-} from "@mailcal/domain/entities/fetch-state";
+} from "@flying-mail/domain/entities/fetch-state";
 import {
   DeliveryStatus,
   MailStatus,
@@ -23,9 +25,9 @@ import {
   MessageDirection,
   type MessageRecipient,
   RecipientKind,
-} from "@mailcal/domain/entities/message";
-import { SpamMarkedBy } from "@mailcal/domain/entities/spam-mark";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/message";
+import { SpamMarkedBy } from "@flying-mail/domain/entities/spam-mark";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createApiKeyId,
   createAttachmentId,
@@ -35,7 +37,7 @@ import {
   createThreadId,
   type MessageId,
   type TagId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { buildMessageListQuery } from "./message-repository-queries";
 import {
   assertEnumValue,
@@ -44,6 +46,13 @@ import {
   encodeCursor,
   sqlToBool,
 } from "./sql-helpers";
+import {
+  ADD_ENVELOPE_RECIPIENT_SQL,
+  buildCountAttachmentsByBlobKeysSql,
+  FIND_INBOUND_BY_RFC_MESSAGE_ID_SQL,
+  SAVE_IF_DRAFT_SQL,
+  saveIfDraftParams,
+} from "./message-repository-webmail";
 
 interface MessageRow {
   readonly id: string;
@@ -52,6 +61,8 @@ interface MessageRow {
   readonly thread_id: string;
   readonly rfc_message_id: string | null;
   readonly in_reply_to: string | null;
+  readonly reply_to: string | null;
+  readonly forwarded_from_message_id: string | null;
   readonly references_json: string;
   readonly subject: string;
   readonly from_address: string;
@@ -143,6 +154,11 @@ function rowToMessage(row: MessageRow): Message {
     threadId: createThreadId(row.thread_id),
     rfcMessageId: row.rfc_message_id,
     inReplyTo: row.in_reply_to,
+    replyTo: row.reply_to === null ? null : createEmailAddress(row.reply_to),
+    forwardedFromMessageId:
+      row.forwarded_from_message_id === null
+        ? null
+        : createMessageId(row.forwarded_from_message_id),
     references: parseReferences(row.references_json),
     subject: row.subject,
     fromAddress: createEmailAddress(row.from_address),
@@ -206,12 +222,18 @@ function rowToFetchState(row: FetchStateRow): MessageFetchState {
 
 const UPSERT_MESSAGE_SQL = `INSERT INTO messages
   (id, domain_id, direction, thread_id, rfc_message_id, in_reply_to,
-   references_json, subject, from_address, from_name, text_body, html_body,
+   references_json, reply_to, forwarded_from_message_id, subject, from_address, from_name, text_body, html_body,
    body_truncated, snippet, raw_key, raw_size, spam_score, status,
    delivery_status, list_id, is_mailing_list,
    delivery_error, read_at, occurred_at, created_at, updated_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(id) DO UPDATE SET
+    domain_id = excluded.domain_id,
+    rfc_message_id = excluded.rfc_message_id,
+    in_reply_to = excluded.in_reply_to,
+    references_json = excluded.references_json,
+    reply_to = excluded.reply_to,
+    forwarded_from_message_id = excluded.forwarded_from_message_id,
     thread_id = excluded.thread_id,
     subject = excluded.subject,
     text_body = excluded.text_body,
@@ -241,6 +263,8 @@ function messageParams(message: Message): readonly SqlValue[] {
     message.rfcMessageId,
     message.inReplyTo,
     JSON.stringify(message.references),
+    message.replyTo,
+    message.forwardedFromMessageId,
     message.subject,
     message.fromAddress,
     message.fromName,
@@ -303,6 +327,77 @@ export function createMessageRepository(db: SqlDatabase): MessageRepository {
   }
 
   return {
+    async listAddressActivity(addresses): Promise<readonly AddressActivity[]> {
+      if (addresses.length === 0) {
+        return [];
+      }
+      const readableAddresses = JSON.stringify(
+        addresses.map(({ address, domainId }) => [address, domainId]),
+      );
+      const rows = await db.query<{
+        address: string;
+        domain_id: string;
+        last_activity_at: string | null;
+        unread_count: number;
+      }>(
+        `WITH readable(address, domain_id) AS (
+           SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]')
+           FROM json_each(?)
+         ),
+         unread(address, domain_id, count) AS (
+           SELECT r.address, r.domain_id, COUNT(DISTINCT m.id)
+           FROM readable r
+           JOIN message_recipients mr ON mr.address = r.address
+             AND mr.kind = 'ENVELOPE'
+           JOIN messages m ON m.id = mr.message_id
+             AND m.domain_id = r.domain_id
+             AND m.direction = 'INBOUND'
+             AND m.read_at IS NULL
+           WHERE NOT EXISTS (
+             SELECT 1 FROM message_spam ms WHERE ms.message_id = m.id
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM message_tags mt
+             JOIN tags t ON t.id = mt.tag_id
+             WHERE mt.message_id = m.id AND t.system_slug = 'TRASH'
+           )
+           GROUP BY r.address, r.domain_id
+         )
+         SELECT r.address, r.domain_id,
+           NULLIF(MAX(
+             COALESCE((
+               SELECT MAX(m.occurred_at)
+               FROM messages m
+               WHERE m.domain_id = r.domain_id
+                 AND m.direction = 'OUTBOUND'
+                 AND m.status <> 'DRAFT'
+                 AND m.from_address = r.address
+             ), ''),
+             COALESCE((
+               SELECT MAX(m.occurred_at)
+               FROM message_recipients mr
+               JOIN messages m ON m.id = mr.message_id
+               WHERE mr.address = r.address
+                 AND mr.kind = 'ENVELOPE'
+                 AND m.domain_id = r.domain_id
+                 AND m.direction = 'INBOUND'
+             ), '')
+           ), '') AS last_activity_at,
+           COALESCE(u.count, 0) AS unread_count
+         FROM readable r
+         LEFT JOIN unread u ON u.address = r.address AND u.domain_id = r.domain_id
+         GROUP BY r.address, r.domain_id, u.count
+         ORDER BY last_activity_at IS NULL ASC, last_activity_at DESC, r.address ASC`,
+        [readableAddresses],
+      );
+      return rows.map((row) => ({
+        address: createEmailAddress(row.address),
+        domainId: createDomainId(row.domain_id),
+        lastActivityAt: row.last_activity_at,
+        unreadCount: row.unread_count,
+      }));
+    },
+
     async findById(id) {
       const rows = await db.query<MessageRow>(
         "SELECT * FROM messages WHERE id = ?",
@@ -315,10 +410,59 @@ export function createMessageRepository(db: SqlDatabase): MessageRepository {
 
     async findByRfcMessageId(rfcMessageId) {
       const rows = await db.query<MessageRow>(
-        "SELECT * FROM messages WHERE rfc_message_id = ?",
+        "SELECT * FROM messages WHERE rfc_message_id = ? ORDER BY created_at ASC LIMIT 1",
         [rfcMessageId],
       );
       return rows[0] === undefined ? null : rowToMessage(rows[0]);
+    },
+
+    async findInboundByRfcMessageId(rfcMessageId, domainId) {
+      const rows = await db.query<MessageRow>(
+        FIND_INBOUND_BY_RFC_MESSAGE_ID_SQL,
+        [domainId, rfcMessageId],
+      );
+      return rows[0] === undefined ? null : rowToMessage(rows[0]);
+    },
+
+    async addEnvelopeRecipient(messageId, address) {
+      await db.execute(ADD_ENVELOPE_RECIPIENT_SQL, [
+        messageId,
+        address,
+        messageId,
+        messageId,
+        address,
+      ]);
+    },
+
+    async saveIfDraft(message) {
+      const result = await db.execute(
+        SAVE_IF_DRAFT_SQL,
+        saveIfDraftParams(message),
+      );
+      return result.rowsAffected > 0;
+    },
+
+    async deleteDraftIfDraft(id) {
+      const result = await db.execute(
+        "DELETE FROM messages WHERE id = ? AND status = 'DRAFT'",
+        [id],
+      );
+      return result.rowsAffected > 0;
+    },
+
+    async countAttachmentsByBlobKeys(blobKeys) {
+      const counts = new Map<string, number>(blobKeys.map((key) => [key, 0]));
+      if (blobKeys.length === 0) {
+        return counts;
+      }
+      const rows = await db.query<{ blob_key: string; count: number }>(
+        buildCountAttachmentsByBlobKeysSql(blobKeys.length),
+        [...blobKeys],
+      );
+      for (const row of rows) {
+        counts.set(row.blob_key, row.count);
+      }
+      return counts;
     },
 
     async findThreadIdByReferences(references) {
@@ -434,7 +578,18 @@ export function createMessageRepository(db: SqlDatabase): MessageRepository {
       // user. Empty by default: a caller that omits it sees no behavior
       // change.
       statements.push(...(input.extraStatements ?? []));
-      await db.batch(statements);
+      try {
+        await db.batch(statements);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (
+          message.includes("UNIQUE constraint failed") &&
+          message.includes("messages.rfc_message_id")
+        ) {
+          throw new DuplicateMessageError(message);
+        }
+        throw error;
+      }
     },
 
     async save(message) {

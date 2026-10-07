@@ -2,7 +2,7 @@ import { AwsClient } from "aws4fetch";
 import type {
   BlobObject,
   BlobStore,
-} from "@mailcal/application/ports/blob-store";
+} from "@flying-mail/application/ports/blob-store";
 
 export interface S3Config {
   readonly endpoint: string;

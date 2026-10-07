@@ -1,14 +1,17 @@
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
-import { createAddressBook } from "@mailcal/domain/entities/address-book";
-import { type Contact, createContact } from "@mailcal/domain/entities/contact";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
+import { createAddressBook } from "@flying-mail/domain/entities/address-book";
+import {
+  type Contact,
+  createContact,
+} from "@flying-mail/domain/entities/contact";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   type AddressBookId,
   createAddressBookId,
   createContactId,
   createDomainId,
   createMailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createAddressBookRepository } from "./address-book-repository";
 import { createContactRepository } from "./contact-repository";

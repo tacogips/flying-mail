@@ -1,8 +1,8 @@
-import { createMemoryBlobStore } from "@mailcal/adapter/blob/memory";
-import { createInMemoryDatabase } from "@mailcal/adapter/sql/libsql";
-import { createMigrationRunner } from "@mailcal/adapter/migrations/runner";
-import type { BlobStore } from "@mailcal/application/ports/blob-store";
-import { verifyMailDomain } from "@mailcal/domain/entities/mail-domain";
+import { createMemoryBlobStore } from "@flying-mail/adapter/blob/memory";
+import { createInMemoryDatabase } from "@flying-mail/adapter/sql/libsql";
+import { createMigrationRunner } from "@flying-mail/adapter/migrations/runner";
+import type { BlobStore } from "@flying-mail/application/ports/blob-store";
+import { verifyMailDomain } from "@flying-mail/domain/entities/mail-domain";
 import {
   mkdtempSync,
   readdirSync,
@@ -60,7 +60,7 @@ describe("createLocalApp", () => {
   });
 
   function migrationsWithQueuedBlob(): string {
-    const directory = mkdtempSync(join(tmpdir(), "mailcal-migrations-"));
+    const directory = mkdtempSync(join(tmpdir(), "flying-mail-migrations-"));
     temporaryDirectories.push(directory);
     for (const name of readdirSync(MIGRATIONS_DIR)) {
       if (name.endsWith(".sql")) {

@@ -1,11 +1,11 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import { createUser, UserRole } from "@mailcal/domain/entities/user";
-import { UserPermissionEffect } from "@mailcal/domain/entities/user-mail-permission";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { createUser, UserRole } from "@flying-mail/domain/entities/user";
+import { UserPermissionEffect } from "@flying-mail/domain/entities/user-mail-permission";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createUserId,
   createUserTemplatePermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { ForbiddenError, NotFoundError } from "../errors";
 import {

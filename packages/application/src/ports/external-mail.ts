@@ -1,12 +1,12 @@
 import type {
   ExternalMailAccount,
   SmtpSecurity,
-} from "@mailcal/domain/entities/external-mail-account";
-import type { ExternalMessageState } from "@mailcal/domain/entities/external-message-state";
+} from "@flying-mail/domain/entities/external-mail-account";
+import type { ExternalMessageState } from "@flying-mail/domain/entities/external-message-state";
 import type {
   ExternalAccountId,
   MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { SqlStatement } from "./sql-database";
 
 export interface ExternalMailAccountRepository {

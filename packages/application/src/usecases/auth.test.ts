@@ -1,29 +1,29 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import { createAttachment } from "@mailcal/domain/entities/attachment";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { createAttachment } from "@flying-mail/domain/entities/attachment";
 import {
   createMailDomain,
   verifyMailDomain,
-} from "@mailcal/domain/entities/mail-domain";
-import { createSession } from "@mailcal/domain/entities/session";
+} from "@flying-mail/domain/entities/mail-domain";
+import { createSession } from "@flying-mail/domain/entities/session";
 import {
   createUser,
   deactivateUser,
   UserRole,
-} from "@mailcal/domain/entities/user";
+} from "@flying-mail/domain/entities/user";
 import {
   createUserMailPermission,
   UserPermissionEffect,
-} from "@mailcal/domain/entities/user-mail-permission";
-import { MATCH_ALL_ADDRESSES } from "@mailcal/domain/value-objects/address-pattern";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/user-mail-permission";
+import { MATCH_ALL_ADDRESSES } from "@flying-mail/domain/value-objects/address-pattern";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createDomainId,
   createSessionId,
   createAttachmentId,
   createUserId,
   createUserMailPermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createUseCases } from "../usecases";
 import {

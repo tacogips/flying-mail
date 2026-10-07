@@ -2,24 +2,24 @@ import {
   buildAttachmentBlobKey,
   buildRawMessageBlobKey,
   createAttachment,
-} from "@mailcal/domain/entities/attachment";
-import { isMailAddressActive } from "@mailcal/domain/entities/mail-address";
+} from "@flying-mail/domain/entities/attachment";
+import { isMailAddressActive } from "@flying-mail/domain/entities/mail-address";
 import {
   canReceiveMail,
   type MailDomain,
-} from "@mailcal/domain/entities/mail-domain";
+} from "@flying-mail/domain/entities/mail-domain";
 import {
   createInboundMessage,
   type Message,
   type MessageRecipient,
   RecipientKind,
-} from "@mailcal/domain/entities/message";
+} from "@flying-mail/domain/entities/message";
 import {
   createEmailAddress,
   type EmailAddress,
   parseEmailAddress,
-} from "@mailcal/domain/value-objects/email-address";
-import { parseDomainName } from "@mailcal/domain/value-objects/domain-name";
+} from "@flying-mail/domain/value-objects/email-address";
+import { parseDomainName } from "@flying-mail/domain/value-objects/domain-name";
 import {
   type DomainId,
   createAttachmentId,
@@ -28,8 +28,9 @@ import {
   type MessageId,
   type TagId,
   type ThreadId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
+import { DuplicateMessageError } from "../ports/message-repository";
 import type {
   ParsedMime,
   ParsedMimeAddress,
@@ -40,11 +41,11 @@ import {
   RuleAction,
   type RuleMatchInput,
   ruleMatches,
-} from "@mailcal/domain/entities/classification-rule";
+} from "@flying-mail/domain/entities/classification-rule";
 import {
   createSpamMark,
   SpamMarkedBy,
-} from "@mailcal/domain/entities/spam-mark";
+} from "@flying-mail/domain/entities/spam-mark";
 import { isSpam, scoreSpam } from "./spam";
 
 /** Caps from `design-docs/specs/design-mail-pipeline.md#limits-summary`.
@@ -62,6 +63,19 @@ const REJECT_UNKNOWN_RECIPIENT = "Recipient address is not served here";
 const REJECT_DISABLED_RECIPIENT = "Recipient address is not accepting mail";
 const REJECT_MALFORMED_RECIPIENT = "Recipient address is malformed";
 const REJECT_TOO_LARGE = "Message exceeds the maximum accepted size";
+
+const TRACE_HEADER_NAMES: ReadonlySet<string> = new Set([
+  "received",
+  "x-received",
+  "return-path",
+  "delivered-to",
+  "x-original-to",
+  "received-spf",
+  "authentication-results",
+  "arc-seal",
+  "arc-message-signature",
+  "arc-authentication-results",
+]);
 
 export interface ReceiveMessageInput {
   readonly envelopeFrom: string;
@@ -207,6 +221,116 @@ function truncateBodies(parsed: ParsedMime): TruncatedBodies {
   };
 }
 
+async function hasEnvelopeFor(
+  deps: AppDependencies,
+  messageId: MessageId,
+  address: EmailAddress,
+): Promise<boolean> {
+  const recipients = await deps.messageRepository.listRecipients([messageId]);
+  return (
+    recipients
+      .get(messageId)
+      ?.some(
+        (recipient) =>
+          recipient.kind === RecipientKind.Envelope &&
+          recipient.address === address,
+      ) ?? false
+  );
+}
+
+function traceHeaderEnd(bytes: Uint8Array): number {
+  let offset = 0;
+  while (offset < bytes.length) {
+    const lineStart = offset;
+    let lineEnd = lineStart;
+    while (lineEnd < bytes.length && bytes[lineEnd] !== 0x0a) {
+      lineEnd += 1;
+    }
+    const contentEnd =
+      lineEnd > lineStart && bytes[lineEnd - 1] === 0x0d
+        ? lineEnd - 1
+        : lineEnd;
+    if (contentEnd === lineStart) {
+      return offset;
+    }
+
+    let colon = lineStart;
+    while (colon < contentEnd && bytes[colon] !== 0x3a) {
+      colon += 1;
+    }
+    if (colon === contentEnd) {
+      return offset;
+    }
+
+    let nameStart = lineStart;
+    let nameEnd = colon;
+    while (
+      nameStart < nameEnd &&
+      (bytes[nameStart] === 0x20 || bytes[nameStart] === 0x09)
+    ) {
+      nameStart += 1;
+    }
+    while (
+      nameEnd > nameStart &&
+      (bytes[nameEnd - 1] === 0x20 || bytes[nameEnd - 1] === 0x09)
+    ) {
+      nameEnd -= 1;
+    }
+    let name = "";
+    for (let index = nameStart; index < nameEnd; index += 1) {
+      const byte = bytes[index];
+      if (byte === undefined || byte > 0x7f) {
+        return offset;
+      }
+      name += String.fromCharCode(byte);
+    }
+    name = name.toLowerCase();
+
+    let fieldEnd = lineEnd < bytes.length ? lineEnd + 1 : lineEnd;
+    while (
+      fieldEnd < bytes.length &&
+      (bytes[fieldEnd] === 0x20 || bytes[fieldEnd] === 0x09)
+    ) {
+      lineEnd = fieldEnd;
+      while (lineEnd < bytes.length && bytes[lineEnd] !== 0x0a) {
+        lineEnd += 1;
+      }
+      fieldEnd = lineEnd < bytes.length ? lineEnd + 1 : lineEnd;
+    }
+
+    if (!TRACE_HEADER_NAMES.has(name)) {
+      return offset;
+    }
+    offset = fieldEnd;
+  }
+  return offset;
+}
+
+async function hasSameRawMessage(
+  deps: AppDependencies,
+  existing: Message,
+  candidate: Uint8Array,
+): Promise<boolean> {
+  const existingRaw = await deps.blobs.get(
+    existing.rawKey ?? buildRawMessageBlobKey(existing.id),
+  );
+  if (existingRaw === null) {
+    return false;
+  }
+  const existingBytes = new Uint8Array(
+    await new Response(existingRaw.body).arrayBuffer(),
+  );
+  // Each recipient's copy can have different leading MTA trace fields.
+  const existingContent = existingBytes.subarray(traceHeaderEnd(existingBytes));
+  const candidateContent = candidate.subarray(traceHeaderEnd(candidate));
+  if (existingContent.length !== candidateContent.length) {
+    return false;
+  }
+  return existingContent.every(
+    (byte, index) => byte === candidateContent[index],
+  );
+}
+
 /** Applies the attachment caps, keeping the first N that fit rather than
  * failing the whole message: a mail with 40 attachments is unusual but not
  * hostile, and losing it entirely would be worse than losing its tail. */
@@ -236,6 +360,14 @@ async function resolveThreadId(
   parsed: ParsedMime,
   ownId: string,
 ): Promise<ThreadId> {
+  if (parsed.messageId !== null) {
+    const sameMessage = await deps.messageRepository.findByRfcMessageId(
+      parsed.messageId,
+    );
+    if (sameMessage !== null) {
+      return sameMessage.threadId;
+    }
+  }
   if (parsed.inReplyTo !== null) {
     const parent = await deps.messageRepository.findByRfcMessageId(
       parsed.inReplyTo,
@@ -253,6 +385,22 @@ async function resolveThreadId(
     }
   }
   return createThreadId(ownId);
+}
+
+function normalizeMessageId(value: string | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  const normalized =
+    trimmed.startsWith("<") && trimmed.endsWith(">")
+      ? trimmed.slice(1, -1).trim()
+      : trimmed;
+  return normalized.length === 0 ? null : normalized;
+}
+
+async function deleteBlobsBestEffort(
+  deps: AppDependencies,
+  keys: readonly string[],
+): Promise<void> {
+  await Promise.allSettled(keys.map((key) => deps.blobs.delete(key)));
 }
 
 function headerFromAddress(
@@ -376,6 +524,19 @@ export function createReceiveMessageUseCase(
     const messageId = input.messageId ?? createMessageId(deps.random.uuid());
     const rawKey = buildRawMessageBlobKey(messageId);
 
+    const headerMessageId = normalizeMessageId(input.headers.get("message-id"));
+    if (headerMessageId !== null) {
+      const existing = await deps.messageRepository.findInboundByRfcMessageId(
+        headerMessageId,
+        resolved.domain.id,
+      );
+      if (existing !== null) {
+        if (await hasEnvelopeFor(deps, existing.id, resolved.address)) {
+          return { kind: "DUPLICATE", message: existing };
+        }
+      }
+    }
+
     // Store first, then re-read for parsing. `input.raw` is typically a
     // `ReadableStream` that can only be consumed once, and storing before
     // parsing means a parse failure still leaves the original message
@@ -389,19 +550,30 @@ export function createReceiveMessageUseCase(
       // retries.
       throw new Error(`Stored raw message ${rawKey} could not be read back`);
     }
-    const parsed = await deps.mimeParser.parse(stored.body);
+    const rawBytes = new Uint8Array(
+      await new Response(stored.body).arrayBuffer(),
+    );
+    const parsed = await deps.mimeParser.parse(rawBytes);
+    const from = headerFromAddress(parsed, envelopeFrom);
+    const bodies = truncateBodies(parsed);
 
     if (parsed.messageId !== null) {
-      const existing = await deps.messageRepository.findByRfcMessageId(
+      const existing = await deps.messageRepository.findInboundByRfcMessageId(
         parsed.messageId,
+        resolved.domain.id,
       );
       if (existing !== null) {
+        if (await hasSameRawMessage(deps, existing, rawBytes)) {
+          await deps.messageRepository.addEnvelopeRecipient(
+            existing.id,
+            resolved.address,
+          );
+        }
+        await deleteBlobsBestEffort(deps, [rawKey]);
         return { kind: "DUPLICATE", message: existing };
       }
     }
 
-    const from = headerFromAddress(parsed, envelopeFrom);
-    const bodies = truncateBodies(parsed);
     const threadId = await resolveThreadId(deps, parsed, messageId);
 
     const spam = scoreSpam({
@@ -435,6 +607,10 @@ export function createReceiveMessageUseCase(
       rfcMessageId: parsed.messageId,
       inReplyTo: parsed.inReplyTo,
       references: parsed.references,
+      replyTo:
+        parsed.replyTo.length === 0
+          ? null
+          : parseEmailAddress(parsed.replyTo[0]?.address ?? ""),
       subject: parsed.subject ?? "",
       fromAddress: from.address,
       fromName: from.name,
@@ -491,17 +667,44 @@ export function createReceiveMessageUseCase(
           })
         : undefined;
 
-    await deps.messageRepository.insertWithRelations({
-      message,
-      recipients: collectHeaderRecipients(parsed, resolved.address),
-      attachments,
-      tagIds: ruleOutcome.tagIds,
-      taggedAt: now,
-      ...(spamMark === undefined ? {} : { spam: spamMark }),
-      ...(input.extraStatements === undefined
-        ? {}
-        : { extraStatements: input.extraStatements }),
-    });
+    try {
+      await deps.messageRepository.insertWithRelations({
+        message,
+        recipients: collectHeaderRecipients(parsed, resolved.address),
+        attachments,
+        tagIds: ruleOutcome.tagIds,
+        taggedAt: now,
+        ...(spamMark === undefined ? {} : { spam: spamMark }),
+        ...(input.extraStatements === undefined
+          ? {}
+          : { extraStatements: input.extraStatements }),
+      });
+    } catch (error) {
+      if (
+        !(error instanceof DuplicateMessageError) ||
+        parsed.messageId === null
+      ) {
+        throw error;
+      }
+      await deleteBlobsBestEffort(deps, [
+        rawKey,
+        ...attachments.map((attachment) => attachment.blobKey),
+      ]);
+      const existing = await deps.messageRepository.findInboundByRfcMessageId(
+        parsed.messageId,
+        resolved.domain.id,
+      );
+      if (existing === null) {
+        throw error;
+      }
+      if (await hasSameRawMessage(deps, existing, rawBytes)) {
+        await deps.messageRepository.addEnvelopeRecipient(
+          existing.id,
+          resolved.address,
+        );
+      }
+      return { kind: "DUPLICATE", message: existing };
+    }
 
     return { kind: "STORED", message };
   };

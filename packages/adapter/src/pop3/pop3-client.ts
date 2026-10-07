@@ -6,7 +6,7 @@ import {
   type Pop3FetchedMessage,
   type TcpDialer,
   type TextSocket,
-} from "@mailcal/application/ports/external-mail";
+} from "@flying-mail/application/ports/external-mail";
 
 /** RFC 1939 POP3 client. POP3 accepts implicit TLS on `995` only --
  * `validatePop3Endpoint` in the domain layer already rejects anything else,

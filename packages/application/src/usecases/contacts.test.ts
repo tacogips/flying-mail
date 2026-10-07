@@ -1,10 +1,10 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import { createCarddavAccount } from "@mailcal/domain/entities/carddav-account";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { createCarddavAccount } from "@flying-mail/domain/entities/carddav-account";
 import {
   createCarddavAccountId,
   createCarddavBookId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { NotFoundError } from "../errors";
 import {

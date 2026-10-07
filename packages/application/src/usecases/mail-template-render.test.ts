@@ -2,12 +2,12 @@ import {
   createMailTemplate,
   type MailTemplateContentInput,
   TemplateVariableType,
-} from "@mailcal/domain/entities/mail-template";
-import type { TemplateValueEntry } from "@mailcal/domain/entities/template-values";
+} from "@flying-mail/domain/entities/mail-template";
+import type { TemplateValueEntry } from "@flying-mail/domain/entities/template-values";
 import {
   createMailTemplateId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { describe, expect, test } from "vitest";
 import { BadUserInputError } from "../errors";
 import { fakeTemplateRenderer } from "../test-support/template-fakes";

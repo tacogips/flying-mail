@@ -11,7 +11,7 @@ design-docs/specs/design-mail-pipeline.md
 ## Design Document Reference
 
 ### Summary
-`@mailcal/adapter`: every concrete port implementation -- D1/libsql SQL, R2/S3/
+`@flying-mail/adapter`: every concrete port implementation -- D1/libsql SQL, R2/S3/
 memory blobs, WebCrypto, postal-mime parsing, mimetext building, the
 Cloudflare mail sender, the SQL-backed repositories, and the migration runner.
 

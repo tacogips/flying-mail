@@ -1,4 +1,4 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   type ClassificationRule,
   createClassificationRule,
@@ -8,18 +8,18 @@ import {
   type RuleField,
   type RuleMatcher,
   setRuleEnabled,
-} from "@mailcal/domain/entities/classification-rule";
+} from "@flying-mail/domain/entities/classification-rule";
 import {
   type ClassificationRuleId,
   createClassificationRuleId,
   type DomainId,
   type TagId,
-} from "@mailcal/domain/value-objects/ids";
-import { MessageDirection } from "@mailcal/domain/entities/message";
+} from "@flying-mail/domain/value-objects/ids";
+import { MessageDirection } from "@flying-mail/domain/entities/message";
 import {
   createSpamMark,
   SpamMarkedBy,
-} from "@mailcal/domain/entities/spam-mark";
+} from "@flying-mail/domain/entities/spam-mark";
 import type { AppDependencies } from "../dependencies";
 import { NotFoundError } from "../errors";
 import { requireGlobalCapability } from "../policies/authorization";

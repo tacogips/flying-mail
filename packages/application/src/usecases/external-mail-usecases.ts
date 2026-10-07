@@ -1,5 +1,5 @@
-import type { ExternalMailAccount } from "@mailcal/domain/entities/external-mail-account";
-import type { ExternalAccountId } from "@mailcal/domain/value-objects/ids";
+import type { ExternalMailAccount } from "@flying-mail/domain/entities/external-mail-account";
+import type { ExternalAccountId } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import type { Viewer } from "../policies/viewer";
 import {

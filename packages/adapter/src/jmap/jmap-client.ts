@@ -5,7 +5,7 @@ import {
   type JmapCredentials,
   type JmapFetchedMessage,
   type JmapFetchResult,
-} from "@mailcal/application/ports/external-mail";
+} from "@flying-mail/application/ports/external-mail";
 
 /** RFC 8620/8621 JMAP client using an injectable `fetchImpl` for
  * canned-fixture tests with no real network. Flow: GET the session resource
@@ -358,7 +358,7 @@ export function createJmapClient(options: JmapClientOptions = {}): JmapClient {
         max,
       );
       // Filtered out before Email/get + blob download, not fetched then
-      // discarded: an id mailcal has already ingested costs one query
+      // discarded: an id flying-mail has already ingested costs one query
       // result, never a second round trip.
       const newIds = ids.filter((id) => !knownRemoteIds.has(id));
       const messages = await fetchRawMessages(

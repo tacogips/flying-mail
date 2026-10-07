@@ -1,7 +1,7 @@
 import type {
   BlobObject,
   BlobStore,
-} from "@mailcal/application/ports/blob-store";
+} from "@flying-mail/application/ports/blob-store";
 
 /** Minimal structural surface of a Cloudflare R2 object returned by
  * `R2Bucket.get`. Kept local (see {@link R2BucketLike}) rather than
@@ -15,7 +15,7 @@ export interface R2ObjectLike {
 /** Minimal structural surface of a Cloudflare R2 binding. Kept as a local,
  * non-ambient interface so this file's types do not merge into the global
  * scope, where they would collide with Bun's global runtime types used by
- * the rest of `@mailcal/adapter`. */
+ * the rest of `@flying-mail/adapter`. */
 export interface R2BucketLike {
   put(
     key: string,

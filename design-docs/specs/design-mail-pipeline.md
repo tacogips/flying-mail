@@ -1,13 +1,13 @@
 # Mail Pipeline
 
-How mail enters and leaves mailcal. Both directions are implemented as
+How mail enters and leaves flying-mail. Both directions are implemented as
 application-layer use cases over ports, so the same pipeline runs under
 `wrangler dev`, under Bun locally, and in tests with fakes.
 
 ## Inbound
 
 Cloudflare Email Routing is configured with a catch-all rule per managed
-domain that delivers to the mailcal Worker. The Worker's `email()` handler
+domain that delivers to the flying-mail Worker. The Worker's `email()` handler
 hands the message to `receiveMessage`.
 
 ```
@@ -172,3 +172,27 @@ Between parsing and storage the pipeline now:
 3. Writes the spam verdict as a `message_spam` row in the same atomic
    batch as the message -- rule mark first, else scorer mark when the
    score crosses the threshold. The SPAM tag no longer exists.
+
+## Multi-recipient inbound and single-call outbound (updated 2026-10-07)
+
+This section supersedes the earlier steps where they conflict. See
+`design-webmail-completion.md` sections 8 and 9.
+
+**Inbound**
+- One INBOUND message row per (Message-ID, recipient domain), plus one
+  ENVELOPE recipient row per delivered mailbox on that domain. The row's
+  single `domain_id` keeps the domain filter and the `(domainId,
+  addressPattern)` permission pairing correct.
+- Per-domain copies share one thread.
+- Dedup reads the header Message-ID before any R2 write and is scoped to
+  `(INBOUND, domain_id)`, so our own outbound mail to another managed
+  mailbox also lands in that mailbox's Inbox.
+- The parsed `Reply-To` is stored.
+
+**Outbound**
+- One builder-form `EMAIL.send` call with `to`/`cc`/`bcc` arrays, `replyTo`,
+  inline `contentId` attachments, and the `Message-ID`, `In-Reply-To` and
+  `References` headers.
+- Bcc is never a header, including in the stored `.eml` and the SMTP relay
+  `DATA`.
+- Provider error codes map to address-free `deliveryError` reason codes.

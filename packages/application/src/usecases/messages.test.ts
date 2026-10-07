@@ -1,20 +1,20 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import { FetchStatus } from "@mailcal/domain/entities/fetch-state";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { FetchStatus } from "@flying-mail/domain/entities/fetch-state";
 import {
   createInboundMessage,
   type Message,
   MessageDirection,
   type MessageRecipient,
   RecipientKind,
-} from "@mailcal/domain/entities/message";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/message";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createDomainId,
   createMessageId,
   createThreadId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
-import { SystemTagSlug } from "@mailcal/domain/entities/tag";
+} from "@flying-mail/domain/value-objects/ids";
+import { SystemTagSlug } from "@flying-mail/domain/entities/tag";
 import { beforeEach, describe, expect, test } from "vitest";
 import { BadUserInputError } from "../errors";
 import {

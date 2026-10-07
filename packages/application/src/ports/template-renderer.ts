@@ -1,4 +1,4 @@
-import type { TemplateRenderValue } from "@mailcal/domain/entities/template-values";
+import type { TemplateRenderValue } from "@flying-mail/domain/entities/template-values";
 
 /** Raised when a template's Eta source cannot be understood, either because
  * it is malformed or because it uses a construct outside the supported

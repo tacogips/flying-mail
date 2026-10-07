@@ -31,7 +31,7 @@ and `packages/application/src/usecases.ts`.
 **Status**: NOT_STARTED
 
 ```typescript
-/** Maps a @mailcal/domain DomainError onto the matching ApplicationError. */
+/** Maps a @flying-mail/domain DomainError onto the matching ApplicationError. */
 function translateDomainError(error: unknown): never;
 /** Runs `fn`, translating any DomainError it throws. */
 function withDomainErrorTranslation<T>(fn: () => T): T;

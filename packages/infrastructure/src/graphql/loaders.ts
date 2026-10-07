@@ -1,17 +1,17 @@
-import type { AppDependencies } from "@mailcal/application/dependencies";
-import type { Viewer } from "@mailcal/application/policies";
-import type { AddressBook } from "@mailcal/domain/entities/address-book";
-import type { Attachment } from "@mailcal/domain/entities/attachment";
-import type { MessageFetchState } from "@mailcal/domain/entities/fetch-state";
-import type { MailAddress } from "@mailcal/domain/entities/mail-address";
-import type { MailDomain } from "@mailcal/domain/entities/mail-domain";
-import type { MessageRecipient } from "@mailcal/domain/entities/message";
-import type { MessageEvent } from "@mailcal/domain/entities/message-event";
-import type { SpamMark } from "@mailcal/domain/entities/spam-mark";
-import type { Tag } from "@mailcal/domain/entities/tag";
-import type { ApiKeyScope } from "@mailcal/domain/entities/api-key";
-import type { UserMailPermission } from "@mailcal/domain/entities/user-mail-permission";
-import type { UserTemplatePermission } from "@mailcal/domain/entities/user-template-permission";
+import type { AppDependencies } from "@flying-mail/application/dependencies";
+import type { Viewer } from "@flying-mail/application/policies";
+import type { AddressBook } from "@flying-mail/domain/entities/address-book";
+import type { Attachment } from "@flying-mail/domain/entities/attachment";
+import type { MessageFetchState } from "@flying-mail/domain/entities/fetch-state";
+import type { MailAddress } from "@flying-mail/domain/entities/mail-address";
+import type { MailDomain } from "@flying-mail/domain/entities/mail-domain";
+import type { MessageRecipient } from "@flying-mail/domain/entities/message";
+import type { MessageEvent } from "@flying-mail/domain/entities/message-event";
+import type { SpamMark } from "@flying-mail/domain/entities/spam-mark";
+import type { Tag } from "@flying-mail/domain/entities/tag";
+import type { ApiKeyScope } from "@flying-mail/domain/entities/api-key";
+import type { UserMailPermission } from "@flying-mail/domain/entities/user-mail-permission";
+import type { UserTemplatePermission } from "@flying-mail/domain/entities/user-template-permission";
 import {
   type AddressBookId,
   type ApiKeyId,
@@ -21,7 +21,7 @@ import {
   type MessageId,
   type TagId,
   type UserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 
 /** Batches keys requested within one microtask turn into a single call.
  *

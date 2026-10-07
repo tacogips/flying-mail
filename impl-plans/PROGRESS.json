@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-06T11:18:03Z",
+  "lastUpdated": "2026-10-07T09:30:00Z",
   "phases": {
     "1": {
       "status": "COMPLETED"
@@ -32,6 +32,21 @@
       "status": "COMPLETED"
     },
     "11": {
+      "status": "COMPLETED"
+    },
+    "12": {
+      "status": "COMPLETED"
+    },
+    "13": {
+      "status": "COMPLETED"
+    },
+    "14": {
+      "status": "COMPLETED"
+    },
+    "15": {
+      "status": "COMPLETED"
+    },
+    "16": {
       "status": "COMPLETED"
     }
   },
@@ -855,6 +870,289 @@
             "TASK-005",
             "TASK-006",
             "TASK-007"
+          ]
+        }
+      }
+    },
+    "webmail-01-data-layer": {
+      "phase": 12,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-01-data-layer.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "webmail-02-outbound-delivery": {
+      "phase": 12,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-02-outbound-delivery.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "webmail-03-web-compose-libs": {
+      "phase": 12,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-03-web-compose-libs.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "webmail-04-rest-attachments-limits": {
+      "phase": 12,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-04-rest-attachments-limits.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "webmail-05-web-api-contract": {
+      "phase": 12,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-05-web-api-contract.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "webmail-06-send-drafts-forward": {
+      "phase": 13,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-06-send-drafts-forward.md",
+      "dependsOn": [
+        "webmail-01-data-layer",
+        "webmail-02-outbound-delivery"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-01-data-layer:TASK-001",
+            "webmail-02-outbound-delivery:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-07-attachment-deletion": {
+      "phase": 13,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-07-attachment-deletion.md",
+      "dependsOn": [
+        "webmail-01-data-layer"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-01-data-layer:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-08-ingest-multi-domain": {
+      "phase": 13,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-08-ingest-multi-domain.md",
+      "dependsOn": [
+        "webmail-01-data-layer"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-01-data-layer:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-09-compose-prefill": {
+      "phase": 13,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-09-compose-prefill.md",
+      "dependsOn": [
+        "webmail-01-data-layer",
+        "webmail-04-rest-attachments-limits"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-01-data-layer:TASK-001",
+            "webmail-04-rest-attachments-limits:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-10-web-compose-ui": {
+      "phase": 13,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-10-web-compose-ui.md",
+      "dependsOn": [
+        "webmail-03-web-compose-libs",
+        "webmail-05-web-api-contract"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-03-web-compose-libs:TASK-001",
+            "webmail-05-web-api-contract:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-11-web-mailbox-ui": {
+      "phase": 14,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-11-web-mailbox-ui.md",
+      "dependsOn": [
+        "webmail-05-web-api-contract",
+        "webmail-10-web-compose-ui"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-05-web-api-contract:TASK-001",
+            "webmail-10-web-compose-ui:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-12-graphql-compose-api": {
+      "phase": 14,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-12-graphql-compose-api.md",
+      "dependsOn": [
+        "webmail-04-rest-attachments-limits",
+        "webmail-05-web-api-contract",
+        "webmail-06-send-drafts-forward",
+        "webmail-09-compose-prefill"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-04-rest-attachments-limits:TASK-001",
+            "webmail-05-web-api-contract:TASK-001",
+            "webmail-06-send-drafts-forward:TASK-001",
+            "webmail-09-compose-prefill:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-13-docs-and-final-verification": {
+      "phase": 15,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-13-docs-and-final-verification.md",
+      "dependsOn": [
+        "webmail-01-data-layer",
+        "webmail-02-outbound-delivery",
+        "webmail-03-web-compose-libs",
+        "webmail-04-rest-attachments-limits",
+        "webmail-05-web-api-contract",
+        "webmail-06-send-drafts-forward",
+        "webmail-07-attachment-deletion",
+        "webmail-08-ingest-multi-domain",
+        "webmail-09-compose-prefill",
+        "webmail-10-web-compose-ui",
+        "webmail-11-web-mailbox-ui",
+        "webmail-12-graphql-compose-api"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "webmail-12-graphql-compose-api:TASK-001",
+            "webmail-10-web-compose-ui:TASK-001",
+            "webmail-11-web-mailbox-ui:TASK-001",
+            "webmail-07-attachment-deletion:TASK-001",
+            "webmail-08-ingest-multi-domain:TASK-001"
+          ]
+        }
+      }
+    },
+    "rename-flying-mail": {
+      "phase": 2,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-002"
+          ]
+        }
+      }
+    },
+    "webmail-14-domain-rail-mx": {
+      "phase": 16,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-14-domain-rail-mx.md",
+      "dependsOn": [
+        "webmail-11-web-mailbox-ui"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "TASK-002"
           ]
         }
       }

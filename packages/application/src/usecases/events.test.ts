@@ -1,15 +1,15 @@
 import {
   createInboundMessage,
   RecipientKind,
-} from "@mailcal/domain/entities/message";
-import { MessageEventKind } from "@mailcal/domain/entities/message-event";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/message";
+import { MessageEventKind } from "@flying-mail/domain/entities/message-event";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createDomainId,
   createMessageId,
   createThreadId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { NotFoundError } from "../errors";
 import {

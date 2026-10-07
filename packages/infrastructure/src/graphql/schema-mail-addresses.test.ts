@@ -1,19 +1,19 @@
 import {
   createFakeDependencies,
   type FakeDependencies,
-} from "@mailcal/application/test-support/fakes";
+} from "@flying-mail/application/test-support/fakes";
 import {
   adminViewer,
   apiKeyViewer,
   memberViewer,
-} from "@mailcal/application/test-support/viewer-fixtures";
-import { Capability } from "@mailcal/domain/entities/api-key";
+} from "@flying-mail/application/test-support/viewer-fixtures";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   createMailDomain,
   verifyMailDomain,
-} from "@mailcal/domain/entities/mail-domain";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
-import { createDomainId } from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/entities/mail-domain";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
+import { createDomainId } from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import {
   createGraphQLHarness,

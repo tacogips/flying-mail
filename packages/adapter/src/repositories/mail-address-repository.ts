@@ -1,16 +1,16 @@
-import type { MailAddressRepository } from "@mailcal/application/ports/mail-address-repository";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { MailAddressRepository } from "@flying-mail/application/ports/mail-address-repository";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   type MailAddress,
   MailAddressStatus,
-} from "@mailcal/domain/entities/mail-address";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/mail-address";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createDomainId,
   createMailAddressId,
   createUserId,
   type MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { assertEnumValue } from "./sql-helpers";
 
 interface MailAddressRow {

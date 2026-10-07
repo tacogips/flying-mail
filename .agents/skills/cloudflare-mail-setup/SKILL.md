@@ -1,10 +1,10 @@
 ---
 name: cloudflare-mail-setup
-description: Use when a mailcal deployment cannot send or receive mail, when adding a sending domain or recipient, or when a send fails with MailDeliveryError or SERVICE_UNAVAILABLE. Covers Cloudflare Email Routing vs Email Sending, destination verification, and the mise/wrangler commands that configure both.
+description: Use when a flying-mail deployment cannot send or receive mail, when adding a sending domain or recipient, or when a send fails with MailDeliveryError or SERVICE_UNAVAILABLE. Covers Cloudflare Email Routing vs Email Sending, destination verification, and the mise/wrangler commands that configure both.
 allowed-tools: Bash, Read
 ---
 
-# Cloudflare mail setup for mailcal
+# Cloudflare mail setup for flying-mail
 
 Everything on the Cloudflare side that outbound and inbound mail depend on.
 All of it runs through `wrangler email`, wrapped as `mise run mail-*` tasks,
@@ -18,10 +18,10 @@ cause of "the API says SENT but nothing arrives" or a flat
 
 | | Email Routing | Email Sending |
 |---|---|---|
-| What mailcal uses it for | receiving, and the `send_email` Worker binding | outbound only |
+| What flying-mail uses it for | receiving, and the `send_email` Worker binding | outbound only |
 | Recipients | **only addresses verified as destinations on the account** | anyone |
 | Cost | free | Workers Paid |
-| mailcal adapter | `mail/cloudflare-email.ts` | `mail/cloudflare-email-api.ts` |
+| flying-mail adapter | `mail/cloudflare-email.ts` | `mail/cloudflare-email-api.ts` |
 
 The binding's recipient restriction is not a misconfiguration to work
 around — it is what the binding is for. A deployment that must mail people
@@ -54,13 +54,13 @@ use an API token whose permissions include the product you are touching —
 
 `wrangler email routing enable` can publish Email Routing's own MX, SPF and
 DKIM records, but Wrangler's OAuth session normally has only `zone:read`; it
-cannot publish mailcal's `_mailcal` ownership TXT record. A `403` from
+cannot publish flying-mail's `_mailcal` ownership TXT record. A `403` from
 `/zones/<zone-id>/dns_records` means DNS edit permission is missing, not that
 the zone is unavailable.
 
 For browserless DNS changes, create a least-privilege Cloudflare API token
 with `Zone / DNS / Edit` and zone-read access, restricted to the mail zones,
-then store it as `CLOUDFLARE_API_TOKEN` in the mailcal project scope:
+then store it as `CLOUDFLARE_API_TOKEN` in the flying-mail project scope:
 
 ```bash
 kinko --path "$PWD" set
@@ -120,7 +120,7 @@ Then:
 mise run mail-sending-enable <domain>
 ```
 
-Then publish the SPF/DKIM/DMARC records it prints, and configure mailcal:
+Then publish the SPF/DKIM/DMARC records it prints, and configure flying-mail:
 
 ```bash
 wrangler secret put MAILCAL_EMAIL_SENDING_TOKEN     # never a plaintext var
@@ -132,9 +132,9 @@ mise run cf-deploy
 is not enabled for the account. Enabling it is a **billing decision** —
 surface it to the operator rather than enabling it for them.
 
-## Then, in mailcal itself
+## Then, in flying-mail itself
 
-Cloudflare-side wiring is not enough; mailcal needs its own registration:
+Cloudflare-side wiring is not enough; flying-mail needs its own registration:
 
 1. `createDomain(name:)` — returns a `_mailcal` TXT record.
 2. Publish that record, using the browserless DNS helper above when a

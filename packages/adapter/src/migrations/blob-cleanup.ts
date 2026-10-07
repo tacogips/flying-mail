@@ -1,5 +1,5 @@
-import type { BlobStore } from "@mailcal/application/ports/blob-store";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { BlobStore } from "@flying-mail/application/ports/blob-store";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 
 interface QueuedBlob {
   readonly attachment_id: string;

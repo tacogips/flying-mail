@@ -1,13 +1,13 @@
-import type { CreateMailAddressUseCaseInput } from "@mailcal/application/usecases";
+import type { CreateMailAddressUseCaseInput } from "@flying-mail/application/usecases";
 import type {
   MailAddress,
   MailAddressStatus,
-} from "@mailcal/domain/entities/mail-address";
-import type { MailDomain } from "@mailcal/domain/entities/mail-domain";
+} from "@flying-mail/domain/entities/mail-address";
+import type { MailDomain } from "@flying-mail/domain/entities/mail-domain";
 import {
   createDomainId,
   createMailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { GraphQLContext } from "../context";
 import { requireViewerOrThrow } from "./helpers";
 

@@ -1,19 +1,19 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
-import type { MailTemplate } from "@mailcal/domain/entities/mail-template";
-import type { Message } from "@mailcal/domain/entities/message";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import type { MailTemplate } from "@flying-mail/domain/entities/mail-template";
+import type { Message } from "@flying-mail/domain/entities/message";
 import {
   buildTemplateRenderData,
   describeTemplateValidation,
   type TemplateValidation,
   type TemplateValueEntry,
   validateTemplateValues,
-} from "@mailcal/domain/entities/template-values";
+} from "@flying-mail/domain/entities/template-values";
 import type {
   AttachmentId,
   MailTemplateId,
   MessageId,
   TagId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { BadUserInputError } from "../errors";
 import { requireTemplateCapability } from "../policies/authorization";

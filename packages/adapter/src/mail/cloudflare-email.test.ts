@@ -1,7 +1,8 @@
-import type { OutboundMail } from "@mailcal/application/ports/mail-sender";
+import type { OutboundMail } from "@flying-mail/application/ports/mail-sender";
 import { describe, expect, test } from "vitest";
 import {
   type CloudflareEmailMessage,
+  type CloudflareEmailSendResult,
   type CloudflareSendEmailBinding,
   createCloudflareMailSender,
   createUnavailableMailSender,
@@ -10,7 +11,11 @@ import {
   parseCloudflareSenderAddress,
 } from "./cloudflare-email";
 
-function recordingBinding(options?: { failOn?: string }): {
+function recordingBinding(options?: {
+  failOn?: string;
+  failWith?: unknown;
+  result?: CloudflareEmailSendResult | undefined;
+}): {
   binding: CloudflareSendEmailBinding;
   sent: CloudflareEmailMessage[];
 } {
@@ -19,13 +24,23 @@ function recordingBinding(options?: { failOn?: string }): {
     sent,
     binding: {
       async send(message) {
-        if (options?.failOn === message.to) {
-          throw new Error(
-            `provider rejected ${message.to} for subject "${message.subject}"`,
+        sent.push(message);
+        if (
+          options?.failOn !== undefined &&
+          [
+            ...(message.to ?? []),
+            ...(message.cc ?? []),
+            ...(message.bcc ?? []),
+          ].includes(options.failOn)
+        ) {
+          throw (
+            options.failWith ?? new Error(`provider rejected ${options.failOn}`)
           );
         }
-        sent.push(message);
-        return {};
+        if (options?.failWith !== undefined) {
+          throw options.failWith;
+        }
+        return options?.result;
       },
     },
   };
@@ -67,19 +82,60 @@ describe("parseCloudflareSenderAddress", () => {
 });
 
 describe("createCloudflareMailSender", () => {
-  test("fans out one binding call per recipient", async () => {
+  test("sends all recipient classes in one binding call", async () => {
     const { binding, sent } = recordingBinding();
-    await createCloudflareMailSender(binding).send(mail);
+    await createCloudflareMailSender(binding).send({
+      ...mail,
+      bcc: ["d@other.com"],
+      replyTo: "reply@example.com",
+      inReplyTo: "parent@example.com",
+      references: ["root@example.com", "parent@example.com"],
+      messageId: "own@example.com",
+      headers: new Map([
+        ["message-id", "<spoofed@example.com>"],
+        ["Bcc", "hidden@example.com"],
+        ["X-Campaign-Id", "abc"],
+      ]),
+      attachments: [
+        {
+          fileName: "logo.png",
+          contentType: "image/png",
+          content: new Uint8Array([1, 2]),
+          inline: true,
+          contentId: "logo-1",
+        },
+        {
+          fileName: "doc.txt",
+          contentType: "text/plain",
+          content: new Uint8Array([3]),
+          inline: false,
+          contentId: "ignored",
+        },
+      ],
+    });
 
-    expect(sent.map((message) => message.to)).toEqual([
-      "a@other.com",
-      "b@other.com",
-      "c@other.com",
-    ]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      to: ["a@other.com", "b@other.com"],
+      cc: ["c@other.com"],
+      bcc: ["d@other.com"],
+      replyTo: "reply@example.com",
+      headers: {
+        "X-Campaign-Id": "abc",
+        "In-Reply-To": "<parent@example.com>",
+        References: "<root@example.com> <parent@example.com>",
+      },
+      attachments: [
+        { disposition: "inline", contentId: "logo-1" },
+        { disposition: "attachment" },
+      ],
+    });
+    expect(Object.keys(sent[0]?.headers ?? {})).not.toContain("Message-ID");
+    expect(Object.keys(sent[0]?.headers ?? {})).not.toContain("Bcc");
   });
 
   test("sends as the message's own from, not one configured address", async () => {
-    // mailcal is a multi-address, multi-domain server. The sender is decided
+    // flying-mail is a multi-address, multi-domain server. The sender is decided
     // by the send use case from the caller's authorized mailbox -- it has
     // already checked the managed domain and the per-address MAIL_SEND
     // scope -- so the adapter must carry it through rather than override it.
@@ -139,8 +195,12 @@ describe("createCloudflareMailSender", () => {
     expect(sent[0]?.headers).toEqual({ "X-Campaign-Id": "abc" });
   });
 
-  test("masks a provider failure, leaking no recipient or subject", async () => {
-    const { binding } = recordingBinding({ failOn: "b@other.com" });
+  test("maps and masks provider errors, leaking no recipient or subject", async () => {
+    const { binding } = recordingBinding({
+      failWith: Object.assign(new Error("E_SENDER_NOT_VERIFIED: b@other.com"), {
+        code: "E_SENDER_NOT_VERIFIED",
+      }),
+    });
     const sender = createCloudflareMailSender(binding);
 
     await expect(sender.send(mail)).rejects.toBeInstanceOf(MailDeliveryError);
@@ -148,10 +208,28 @@ describe("createCloudflareMailSender", () => {
       await sender.send(mail);
     } catch (error) {
       const message = (error as Error).message;
+      expect((error as MailDeliveryError).reason).toBe("SENDER_NOT_VERIFIED");
       expect(message).toBe("Email delivery is unavailable");
       expect(message).not.toContain("b@other.com");
       expect(message).not.toContain("Hello");
     }
+  });
+
+  test("returns a provider receipt and accepts an absent result", async () => {
+    const withReceipt = recordingBinding({
+      result: { messageId: "<provider@cf>" },
+    });
+    await expect(
+      createCloudflareMailSender(withReceipt.binding).send(mail),
+    ).resolves.toEqual({
+      providerMessageId: "<provider@cf>",
+    });
+    const withoutReceipt = recordingBinding();
+    await expect(
+      createCloudflareMailSender(withoutReceipt.binding).send(mail),
+    ).resolves.toEqual({
+      providerMessageId: null,
+    });
   });
 });
 

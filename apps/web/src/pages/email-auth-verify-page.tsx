@@ -1,7 +1,10 @@
 import { useNavigate, useSearchParams } from "@solidjs/router";
 import { createSignal, type JSX, onMount, Show } from "solid-js";
 import { VERIFY_EMAIL_AUTH_MUTATION } from "../api/documents";
-import { publicGraphqlRequest, sessionStore } from "../api/graphql-client";
+import {
+  sessionEstablishingGraphqlRequest,
+  sessionStore,
+} from "../api/graphql-client";
 import { describeErrors } from "../lib/mutation-error";
 import { useStore } from "../store/store-context";
 
@@ -18,9 +21,9 @@ export default function EmailAuthVerifyPage(): JSX.Element {
         setError("This sign-in link is missing its token.");
         return;
       }
-      // Deliberately a public request: the exchange must not be influenced
-      // by whatever session the browser is already carrying.
-      const result = await publicGraphqlRequest<
+      // The exchange accepts the response cookie while remaining unauthenticated
+      // by any session the browser is already carrying.
+      const result = await sessionEstablishingGraphqlRequest<
         { readonly verifyEmailAuthToken: { readonly expiresAt: string } },
         Record<string, unknown>
       >(VERIFY_EMAIL_AUTH_MUTATION, { token });

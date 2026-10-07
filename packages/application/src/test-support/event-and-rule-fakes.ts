@@ -1,10 +1,10 @@
-import type { ClassificationRule } from "@mailcal/domain/entities/classification-rule";
-import type { MessageEvent } from "@mailcal/domain/entities/message-event";
+import type { ClassificationRule } from "@flying-mail/domain/entities/classification-rule";
+import type { MessageEvent } from "@flying-mail/domain/entities/message-event";
 import {
   type AddressPattern,
   matchAddressPattern,
-} from "@mailcal/domain/value-objects/address-pattern";
-import type { EmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/value-objects/address-pattern";
+import type { EmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   type MailPermissionFilter,
   mailPermissionFilterAuthorizesAnyAddress,

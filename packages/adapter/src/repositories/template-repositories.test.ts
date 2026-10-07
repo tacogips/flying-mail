@@ -1,21 +1,21 @@
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   Capability,
   type TemplateCapability,
-} from "@mailcal/domain/entities/api-key";
+} from "@flying-mail/domain/entities/api-key";
 import {
   createMailTemplate,
   type MailTemplate,
   type MailTemplateContentInput,
   TemplateVariableType,
-} from "@mailcal/domain/entities/mail-template";
-import { UserPermissionEffect } from "@mailcal/domain/entities/user-mail-permission";
-import { createUserTemplatePermission } from "@mailcal/domain/entities/user-template-permission";
+} from "@flying-mail/domain/entities/mail-template";
+import { UserPermissionEffect } from "@flying-mail/domain/entities/user-mail-permission";
+import { createUserTemplatePermission } from "@flying-mail/domain/entities/user-template-permission";
 import {
   createMailTemplateId,
   createUserId,
   createUserTemplatePermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createMailTemplateRepository } from "./mail-template-repository";
 import { createMigratedDatabase, seedUser } from "./test-support";

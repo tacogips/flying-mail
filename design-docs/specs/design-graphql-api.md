@@ -437,3 +437,189 @@ See `design-webmail-completion.md` section 3 for the full delta.
   UserMailPermission!` and `removeUserMailPermission(id: ID!): Boolean!`.
   The complete operation catalogue is maintained in this document as part
   of the webmail-completion work.
+
+## Operation catalogue (2026-10-07)
+
+This catalogue is copied from the current SDL in `schema.graphql.ts`,
+`schema-compose.graphql.ts`, `schema-contacts.graphql.ts`,
+`schema-external-mail.graphql.ts` and `schema-templates.graphql.ts`.
+Earlier sections are historical; where their signatures differ, this
+catalogue is authoritative. In particular, the user-permission signatures
+above have been superseded.
+
+### Mail
+
+```graphql
+messages(filter: MessageFilter, first: Int = 50, after: String): MessagePage!
+message(id: ID!): Message
+thread(id: ID!): Thread
+sendMessage(input: SendMessageInput!): Message!
+retrySend(messageId: ID!): Message!
+```
+
+### Drafts
+
+```graphql
+saveDraft(input: SaveDraftInput!): Message!
+sendDraft(id: ID!): Message!
+deleteDraft(id: ID!): Boolean!
+```
+
+### Compose
+
+```graphql
+composeFromMessage(messageId: ID!, mode: ComposeMode!): ComposePrefill!
+mailLimits: MailLimits!
+```
+
+### Tags and triage
+
+```graphql
+tags: [Tag!]!
+createTag(name: String!, color: String): Tag!
+renameTag(id: ID!, name: String!, color: String): Tag!
+deleteTag(id: ID!): Boolean!
+tagMessages(messageIds: [ID!]!, tagIds: [ID!]!): [Message!]!
+untagMessages(messageIds: [ID!]!, tagIds: [ID!]!): [Message!]!
+markSpam(messageIds: [ID!]!): [Message!]!
+markNotSpam(messageIds: [ID!]!): [Message!]!
+markRead(messageIds: [ID!]!, read: Boolean! = true): [Message!]!
+deleteMessages(messageIds: [ID!]!): Int!
+markMessagesFetched(messageIds: [ID!]!): [Message!]!
+markMessagesNotFetched(messageIds: [ID!]!): [Message!]!
+```
+
+### Events
+
+```graphql
+messageEvents(dueBefore: DateTime, dueAfter: DateTime,
+              includeCompleted: Boolean = false, limit: Int = 100): [MessageEvent!]!
+createMessageEvent(input: CreateMessageEventInput!): MessageEvent!
+updateMessageEvent(id: ID!, input: UpdateMessageEventInput!): MessageEvent!
+deleteMessageEvent(id: ID!): Boolean!
+```
+
+### Rules
+
+```graphql
+classificationRules: [ClassificationRule!]!
+createClassificationRule(input: CreateClassificationRuleInput!): ClassificationRule!
+setClassificationRuleEnabled(id: ID!, enabled: Boolean!): ClassificationRule!
+deleteClassificationRule(id: ID!): Boolean!
+applyClassificationRule(id: ID!): RuleApplication!
+```
+
+### File links
+
+```graphql
+fileLinks(messageId: ID!): [FileLink!]!
+createAttachmentLink(attachmentId: ID!, ttlSeconds: Int = 3600,
+                     maxDownloads: Int): CreatedFileLink!
+createRawMessageLink(messageId: ID!, ttlSeconds: Int = 3600,
+                     maxDownloads: Int): CreatedFileLink!
+revokeFileLink(id: ID!): Boolean!
+```
+
+### Domains and mailboxes
+
+```graphql
+domains: [MailDomain!]!
+domain(id: ID!): MailDomain
+mailAddresses(domainId: ID): [MailAddress!]!
+createDomain(name: String!, catchAll: Boolean = true): MailDomain!
+verifyDomain(id: ID!): MailDomain!
+setDomainStatus(id: ID!, status: DomainStatus!): MailDomain!
+deleteDomain(id: ID!): Boolean!
+createMailAddress(input: CreateMailAddressInput!): MailAddress!
+renameMailAddress(id: ID!, displayName: String): MailAddress!
+setMailAddressStatus(id: ID!, status: MailAddressStatus!): MailAddress!
+deleteMailAddress(id: ID!): Boolean!
+```
+
+### Users and permissions
+
+```graphql
+users: [User!]!
+user(id: ID!): User
+createUser(input: CreateUserInput!): User!
+setUserRole(id: ID!, role: UserRole!): User!
+setUserActive(id: ID!, active: Boolean!): User!
+addUserMailPermission(userId: ID!, input: UserMailPermissionInput!): UserMailPermission!
+removeUserMailPermission(id: ID!): Boolean!
+addUserTemplatePermission(userId: ID!, input: UserTemplatePermissionInput!): UserTemplatePermission!
+removeUserTemplatePermission(id: ID!): Boolean!
+```
+
+### API keys
+
+```graphql
+apiKeys: [ApiKey!]!
+createApiKey(input: CreateApiKeyInput!): ApiKeyWithSecret!
+revokeApiKey(id: ID!): ApiKey!
+addApiKeyScope(apiKeyId: ID!, scope: ApiKeyScopeInput!): ApiKey!
+removeApiKeyScope(scopeId: ID!): Boolean!
+```
+
+### Auth
+
+```graphql
+viewer: Viewer
+bootstrapAdmin(email: String!, name: String!): BootstrapPayload!
+requestEmailAuth(email: String!): Boolean!
+verifyEmailAuthToken(token: String!): AuthPayload!
+logout: Boolean!
+```
+
+### Contacts
+
+```graphql
+addressBooks(mailAddressId: ID): [AddressBook!]!
+contacts(filter: ContactFilter, first: Int, after: String): ContactPage!
+contact(id: ID!): Contact
+contactsByEmail(email: String!): [Contact!]!
+carddavAccounts: [CarddavAccount!]!
+carddavRemoteBooks(accountId: ID!): [CarddavBookLink!]!
+createAddressBook(input: CreateAddressBookInput!): AddressBook!
+updateAddressBook(id: ID!, input: UpdateAddressBookInput!): AddressBook!
+deleteAddressBook(id: ID!): Boolean!
+createContact(input: CreateContactInput!): Contact!
+updateContact(id: ID!, input: UpdateContactInput!): Contact!
+deleteContact(id: ID!): Boolean!
+connectCarddavAccount(input: ConnectCarddavAccountInput!): ConnectCarddavAccountResult!
+disconnectCarddavAccount(id: ID!): Boolean!
+linkCarddavBook(input: LinkCarddavBookInput!): CarddavBookLink!
+unlinkCarddavBook(id: ID!): Boolean!
+syncCarddavBook(id: ID!): CarddavSyncSummary!
+```
+
+### External mail
+
+```graphql
+externalMailAccounts: [ExternalMailAccount!]!
+createExternalMailAccount(input: CreateExternalMailAccountInput!): ExternalMailAccount!
+updateExternalMailAccount(id: ID!, input: UpdateExternalMailAccountInput!): ExternalMailAccount!
+deleteExternalMailAccount(id: ID!): Boolean!
+testExternalMailAccount(id: ID!): ExternalAccountTestResult!
+fetchExternalMail(id: ID!, max: Int): ExternalFetchSummary!
+```
+
+### Templates
+
+```graphql
+mailTemplates: [MailTemplate!]!
+mailTemplate(id: ID!): MailTemplate
+mailTemplateValidation(id: ID!, values: [TemplateValueInput!]!): TemplateValidation!
+previewMailTemplate(id: ID!, values: [TemplateValueInput!]!): RenderedTemplate!
+createMailTemplate(input: MailTemplateInput!): MailTemplate!
+updateMailTemplate(id: ID!, input: MailTemplateInput!): MailTemplate!
+deleteMailTemplate(id: ID!): Boolean!
+sendTemplatedMessage(input: SendTemplatedMessageInput!): Message!
+```
+
+## REST attachment and file routes
+
+| Route | Authentication and request | Response |
+|-------|----------------------------|----------|
+| `POST /api/attachments` | Authenticated viewer; multipart form field `file` | `201` JSON: `{ "id": "...", "fileName": "...", "contentType": "...", "size": 123, "url": "/api/attachments/<id>", "createdAt": "..." }`. Oversized file: `413` JSON with `code: "PAYLOAD_TOO_LARGE"` and `maxBytes` (currently `5242880`). |
+| `GET /api/attachments/:id` | Authenticated viewer with access to the message | Streams bytes with `Content-Type`, `Content-Length`, `Content-Disposition` (including RFC 5987 `filename*`), `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox`, and `Cache-Control: private, no-store`. Add `?download=1` to force `Content-Disposition: attachment`. |
+| `GET /files/:token` | The token in the path is the credential; no session or bearer key is needed | Streams linked bytes with the same hardened download headers. Add `?download=1` to force attachment disposition. |

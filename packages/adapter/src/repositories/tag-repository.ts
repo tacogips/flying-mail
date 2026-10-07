@@ -1,7 +1,11 @@
-import type { TagRepository } from "@mailcal/application/ports/tag-repository";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
-import { SystemTagSlug, type Tag, TagKind } from "@mailcal/domain/entities/tag";
-import { createTagId, type TagId } from "@mailcal/domain/value-objects/ids";
+import type { TagRepository } from "@flying-mail/application/ports/tag-repository";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
+import {
+  SystemTagSlug,
+  type Tag,
+  TagKind,
+} from "@flying-mail/domain/entities/tag";
+import { createTagId, type TagId } from "@flying-mail/domain/value-objects/ids";
 import { assertEnumValue, buildInPlaceholders } from "./sql-helpers";
 
 interface TagRow {

@@ -1,6 +1,6 @@
-import type { ExternalMailAccount } from "@mailcal/domain/entities/external-mail-account";
-import type { ExternalMessageState } from "@mailcal/domain/entities/external-message-state";
-import type { ExternalAccountId } from "@mailcal/domain/value-objects/ids";
+import type { ExternalMailAccount } from "@flying-mail/domain/entities/external-mail-account";
+import type { ExternalMessageState } from "@flying-mail/domain/entities/external-message-state";
+import type { ExternalAccountId } from "@flying-mail/domain/value-objects/ids";
 import type {
   ExternalMailAccountRepository,
   ExternalMessageStateRepository,
@@ -247,12 +247,12 @@ export function scriptedSmtpSubmissionClient(
 /** Satisfies `AppDependencies["tcpDialer"]` for tests that never exercise a
  * real socket -- every application-layer external-mail test drives the
  * scripted protocol clients directly instead. Scripted `TextSocket` fixtures
- * for protocol-client tests belong to `@mailcal/adapter`. */
+ * for protocol-client tests belong to `@flying-mail/adapter`. */
 export function recordingTcpDialer(): TcpDialer {
   return {
     async dial(): Promise<TextSocket> {
       throw new Error(
-        "the fake TcpDialer was called: protocol-client tests belong to @mailcal/adapter",
+        "the fake TcpDialer was called: protocol-client tests belong to @flying-mail/adapter",
       );
     },
   };

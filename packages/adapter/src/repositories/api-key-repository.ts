@@ -1,20 +1,20 @@
-import type { ApiKeyRepository } from "@mailcal/application/ports/api-key-repository";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { ApiKeyRepository } from "@flying-mail/application/ports/api-key-repository";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   type ApiKey,
   type ApiKeyScope,
   Capability,
-} from "@mailcal/domain/entities/api-key";
+} from "@flying-mail/domain/entities/api-key";
 import {
   createAddressPattern,
   MATCH_ALL_ADDRESSES,
-} from "@mailcal/domain/value-objects/address-pattern";
+} from "@flying-mail/domain/value-objects/address-pattern";
 import {
   createApiKeyId,
   createApiKeyScopeId,
   createDomainId,
   createUserId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { assertEnumValue, buildInPlaceholders } from "./sql-helpers";
 
 interface ApiKeyRow {

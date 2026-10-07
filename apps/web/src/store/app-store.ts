@@ -10,10 +10,14 @@ import {
   PREVIEW_MAIL_TEMPLATE_QUERY,
   SEND_TEMPLATED_MESSAGE_MUTATION,
   DELETE_MESSAGES_MUTATION,
+  DELETE_DRAFT_MUTATION,
+  DOMAINS_ADMIN_QUERY,
   DOMAINS_QUERY,
+  COMPOSE_FROM_MESSAGE_QUERY,
   CREATE_MESSAGE_EVENT_MUTATION,
   DELETE_MESSAGE_EVENT_MUTATION,
   LOGOUT_MUTATION,
+  MAIL_LIMITS_QUERY,
   SAVE_DRAFT_MUTATION,
   SEND_DRAFT_MUTATION,
   UNREAD_COUNT_QUERY,
@@ -30,6 +34,9 @@ import {
   VIEWER_QUERY,
 } from "../api/documents";
 import type {
+  ComposeMode,
+  ComposePrefillView,
+  MailLimitsView,
   MailTemplateView,
   RenderedTemplateView,
   SendTemplatedMessageVariables,
@@ -48,6 +55,7 @@ import type {
 import { type MailboxView, viewToFilter } from "../lib/filter-params";
 import { describeErrors } from "../lib/mutation-error";
 import { pushToast } from "../lib/toast";
+import { toSaveDraftOutcome, type SaveDraftOutcome } from "./app-store-compose";
 
 const PAGE_SIZE = 50;
 
@@ -63,11 +71,13 @@ export interface AppStore {
   readonly view: () => MailboxView;
   readonly unreadOnly: () => boolean;
   readonly inboxUnreadCount: () => number;
+  readonly mailLimits: () => MailLimitsView | null;
   readonly upcomingEvents: () => readonly MessageEventView[];
   reloadUpcomingEvents(): Promise<void>;
 
   rehydrateSession(): Promise<void>;
   loadReferenceData(): Promise<void>;
+  loadAdminDomains(): Promise<void>;
   setView(view: MailboxView): Promise<void>;
   setUnreadOnly(value: boolean): Promise<void>;
   reloadMessages(): Promise<void>;
@@ -90,7 +100,16 @@ export interface AppStore {
   ): Promise<boolean>;
   send(input: SendMessageVariables): Promise<boolean>;
   saveDraft(input: SaveDraftVariables): Promise<MessageView | null>;
+  saveDraftDetailed(
+    input: SaveDraftVariables,
+    options?: { readonly silent?: boolean },
+  ): Promise<SaveDraftOutcome>;
   sendDraft(id: string): Promise<boolean>;
+  deleteDraft(id: string): Promise<boolean>;
+  composeFromMessage(
+    messageId: string,
+    mode: ComposeMode,
+  ): Promise<ComposePrefillView | null>;
   createMessageEvent(
     input: CreateMessageEventVariables,
   ): Promise<MessageEventView | null>;
@@ -121,6 +140,11 @@ export interface SaveDraftVariables {
   readonly from: string;
   readonly to?: readonly string[];
   readonly cc?: readonly string[];
+  readonly bcc?: readonly string[];
+  readonly html?: string;
+  readonly replyTo?: string;
+  readonly forwardedFromMessageId?: string;
+  readonly forwardAttachmentIds?: readonly string[];
   readonly subject?: string;
   readonly text?: string;
   readonly attachmentIds?: readonly string[];
@@ -180,9 +204,14 @@ export function createAppStore(): AppStore {
   const [mailTemplates, setMailTemplates] = createSignal<
     readonly MailTemplateView[]
   >([]);
-  const [view, setViewSignal] = createSignal<MailboxView>({ kind: "INBOX" });
+  const [view, setViewSignal] = createSignal<MailboxView>({
+    folder: { kind: "INBOX" },
+    scope: {},
+  });
   const [unreadOnly, setUnreadOnlySignal] = createSignal(false);
   const [inboxUnreadCount, setInboxUnreadCount] = createSignal(0);
+  const [mailLimits, setMailLimits] = createSignal<MailLimitsView | null>(null);
+  let mailLimitsRequested = false;
 
   function reportFailure(result: GraphQLResult<unknown>): boolean {
     if (result.ok) {
@@ -242,6 +271,7 @@ export function createAppStore(): AppStore {
     // Re-reads the page so counts and any server-side reclassification
     // (spam leaving the inbox, for instance) are reflected.
     await fetchPage(null);
+    await reloadAddressActivity().catch(() => undefined);
     return true;
   }
 
@@ -256,6 +286,20 @@ export function createAppStore(): AppStore {
     >(UPCOMING_EVENTS_QUERY, { dueBefore });
     if (result.ok) {
       setUpcomingEvents(result.data.messageEvents);
+    }
+  }
+
+  async function reloadAddressActivity(): Promise<void> {
+    const result = await graphqlRequest<{
+      readonly viewer: ViewerView | null;
+    }>(VIEWER_QUERY);
+    if (result.ok && result.data.viewer !== null) {
+      const refreshedViewer = result.data.viewer;
+      setViewer((current) =>
+        current === null
+          ? null
+          : { ...current, addressActivity: refreshedViewer.addressActivity },
+      );
     }
   }
 
@@ -317,6 +361,9 @@ export function createAppStore(): AppStore {
     }
     await fetchPage(null);
     await reloadTags();
+    if (slug === "TRASH") {
+      await reloadAddressActivity().catch(() => undefined);
+    }
     return true;
   }
 
@@ -333,6 +380,7 @@ export function createAppStore(): AppStore {
     view,
     unreadOnly,
     inboxUnreadCount,
+    mailLimits,
 
     async rehydrateSession() {
       const result = await graphqlRequest<{
@@ -340,11 +388,22 @@ export function createAppStore(): AppStore {
       }>(VIEWER_QUERY);
       if (!result.ok || result.data.viewer === null) {
         setViewer(null);
+        setMailLimits(null);
+        mailLimitsRequested = false;
         sessionStore.clear();
         return;
       }
       setViewer(result.data.viewer);
       sessionStore.markEstablished();
+      if (!mailLimitsRequested) {
+        mailLimitsRequested = true;
+        const limitsResult = await graphqlRequest<{
+          readonly mailLimits: MailLimitsView;
+        }>(MAIL_LIMITS_QUERY);
+        if (limitsResult.ok) {
+          setMailLimits(limitsResult.data.mailLimits);
+        }
+      }
     },
 
     async loadReferenceData() {
@@ -363,6 +422,13 @@ export function createAppStore(): AppStore {
         reloadUpcomingEvents().catch(() => undefined),
         reloadInboxUnread().catch(() => undefined),
       ]);
+    },
+
+    async loadAdminDomains() {
+      const result = await graphqlRequest<{
+        readonly domains: readonly MailDomainView[];
+      }>(DOMAINS_ADMIN_QUERY);
+      if (result.ok) setDomains(result.data.domains);
     },
 
     reloadUpcomingEvents,
@@ -384,7 +450,10 @@ export function createAppStore(): AppStore {
     async reloadMessages() {
       setCursor(null);
       await fetchPage(null);
-      await reloadInboxUnread().catch(() => undefined);
+      await Promise.all([
+        reloadInboxUnread().catch(() => undefined),
+        reloadAddressActivity().catch(() => undefined),
+      ]);
     },
 
     async loadMore() {
@@ -485,6 +554,7 @@ export function createAppStore(): AppStore {
       setSelectedIds(new Set<string>());
       await fetchPage(null);
       await reloadInboxUnread().catch(() => undefined);
+      await reloadAddressActivity().catch(() => undefined);
     },
 
     async setStarred(messageIds, starred) {
@@ -520,6 +590,7 @@ export function createAppStore(): AppStore {
           ? "Message sent"
           : "Message queued",
       );
+      await reloadAddressActivity().catch(() => undefined);
       return true;
     },
 
@@ -538,6 +609,18 @@ export function createAppStore(): AppStore {
       return result.data.saveDraft;
     },
 
+    async saveDraftDetailed(input, options) {
+      const result = await graphqlRequest<
+        { readonly saveDraft: MessageView },
+        Record<string, unknown>
+      >(SAVE_DRAFT_MUTATION, { input });
+      const outcome = toSaveDraftOutcome(result, input);
+      if (outcome.kind === "error" && options?.silent !== true) {
+        pushToast("error", outcome.message);
+      }
+      return outcome;
+    },
+
     async sendDraft(id) {
       const result = await graphqlRequest<
         { readonly sendDraft: MessageView },
@@ -553,7 +636,33 @@ export function createAppStore(): AppStore {
           ? "Message sent"
           : "Message queued",
       );
+      await fetchPage(null);
+      await reloadAddressActivity().catch(() => undefined);
       return true;
+    },
+
+    async deleteDraft(id) {
+      const result = await graphqlRequest<
+        { readonly deleteDraft: boolean },
+        { readonly id: string }
+      >(DELETE_DRAFT_MUTATION, { id });
+      if (!result.ok) {
+        pushToast("error", describeErrors(result.errors));
+        return false;
+      }
+      return result.data.deleteDraft;
+    },
+
+    async composeFromMessage(messageId, mode) {
+      const result = await graphqlRequest<
+        { readonly composeFromMessage: ComposePrefillView },
+        { readonly messageId: string; readonly mode: ComposeMode }
+      >(COMPOSE_FROM_MESSAGE_QUERY, { messageId, mode });
+      if (!result.ok) {
+        pushToast("error", describeErrors(result.errors));
+        return null;
+      }
+      return result.data.composeFromMessage;
     },
 
     async createMessageEvent(input) {
@@ -600,6 +709,8 @@ export function createAppStore(): AppStore {
       // is unreachable, since keeping the UI signed in would be worse.
       await graphqlRequest(LOGOUT_MUTATION).catch(() => undefined);
       setViewer(null);
+      setMailLimits(null);
+      mailLimitsRequested = false;
       setMessages([]);
       setSelectedIds(new Set<string>());
       sessionStore.clear();
@@ -650,6 +761,7 @@ export function createAppStore(): AppStore {
       }
       pushToast("success", "Message sent");
       await fetchPage(null);
+      await reloadAddressActivity().catch(() => undefined);
       return true;
     },
   };

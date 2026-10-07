@@ -1,13 +1,16 @@
 import type {
   CarddavBookLink,
   CarddavContactState,
-} from "@mailcal/domain/entities/carddav-account";
-import { type Contact, createContact } from "@mailcal/domain/entities/contact";
+} from "@flying-mail/domain/entities/carddav-account";
+import {
+  type Contact,
+  createContact,
+} from "@flying-mail/domain/entities/contact";
 import {
   type AddressBookId,
   type CarddavBookId,
   createContactId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { NotFoundError } from "../errors";
 import type { Viewer } from "../policies/viewer";

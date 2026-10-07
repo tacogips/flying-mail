@@ -5,16 +5,16 @@ import {
   seedContactFixture,
   SUPPORT_ADDRESS,
   type ContactFixture,
-} from "@mailcal/application/test-support/contact-fixtures";
-import { createFakeDependencies } from "@mailcal/application/test-support/fakes";
+} from "@flying-mail/application/test-support/contact-fixtures";
+import { createFakeDependencies } from "@flying-mail/application/test-support/fakes";
 import {
   adminViewer,
   buildMailPermissions,
   memberViewer,
   viewerViewer,
-} from "@mailcal/application/test-support/viewer-fixtures";
-import { Capability } from "@mailcal/domain/entities/api-key";
-import { createUserId } from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/application/test-support/viewer-fixtures";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { createUserId } from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import {
   createGraphQLHarness,

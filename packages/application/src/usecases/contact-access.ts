@@ -1,11 +1,11 @@
-import type { AddressBook } from "@mailcal/domain/entities/address-book";
-import { Capability } from "@mailcal/domain/entities/api-key";
-import type { Contact } from "@mailcal/domain/entities/contact";
+import type { AddressBook } from "@flying-mail/domain/entities/address-book";
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import type { Contact } from "@flying-mail/domain/entities/contact";
 import type {
   AddressBookId,
   ContactId,
   MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { ForbiddenError, NotFoundError } from "../errors";
 import {

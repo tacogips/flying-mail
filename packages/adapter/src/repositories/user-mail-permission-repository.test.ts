@@ -1,17 +1,17 @@
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   createUserMailPermission,
   UserPermissionEffect,
-} from "@mailcal/domain/entities/user-mail-permission";
+} from "@flying-mail/domain/entities/user-mail-permission";
 import {
   createAddressPattern,
   MATCH_ALL_ADDRESSES,
-} from "@mailcal/domain/value-objects/address-pattern";
+} from "@flying-mail/domain/value-objects/address-pattern";
 import {
   createDomainId,
   createUserId,
   createUserMailPermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createMigratedDatabase, seedDomain, seedUser } from "./test-support";
 import { createUserMailPermissionRepository } from "./user-mail-permission-repository";

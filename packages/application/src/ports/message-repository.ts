@@ -1,18 +1,18 @@
 import type {
   Attachment,
   AttachmentKind,
-} from "@mailcal/domain/entities/attachment";
-import type { MessageFetchState } from "@mailcal/domain/entities/fetch-state";
-import { FetchStatus } from "@mailcal/domain/entities/fetch-state";
+} from "@flying-mail/domain/entities/attachment";
+import type { MessageFetchState } from "@flying-mail/domain/entities/fetch-state";
+import { FetchStatus } from "@flying-mail/domain/entities/fetch-state";
 import type {
   MailStatus,
   Message,
   MessageDirection,
   MessageRecipient,
-} from "@mailcal/domain/entities/message";
-import type { SpamMark } from "@mailcal/domain/entities/spam-mark";
-import type { AddressPattern } from "@mailcal/domain/value-objects/address-pattern";
-import type { EmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/message";
+import type { SpamMark } from "@flying-mail/domain/entities/spam-mark";
+import type { AddressPattern } from "@flying-mail/domain/value-objects/address-pattern";
+import type { EmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import type {
   ApiKeyId,
   AttachmentId,
@@ -20,11 +20,15 @@ import type {
   MessageId,
   TagId,
   ThreadId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { MailPermissionFilter } from "../policies/authorization";
 import type { SqlStatement } from "./sql-database";
 
 export { FetchStatus };
+
+export class DuplicateMessageError extends Error {
+  override readonly name = "DuplicateMessageError";
+}
 
 /** Everything a listing query can be narrowed by. Every field except
  * `allowedPatterns` comes from the caller; `allowedPatterns` is derived
@@ -93,6 +97,13 @@ export interface MessagePage {
   readonly totalCount: number;
 }
 
+export interface AddressActivity {
+  readonly address: EmailAddress;
+  readonly domainId: DomainId;
+  readonly lastActivityAt: string | null;
+  readonly unreadCount: number;
+}
+
 /** Everything written atomically when a message is stored. */
 export interface InsertMessageInput {
   readonly message: Message;
@@ -110,10 +121,31 @@ export interface InsertMessageInput {
 }
 
 export interface MessageRepository {
+  /** Aggregate sent and delivered activity for the supplied readable
+   * mailboxes in one query. */
+  listAddressActivity(
+    addresses: readonly {
+      readonly address: EmailAddress;
+      readonly domainId: DomainId;
+    }[],
+  ): Promise<readonly AddressActivity[]>;
   findById(id: MessageId): Promise<Message | null>;
   findByIds(ids: readonly MessageId[]): Promise<readonly Message[]>;
   /** Backs duplicate suppression on the ingest path. */
   findByRfcMessageId(rfcMessageId: string): Promise<Message | null>;
+  findInboundByRfcMessageId(
+    rfcMessageId: string,
+    domainId: DomainId,
+  ): Promise<Message | null>;
+  addEnvelopeRecipient(
+    messageId: MessageId,
+    address: EmailAddress,
+  ): Promise<void>;
+  saveIfDraft(message: Message): Promise<boolean>;
+  deleteDraftIfDraft(id: MessageId): Promise<boolean>;
+  countAttachmentsByBlobKeys(
+    blobKeys: readonly string[],
+  ): Promise<ReadonlyMap<string, number>>;
   /** Resolves an existing thread from a `References` chain, newest match
    * first. */
   findThreadIdByReferences(

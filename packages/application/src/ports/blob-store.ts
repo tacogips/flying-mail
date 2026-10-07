@@ -10,7 +10,7 @@ export interface BlobObject {
  * reached via `aws4fetch`, and an in-memory store for tests.
  *
  * Keys are derived from application-generated IDs (see
- * `@mailcal/domain/entities/attachment`'s key builders), so a retried write
+ * `@flying-mail/domain/entities/attachment`'s key builders), so a retried write
  * overwrites in place rather than accumulating duplicates. */
 export interface BlobStore {
   put(

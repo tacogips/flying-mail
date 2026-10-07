@@ -1,16 +1,16 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   createMessageEvent,
   type MessageEvent,
   type MessageEventKind,
   setMessageEventCompleted,
   updateMessageEvent,
-} from "@mailcal/domain/entities/message-event";
+} from "@flying-mail/domain/entities/message-event";
 import {
   createMessageEventId,
   type MessageEventId,
   type MessageId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { NotFoundError } from "../errors";
 import {

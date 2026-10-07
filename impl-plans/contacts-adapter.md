@@ -241,7 +241,7 @@ emits vCard 3.0 (`VERSION:3.0`), 75-octet folding, CRLF line endings,
 - `packages/adapter/package.json` (extend `exports`): add
   `"./vcard/vcard-codec": "./src/vcard/vcard-codec.ts"`. This package has
   no barrel file and no wildcard covering `vcard/`, so the new subpath
-  must be listed explicitly or `@mailcal/adapter/vcard/vcard-codec` will not
+  must be listed explicitly or `@flying-mail/adapter/vcard/vcard-codec` will not
   resolve for `build-dependencies.ts` in `contacts-graphql.md` TASK-003.
 **Completion Criteria**:
 - [x] Round-trip tests: own-output stability (`formatVcard` then

@@ -1,18 +1,18 @@
-import type { ApiKey, ApiKeyScope } from "@mailcal/domain/entities/api-key";
-import type { EmailAuthChallenge } from "@mailcal/domain/entities/email-auth-challenge";
-import type { FileLink } from "@mailcal/domain/entities/file-link";
-import type { MailAddress } from "@mailcal/domain/entities/mail-address";
-import type { MailDomain } from "@mailcal/domain/entities/mail-domain";
-import type { Session } from "@mailcal/domain/entities/session";
+import type { ApiKey, ApiKeyScope } from "@flying-mail/domain/entities/api-key";
+import type { EmailAuthChallenge } from "@flying-mail/domain/entities/email-auth-challenge";
+import type { FileLink } from "@flying-mail/domain/entities/file-link";
+import type { MailAddress } from "@flying-mail/domain/entities/mail-address";
+import type { MailDomain } from "@flying-mail/domain/entities/mail-domain";
+import type { Session } from "@flying-mail/domain/entities/session";
 import {
   createSystemTag,
   SYSTEM_TAG_DEFAULTS,
   type SystemTagSlug,
   type Tag,
-} from "@mailcal/domain/entities/tag";
-import type { User } from "@mailcal/domain/entities/user";
-import type { UserMailPermission } from "@mailcal/domain/entities/user-mail-permission";
-import { createTagId } from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/entities/tag";
+import type { User } from "@flying-mail/domain/entities/user";
+import type { UserMailPermission } from "@flying-mail/domain/entities/user-mail-permission";
+import { createTagId } from "@flying-mail/domain/value-objects/ids";
 import type { ApiKeyRepository } from "../ports/api-key-repository";
 import type {
   EmailAuthChallengeRepository,

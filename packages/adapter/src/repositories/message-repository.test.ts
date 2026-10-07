@@ -1,5 +1,8 @@
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
-import { FetchStatus, markFetched } from "@mailcal/domain/entities/fetch-state";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
+import {
+  FetchStatus,
+  markFetched,
+} from "@flying-mail/domain/entities/fetch-state";
 import {
   createInboundMessage,
   MailStatus,
@@ -7,16 +10,16 @@ import {
   MessageDirection,
   type MessageRecipient,
   RecipientKind,
-} from "@mailcal/domain/entities/message";
+} from "@flying-mail/domain/entities/message";
 import {
   createSpamMark,
   SpamMarkedBy,
-} from "@mailcal/domain/entities/spam-mark";
+} from "@flying-mail/domain/entities/spam-mark";
 import {
   createAddressPattern,
   MATCH_ALL_ADDRESSES,
-} from "@mailcal/domain/value-objects/address-pattern";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/value-objects/address-pattern";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createApiKeyId,
   createAttachmentId,
@@ -24,11 +27,11 @@ import {
   createMessageId,
   createTagId,
   createThreadId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import {
   AttachmentKind,
   createAttachment,
-} from "@mailcal/domain/entities/attachment";
+} from "@flying-mail/domain/entities/attachment";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createMessageRepository } from "./message-repository";
 import {

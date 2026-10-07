@@ -11,6 +11,7 @@ export function Topbar(props: {
   readonly viewer: ViewerView | null;
   readonly onSearch: (query: string) => void;
   readonly onLogout: () => void;
+  readonly onToggleSidebar: () => void;
 }): JSX.Element {
   const [query, setQuery] = createSignal("");
   const isAdmin = () => props.viewer?.user?.role === "ADMIN";
@@ -29,6 +30,14 @@ export function Topbar(props: {
 
   return (
     <header class="topbar">
+      <button
+        type="button"
+        class="topbar-sidebar-toggle"
+        aria-label="Open mailbox menu"
+        onClick={() => props.onToggleSidebar()}
+      >
+        Menu
+      </button>
       <form
         class="topbar-search-form"
         onSubmit={(event) => {
@@ -51,31 +60,33 @@ export function Topbar(props: {
       </form>
 
       <div class="topbar-actions">
-        <a href="/contacts" class="topbar-link">
-          Contacts
-        </a>
-        <Show when={isAdmin()}>
-          <a href="/settings/domains" class="topbar-link">
-            Domains
+        <div class="topbar-links">
+          <a href="/contacts" class="topbar-link">
+            Contacts
           </a>
-          <a href="/settings/api-keys" class="topbar-link">
-            API keys
+          <Show when={isAdmin()}>
+            <a href="/settings/domains" class="topbar-link">
+              Domains
+            </a>
+            <a href="/settings/api-keys" class="topbar-link">
+              API keys
+            </a>
+            <a href="/settings/rules" class="topbar-link">
+              Rules
+            </a>
+            <a href="/settings/users" class="topbar-link">
+              Users
+            </a>
+          </Show>
+          <a href="/settings/tags" class="topbar-link">
+            Tags
           </a>
-          <a href="/settings/rules" class="topbar-link">
-            Rules
-          </a>
-          <a href="/settings/users" class="topbar-link">
-            Users
-          </a>
-        </Show>
-        <a href="/settings/tags" class="topbar-link">
-          Tags
-        </a>
-        <Show when={canReadTemplates()}>
-          <a href="/settings/templates" class="topbar-link">
-            Templates
-          </a>
-        </Show>
+          <Show when={canReadTemplates()}>
+            <a href="/settings/templates" class="topbar-link">
+              Templates
+            </a>
+          </Show>
+        </div>
         <Show when={props.viewer?.user !== null && props.viewer !== null}>
           <button type="button" onClick={() => props.onLogout()}>
             Sign out
@@ -89,6 +100,27 @@ export function Topbar(props: {
             {avatarInitial(userLabel())}
           </span>
         </Show>
+        <details class="topbar-overflow">
+          <summary>More</summary>
+          <nav aria-label="More navigation">
+            <a href="/contacts">Contacts</a>
+            <Show when={isAdmin()}>
+              <a href="/settings/domains">Domains</a>
+              <a href="/settings/api-keys">API keys</a>
+              <a href="/settings/rules">Rules</a>
+              <a href="/settings/users">Users</a>
+            </Show>
+            <a href="/settings/tags">Tags</a>
+            <Show when={canReadTemplates()}>
+              <a href="/settings/templates">Templates</a>
+            </Show>
+            <Show when={props.viewer?.user !== null && props.viewer !== null}>
+              <button type="button" onClick={() => props.onLogout()}>
+                Sign out
+              </button>
+            </Show>
+          </nav>
+        </details>
       </div>
     </header>
   );

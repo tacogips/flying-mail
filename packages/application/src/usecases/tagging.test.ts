@@ -1,15 +1,15 @@
 import {
   createInboundMessage,
   RecipientKind,
-} from "@mailcal/domain/entities/message";
-import { SpamMarkedBy } from "@mailcal/domain/entities/spam-mark";
-import { createEmailAddress } from "@mailcal/domain/value-objects/email-address";
+} from "@flying-mail/domain/entities/message";
+import { SpamMarkedBy } from "@flying-mail/domain/entities/spam-mark";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createDomainId,
   createMessageId,
   createTagId,
   createThreadId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
 import { NotFoundError } from "../errors";
 import {

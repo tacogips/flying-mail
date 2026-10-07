@@ -1,12 +1,12 @@
 import type {
   MailAuthorizationRule,
   MailPermissionFilter,
-} from "@mailcal/application/policies/authorization";
-import type { SqlValue } from "@mailcal/application/ports/sql-database";
+} from "@flying-mail/application/policies/authorization";
+import type { SqlValue } from "@flying-mail/application/ports/sql-database";
 import {
   type AddressPattern,
   addressPatternToLikeExpression,
-} from "@mailcal/domain/value-objects/address-pattern";
+} from "@flying-mail/domain/value-objects/address-pattern";
 
 /** Column-parametrized generalization of `message-repository-queries.ts`'s
  * pattern/rule condition builders, for repositories whose owning address

@@ -1,4 +1,4 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   assertTagDeletable,
   createSystemTag,
@@ -7,8 +7,8 @@ import {
   SYSTEM_TAG_DEFAULTS,
   SystemTagSlug,
   type Tag,
-} from "@mailcal/domain/entities/tag";
-import { createTagId, type TagId } from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/entities/tag";
+import { createTagId, type TagId } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
 import type { Viewer } from "../policies/viewer";

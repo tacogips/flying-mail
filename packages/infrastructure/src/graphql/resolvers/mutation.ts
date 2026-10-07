@@ -1,12 +1,12 @@
-import type { ApiKeyScopeInput } from "@mailcal/application/usecases/api-keys";
-import type { SendMessageInput } from "@mailcal/application/usecases/send";
+import type { ApiKeyScopeInput } from "@flying-mail/application/usecases/api-keys";
+import type { SendMessageInput } from "@flying-mail/application/usecases/send";
 import type {
   CreateUserInput,
   UserMailPermissionInput,
-} from "@mailcal/application/usecases/users";
-import type { Capability } from "@mailcal/domain/entities/api-key";
-import type { DomainStatus } from "@mailcal/domain/entities/mail-domain";
-import type { UserRole } from "@mailcal/domain/entities/user";
+} from "@flying-mail/application/usecases/users";
+import type { Capability } from "@flying-mail/domain/entities/api-key";
+import type { DomainStatus } from "@flying-mail/domain/entities/mail-domain";
+import type { UserRole } from "@flying-mail/domain/entities/user";
 import {
   createClassificationRuleId,
   createMessageEventId,
@@ -19,15 +19,15 @@ import {
   createTagId,
   createUserId,
   createUserMailPermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { GraphQLContext } from "../context";
 import type {
   RuleAction,
   RuleField,
   RuleMatcher,
-} from "@mailcal/domain/entities/classification-rule";
-import type { MessageEventKind } from "@mailcal/domain/entities/message-event";
-import type { UserPermissionEffect } from "@mailcal/domain/entities/user-mail-permission";
+} from "@flying-mail/domain/entities/classification-rule";
+import type { MessageEventKind } from "@flying-mail/domain/entities/message-event";
+import type { UserPermissionEffect } from "@flying-mail/domain/entities/user-mail-permission";
 import { requireViewerOrThrow } from "./helpers";
 import type { ViewerSource } from "./types";
 
@@ -54,6 +54,9 @@ interface SendMessageArg {
   readonly text?: string | null;
   readonly html?: string | null;
   readonly inReplyToMessageId?: string | null;
+  readonly replyTo?: string | null;
+  readonly forwardedFromMessageId?: string | null;
+  readonly forwardAttachmentIds?: readonly string[] | null;
   readonly attachmentIds?: readonly string[] | null;
   readonly headers?:
     | readonly { readonly name: string; readonly value: string }[]
@@ -74,6 +77,19 @@ function toSendMessageInput(input: SendMessageArg): SendMessageInput {
     ...(input.inReplyToMessageId == null
       ? {}
       : { inReplyToMessageId: createMessageId(input.inReplyToMessageId) }),
+    ...(input.replyTo == null ? {} : { replyTo: input.replyTo }),
+    ...(input.forwardedFromMessageId == null
+      ? {}
+      : {
+          forwardedFromMessageId: createMessageId(input.forwardedFromMessageId),
+        }),
+    ...(input.forwardAttachmentIds == null
+      ? {}
+      : {
+          forwardAttachmentIds: input.forwardAttachmentIds.map((id) =>
+            createAttachmentId(id),
+          ),
+        }),
     ...(input.attachmentIds == null
       ? {}
       : {
@@ -430,6 +446,9 @@ const tagMutations = {
         readonly subject?: string | null;
         readonly text?: string | null;
         readonly html?: string | null;
+        readonly replyTo?: string | null;
+        readonly forwardedFromMessageId?: string | null;
+        readonly forwardAttachmentIds?: readonly string[] | null;
         readonly attachmentIds?: readonly string[] | null;
       };
     },
@@ -450,6 +469,21 @@ const tagMutations = {
       ...(input.subject == null ? {} : { subject: input.subject }),
       ...(input.text == null ? {} : { text: input.text }),
       ...(input.html == null ? {} : { html: input.html }),
+      ...(input.replyTo == null ? {} : { replyTo: input.replyTo }),
+      ...(input.forwardedFromMessageId == null
+        ? {}
+        : {
+            forwardedFromMessageId: createMessageId(
+              input.forwardedFromMessageId,
+            ),
+          }),
+      ...(input.forwardAttachmentIds == null
+        ? {}
+        : {
+            forwardAttachmentIds: input.forwardAttachmentIds.map((id) =>
+              createAttachmentId(id),
+            ),
+          }),
       ...(input.attachmentIds == null
         ? {}
         : {

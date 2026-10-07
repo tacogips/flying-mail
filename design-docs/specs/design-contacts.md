@@ -1,6 +1,6 @@
 # Contacts and CardDAV Design
 
-mailcal gains contacts: address books owned by provisioned mail addresses,
+flying-mail gains contacts: address books owned by provisioned mail addresses,
 contacts referenceable both per mail address and merged across every mail
 address the viewer is authorized for, and CardDAV *client* sync with an
 external server (in practice iCloud). Everything is exposed through the
@@ -8,8 +8,8 @@ existing `/graphql` endpoint so agents and the SolidJS client share one API.
 
 Explicitly out of scope (by request and by design):
 
-- Acting as a CardDAV *server*. mailcal is a CardDAV *client* (discovery,
-  multiget, etag sync). No new hono protocol endpoints: mailcal syncs with
+- Acting as a CardDAV *server*. flying-mail is a CardDAV *client* (discovery,
+  multiget, etag sync). No new hono protocol endpoints: flying-mail syncs with
   iCloud, it does not serve DAV.
 - Contact groups (`KIND:group` / `MEMBER`), vCard photos (`PHOTO`), and
   free-form extension properties (`X-*`). Unsupported properties found in a
@@ -225,7 +225,7 @@ RFC 6350 (4.0) and RFC 2426 (3.0) input; 3.0 output (iCloud's lingua
 franca). Supported properties: `UID FN N NICKNAME ORG TITLE EMAIL TEL ADR
 URL NOTE BDAY REV`. Everything else -- including `PHOTO`, `X-*`,
 `item1.`-style grouped properties -- is carried in `extraVcardLines`
-verbatim and re-emitted on format, so a round trip through mailcal never
+verbatim and re-emitted on format, so a round trip through flying-mail never
 strips what it does not understand. Line folding/unfolding, parameter
 quoting, and `\,`/`\;`/`\n` escaping live here and nowhere else. The codec
 is a pure function pair `parseVcard`/`formatVcard` behind the port so

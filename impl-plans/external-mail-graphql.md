@@ -228,7 +228,7 @@ a second place).
 - [x] Boot without `MAILCAL_CREDENTIAL_KEY`: external mail mutations return
       `SERVICE_UNAVAILABLE` through the shared credential gate
 - [x] `AppDependencies` is fully constructed with no missing field
-      (`tsc --noEmit` across `@mailcal/infrastructure` passes)
+      (`tsc --noEmit` across `@flying-mail/infrastructure` passes)
 
 ## Module Status
 
@@ -352,7 +352,7 @@ existing `buildDependencies` "assembles a working in-memory instance" test
 was extended to assert every new `AppDependencies` field is defined.
 
 Deviation beyond the stated scope, required to satisfy this plan's own
-"`tsc --noEmit` across `@mailcal/infrastructure` passes" and the parent
+"`tsc --noEmit` across `@flying-mail/infrastructure` passes" and the parent
 task's "clean repo-wide" criterion: `packages/adapter/src/tcp/
 cloudflare-tcp-dialer.ts` depends on an ambient `declare module
 "cloudflare:sockets"` living in a sibling `.d.ts` file

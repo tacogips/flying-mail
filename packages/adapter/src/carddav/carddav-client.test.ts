@@ -3,7 +3,7 @@ import {
   type CarddavCredentials,
   CarddavTransportError,
   type RemoteAddressBookRef,
-} from "@mailcal/application/ports/carddav";
+} from "@flying-mail/application/ports/carddav";
 import { describe, expect, test } from "vitest";
 import { createCarddavClient } from "./carddav-client";
 

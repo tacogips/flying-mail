@@ -1,5 +1,5 @@
 {
-  "name": "@mailcal/adapter",
+  "name": "@flying-mail/adapter",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -35,8 +35,8 @@
   },
   "dependencies": {
     "@libsql/client": "0.17.4",
-    "@mailcal/application": "workspace:*",
-    "@mailcal/domain": "workspace:*",
+    "@flying-mail/application": "workspace:*",
+    "@flying-mail/domain": "workspace:*",
     "aws4fetch": "1.0.20",
     "eta": "4.6.0",
     "mimetext": "3.0.28",

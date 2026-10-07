@@ -1,18 +1,18 @@
 import {
   isTemplateCapability,
   type TemplateCapability,
-} from "@mailcal/domain/entities/api-key";
-import { UserRole } from "@mailcal/domain/entities/user";
-import type { UserPermissionEffect } from "@mailcal/domain/entities/user-mail-permission";
+} from "@flying-mail/domain/entities/api-key";
+import { UserRole } from "@flying-mail/domain/entities/user";
+import type { UserPermissionEffect } from "@flying-mail/domain/entities/user-mail-permission";
 import {
   createUserTemplatePermission,
   type UserTemplatePermission,
-} from "@mailcal/domain/entities/user-template-permission";
+} from "@flying-mail/domain/entities/user-template-permission";
 import {
   createUserTemplatePermissionId,
   type UserId,
   type UserTemplatePermissionId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { BadUserInputError, ForbiddenError, NotFoundError } from "../errors";
 import type { Viewer } from "../policies/viewer";

@@ -1,11 +1,11 @@
 # External Mail Accounts: JMAP / POP3 Fetch and SMTP Relay
 
-mailcal aggregates external mailboxes. An admin binds an external account
+flying-mail aggregates external mailboxes. An admin binds an external account
 (a Gmail/Fastmail/anything mailbox reachable over JMAP or POP3) to one
 provisioned mail address; fetched messages flow through the existing
 ingest pipeline into that mailbox, and mail sent *as* the external address
 leaves through that provider's SMTP submission server instead of
-Cloudflare Email Sending. The direction is deliberate: mailcal is a client
+Cloudflare Email Sending. The direction is deliberate: flying-mail is a client
 of these protocols, as it is for CardDAV; it does not serve JMAP, POP3, or
 SMTP to mail apps.
 
@@ -22,7 +22,7 @@ Explicitly out of scope:
 - Scheduled background fetch. Fetch is an on-demand mutation (cron
   trigger follow-up, shared with DAV sync).
 - Deleting mail on the remote server. Fetch always leaves mail in place
-  (`POP3` without `DELE`); mailcal is an aggregator, not a migrator.
+  (`POP3` without `DELE`); flying-mail is an aggregator, not a migrator.
 
 ## Binding model: external account -> managed mail address
 
@@ -85,7 +85,7 @@ SmtpSubmissionConfig =
 
 ExternalMessageState {                 // dedupe ledger, one row per fetched msg
   accountId, remoteId,                 // JMAP Email id / POP3 UIDL
-  messageId,                           // the ingested mailcal MessageId
+  messageId,                           // the ingested flying-mail MessageId
   fetchedAt
 }
 ```

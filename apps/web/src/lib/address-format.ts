@@ -34,31 +34,3 @@ export function formatRecipients(
   const remaining = mailboxes.length - max;
   return remaining > 0 ? `${shown} +${remaining} more` : shown;
 }
-
-/** The addresses a reply should go to: the sender, plus every other
- * recipient when replying to all, minus the mailbox that received it (so a
- * reply-all does not address the reader). */
-export function buildReplyRecipients(params: {
-  readonly from: MailboxAddressView;
-  readonly recipients: readonly MailboxAddressView[];
-  readonly replyAll: boolean;
-  readonly selfAddress: string | null;
-}): { readonly to: readonly string[]; readonly cc: readonly string[] } {
-  const to = [params.from.address];
-  if (!params.replyAll) {
-    return { to, cc: [] };
-  }
-  const seen = new Set<string>([params.from.address]);
-  if (params.selfAddress !== null) {
-    seen.add(params.selfAddress);
-  }
-  const cc: string[] = [];
-  for (const recipient of params.recipients) {
-    if (recipient.kind === "BCC" || seen.has(recipient.address)) {
-      continue;
-    }
-    seen.add(recipient.address);
-    cc.push(recipient.address);
-  }
-  return { to, cc };
-}

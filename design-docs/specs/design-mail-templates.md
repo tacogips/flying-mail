@@ -46,7 +46,7 @@ That is unusable here for two independent reasons:
    a privilege escalation from "may write a mail template" to "owns the
    server".
 
-mailcal therefore uses `eta`'s own parser (`Eta#parse`) for tokenization, so
+flying-mail therefore uses `eta`'s own parser (`Eta#parse`) for tokenization, so
 the syntax, delimiters and whitespace-control behavior are genuinely Eta's, and
 evaluates the resulting AST with its own interpreter over a deliberately small
 expression grammar:

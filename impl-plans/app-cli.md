@@ -10,7 +10,7 @@
 ## Design Document Reference
 
 ### Summary
-`apps/cli`: the `mailcal` command-line tool. Argument parsing, config
+`apps/cli`: the `flying-mail` command-line tool. Argument parsing, config
 resolution, a GraphQL client, the subcommands from `command.md`, and
 `client serve` -- a static file server for the built web client that proxies
 API traffic to a remote deployment.

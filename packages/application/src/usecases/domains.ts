@@ -1,17 +1,18 @@
-import { Capability } from "@mailcal/domain/entities/api-key";
+import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   createMailDomain,
   DomainStatus,
   type MailDomain,
   setMailDomainStatus,
   verifyMailDomain,
-} from "@mailcal/domain/entities/mail-domain";
-import { createDomainName } from "@mailcal/domain/value-objects/domain-name";
+} from "@flying-mail/domain/entities/mail-domain";
+import { createDomainName } from "@flying-mail/domain/value-objects/domain-name";
 import {
   createDomainId,
   type DomainId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
+import type { MxRecord } from "../ports/dns-resolver";
 import {
   ConflictError,
   NotFoundError,
@@ -27,12 +28,55 @@ import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
 /** Bytes of randomness in the DNS ownership token. */
 const VERIFICATION_TOKEN_BYTES = 24;
 
+export enum InboundMxStatus {
+  Ready = "READY",
+  NotCloudflare = "NOT_CLOUDFLARE",
+  None = "NONE",
+  Unknown = "UNKNOWN",
+}
+
 export interface DnsRecord {
   readonly type: "TXT" | "MX" | "CNAME";
   readonly name: string;
   readonly value: string;
   readonly priority: number | null;
   readonly purpose: string;
+}
+
+/** Classifies authoritative MX results against the configured provider suffix. */
+export function classifyInboundMx(
+  records: readonly MxRecord[],
+  suffix: string,
+):
+  | InboundMxStatus.Ready
+  | InboundMxStatus.NotCloudflare
+  | InboundMxStatus.None {
+  if (records.length === 0) return InboundMxStatus.None;
+  const normalizedSuffix = suffix.toLowerCase().replace(/\.$/, "");
+  return records.some(({ exchange }) => {
+    const normalizedExchange = exchange.toLowerCase().replace(/\.$/, "");
+    return (
+      normalizedExchange === normalizedSuffix ||
+      normalizedExchange.endsWith(`.${normalizedSuffix}`)
+    );
+  })
+    ? InboundMxStatus.Ready
+    : InboundMxStatus.NotCloudflare;
+}
+
+/** Best-effort MX status used by the settings view. */
+export function createInboundMxStatusUseCase(
+  deps: AppDependencies,
+): (domain: MailDomain) => Promise<InboundMxStatus> {
+  return async (domain) => {
+    const suffix = deps.instanceConfig.inboundMxSuffix;
+    if (suffix === null) return InboundMxStatus.Unknown;
+    try {
+      return classifyInboundMx(await deps.dns.lookupMx(domain.name), suffix);
+    } catch {
+      return InboundMxStatus.Unknown;
+    }
+  };
 }
 
 function toHex(bytes: Uint8Array): string {
@@ -155,14 +199,7 @@ export function createCreateDomainUseCase(
     });
 }
 
-/** Records the operator's assertion that the DNS records are published.
- *
- * There is deliberately no DNS lookup here: the Workers runtime has no
- * resolver, and adding an outbound HTTP DNS-over-HTTPS call would make
- * domain setup depend on a third party being reachable. Verification is
- * therefore an explicit, audited operator action -- and the ingest path
- * still refuses mail for a domain whose MX records do not actually point
- * here, because that mail simply never arrives. */
+/** Checks ownership and inbound routing before activating a domain. */
 export function createVerifyDomainUseCase(
   deps: AppDependencies,
 ): (viewer: Viewer, id: DomainId) => Promise<MailDomain> {
@@ -177,11 +214,9 @@ export function createVerifyDomainUseCase(
         return domain;
       }
 
-      // Ownership is proven by the TXT record and nothing less: a verify
-      // that rubber-stamps would let anyone claim a domain they cannot
-      // touch. MX correctness is deliberately not checked here -- mail
-      // for a domain with wrong MX simply never arrives, while a wrong
-      // ownership claim is a security problem.
+      // TXT proves ownership. MX is an independent activation gate because
+      // inbound mail cannot reach this deployment when another provider is
+      // still authoritative for the domain.
       const recordName = `_mailcal.${domain.name}`;
       const expected = `mailcal-verification=${domain.verificationToken}`;
       let values: readonly string[];
@@ -197,6 +232,31 @@ export function createVerifyDomainUseCase(
           `TXT record ${recordName} with value "${expected}" was not found. ` +
             "Add it at your DNS provider and retry once it has propagated",
         );
+      }
+
+      const mxSuffix = deps.instanceConfig.inboundMxSuffix;
+      if (mxSuffix !== null) {
+        let mxRecords: readonly MxRecord[];
+        try {
+          mxRecords = await deps.dns.lookupMx(domain.name);
+        } catch {
+          throw new ServiceUnavailableError(
+            "MX lookup failed; try again shortly",
+          );
+        }
+        const mxStatus = classifyInboundMx(mxRecords, mxSuffix);
+        if (mxStatus !== InboundMxStatus.Ready) {
+          const normalizedSuffix = mxSuffix.toLowerCase().replace(/\.$/, "");
+          const currentMx = mxRecords
+            .map(({ exchange }) => exchange)
+            .join(", ");
+          throw new ConflictError(
+            `MX records for ${domain.name} do not point to Cloudflare Email Routing ` +
+              `(*.${normalizedSuffix}); enable Email Routing for the zone ` +
+              `(mise run mail-routing-enable ${domain.name}) and retry. ` +
+              `Current MX: ${currentMx.length > 0 ? currentMx : "none"}`,
+          );
+        }
       }
 
       const verified = verifyMailDomain(domain, deps.clock.now().toISOString());

@@ -1,9 +1,9 @@
-import type { AddressBook } from "@mailcal/domain/entities/address-book";
-import type { AddressPattern } from "@mailcal/domain/value-objects/address-pattern";
+import type { AddressBook } from "@flying-mail/domain/entities/address-book";
+import type { AddressPattern } from "@flying-mail/domain/value-objects/address-pattern";
 import type {
   AddressBookId,
   MailAddressId,
-} from "@mailcal/domain/value-objects/ids";
+} from "@flying-mail/domain/value-objects/ids";
 import type { MailPermissionFilter } from "../policies/authorization";
 
 /** Everything a listing query can be narrowed by, mirroring

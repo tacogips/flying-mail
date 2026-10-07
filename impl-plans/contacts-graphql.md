@@ -26,7 +26,7 @@ wiring. The concrete adapter construction in
 lives in the application plan
 and the *concrete* wiring lives in the graphql/wiring plan.
 **Excluded**: web UI (`contacts-web.md`). No new hono routes; no CardDAV
-server endpoints -- mailcal remains a CardDAV client exposed only through
+server endpoints -- flying-mail remains a CardDAV client exposed only through
 `/graphql`.
 
 ---

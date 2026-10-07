@@ -1,6 +1,6 @@
-import type { ContactRepository } from "@mailcal/application/ports/contact-repository";
-import type { SqlDatabase } from "@mailcal/application/ports/sql-database";
-import type { Contact } from "@mailcal/domain/entities/contact";
+import type { ContactRepository } from "@flying-mail/application/ports/contact-repository";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
+import type { Contact } from "@flying-mail/domain/entities/contact";
 import { buildContactListQuery } from "./contact-queries";
 import {
   type ContactEmailRow,

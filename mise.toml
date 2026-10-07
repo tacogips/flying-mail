@@ -65,7 +65,7 @@ description = "Run the local API server"
 run = "bun run --cwd apps/api start"
 
 [tasks.client-serve]
-description = "Serve the browser mail client via the mailcal CLI"
+description = "Serve the browser mail client via the flying-mail CLI"
 run = "bun run --cwd apps/cli start -- client serve"
 
 [tasks.cf-dev]
@@ -142,12 +142,12 @@ fi
 
 # --- Cloudflare mail plumbing -------------------------------------------
 #
-# Everything mailcal needs on the Cloudflare side, so setting up a new
+# Everything flying-mail needs on the Cloudflare side, so setting up a new
 # sending domain never means clicking through the dashboard. All of it runs
 # through `wrangler email`, which uses the same OAuth session as `deploy`
 # (`mise exec -- wrangler login` if you have none).
 #
-# Two independent Cloudflare products are involved, and mailcal cares about
+# Two independent Cloudflare products are involved, and flying-mail cares about
 # them for different reasons:
 #
 #   Email Routing  -- receiving, and the `send_email` Worker binding. Free,
@@ -158,7 +158,7 @@ fi
 #   Email Sending  -- outbound to *any* recipient, no per-recipient
 #                     registration. Workers Paid. This is what a real mail
 #                     server wants; set MAILCAL_EMAIL_SENDING_ACCOUNT_ID and
-#                     MAILCAL_EMAIL_SENDING_TOKEN and mailcal prefers it.
+#                     MAILCAL_EMAIL_SENDING_TOKEN and flying-mail prefers it.
 #
 # `mail-status` first, then `mail-setup-receiving` or `mail-setup-sending`.
 
@@ -205,7 +205,7 @@ description = "List destination addresses and whether each is verified"
 run = 'wrangler email routing addresses list'
 
 [tasks.mail-sending-enable]
-description = "Enable Email Sending for a domain, so mailcal can mail arbitrary recipients (Workers Paid)"
+description = "Enable Email Sending for a domain, so flying-mail can mail arbitrary recipients (Workers Paid)"
 usage = 'arg "<domain>"'
 run = '''
 wrangler email sending enable "$usage_domain"
