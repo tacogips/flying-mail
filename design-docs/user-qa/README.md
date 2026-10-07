@@ -17,6 +17,7 @@ Store questions, pending decisions, and items awaiting user approval.
 
 - [qa-example.md](./qa-example.md) - Example: Database Selection (template example)
 - [pending-example.md](./pending-example.md) - Example: CLI Output Format (template example)
+- [pending-auth-hardening.md](./pending-auth-hardening.md) - Bootstrap key storage (default: 0600 file under .private/), fail-fast on half configuration, rate-limit numbers and fail-open, preview_urls=false (all defaults applied; awaiting confirmation)
 - [pending-webmail-completion.md](./pending-webmail-completion.md) - Multi-recipient storage default (D8, applied; awaiting user confirmation), live binding checks (answered), compose Reply-To (default: hidden)
 
 ## Adding New Items

@@ -43,9 +43,25 @@ not_found_handling = "single-page-application"
 # are therefore declared in `apps/web/public/_headers`, which vite copies
 # into the bundle.
 
+# Only the custom domain serves the Worker, so zone-level DDoS/WAF
+# protection always applies. workers.dev and per-version preview URLs are off
+# because either one would bypass it. See design-security-model.md section 7.
+workers_dev = false
+preview_urls = false
+routes = [{ pattern = "mail.tacoserve.online", custom_domain = true }]
+
+[[ratelimits]]
+name = "AUTH_RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+
 [vars]
-FLYING_MAIL_PUBLIC_ORIGIN = "https://mailcal-api.<account>.workers.dev"
+FLYING_MAIL_PUBLIC_ORIGIN = "https://mail.tacoserve.online"
 # FLYING_MAIL_MAIL_FROM = "postmaster@example.com"
+FLYING_MAIL_TURNSTILE_SITE_KEY = ""   # public site key; fill before putting the secret
+# FLYING_MAIL_INVITE_TTL_SECONDS = "604800"
+# Secrets (wrangler secret put, never here):
+#   FLYING_MAIL_BOOTSTRAP_TOKEN, FLYING_MAIL_TURNSTILE_SECRET_KEY
 ```
 
 ## Environment variables
@@ -54,7 +70,15 @@ FLYING_MAIL_PUBLIC_ORIGIN = "https://mailcal-api.<account>.workers.dev"
 |----------|----------|---------|---------|
 | `FLYING_MAIL_PUBLIC_ORIGIN` | for login + file links | - | Absolute origin used to build login and file-link URLs. Must match the deployed hostname, or links point at the wrong host. Unset disables passwordless login rather than generating broken links; set-but-invalid fails deployment fast. |
 | `FLYING_MAIL_MAIL_FROM` | for login mail | - | Verified sender used for system mail (login links). |
-| `FLYING_MAIL_SIGNUP` | no | `closed` | `open` allows self-service signup. Defaults closed because this is a mail server. |
+| `FLYING_MAIL_INVITE_TTL_SECONDS` | no | `604800` | Lifetime of an invitation link. An integer in `[86400, 2592000]`; any other value falls back to the default. |
+| `FLYING_MAIL_BOOTSTRAP_TOKEN` | **secret**, for bootstrap | - | Enables `bootstrapAdmin`. Unset means bootstrap is disabled (`SERVICE_UNAVAILABLE`). It must be at least 32 characters, otherwise the build fails fast. Delete it after bootstrap. |
+| `FLYING_MAIL_TURNSTILE_SECRET_KEY` | **secret**, optional | - | Enables Turnstile on `requestEmailAuth`. It requires `FLYING_MAIL_TURNSTILE_SITE_KEY` and `FLYING_MAIL_PUBLIC_ORIGIN`, otherwise the build fails fast. |
+| `FLYING_MAIL_TURNSTILE_SITE_KEY` | with the secret | - | Public site key, exposed through `publicConfig` only while the secret is set. |
+| `AUTH_RATE_LIMITER` | binding | - | Workers Rate Limiting binding for the auth mutations. When it is absent, rate limiting is disabled in the Worker. The Bun server always uses an in-memory limiter. |
+
+There is no self-signup setting. `FLYING_MAIL_SIGNUP` was removed on
+2026-10-07, and users exist only through `bootstrapAdmin` (once) or an
+admin's `createUser` invitation. See `design-security-model.md`.
 | `FLYING_MAIL_SPAM_THRESHOLD` | no | `0.6` | Score at or above which the `SPAM` tag is applied. |
 | `FLYING_MAIL_FILE_LINK_MAX_TTL` | no | `604800` | Cap, in seconds, on `ttlSeconds` for file links. |
 | `FLYING_MAIL_BLOB_BACKEND` | no | `r2` | `r2` \| `s3` \| `memory`. |
@@ -66,34 +90,35 @@ secret-dependent commands run under `kinko exec`.
 
 ## Bring-up order
 
+The normative procedure is `design-security-model.md` section 8. In short:
+
 1. `mise install && bun install`
 2. `wrangler d1 create mailcal-db` and `wrangler r2 bucket create mailcal-mail`;
    paste the database id into `wrangler.toml`.
-3. `mise run build-web` then `mise run cf-deploy` (applies remote migrations,
-   then deploys).
-4. Add the mail domain to Cloudflare and enable **Email Routing** on it.
-5. Create a catch-all Email Routing rule that delivers to the `mailcal-api`
-   Worker.
-6. Verify the domain for **sending** under Email Service, then set
-   `FLYING_MAIL_MAIL_FROM`.
-7. Bootstrap the instance. A deployed Worker has no shell, and passwordless
-   login needs a verified sending domain that only an authenticated admin
-   can add -- so `bootstrapAdmin` returns a full-capability API key along
-   with the user. It succeeds only while the instance has no users at all,
-   and is permanently closed afterwards. **Store the secret; it is shown
-   once.**
-
-   ```bash
-   curl -sX POST https://<worker-host>/graphql \
-     -H 'content-type: application/json' \
-     -d '{"query":"mutation { bootstrapAdmin(email: \"you@example.com\", name: \"You\") { secret apiKey { keyPrefix } user { email } } }"}'
-   ```
-
-8. Using that key, `createDomain` + `verifyDomain` through GraphQL, the CLI,
-   or the settings UI, so flying-mail itself will accept mail for the domain.
-9. Issue narrowly scoped API keys for agents, and revoke the bootstrap key
-   once they exist -- it is unrestricted by design and is only needed for
-   the setup above.
+3. Create a Turnstile widget for `mail.tacoserve.online` and put its site
+   key into `FLYING_MAIL_TURNSTILE_SITE_KEY` in `wrangler.toml`.
+4. `mise run cf-deploy`. It builds the web client, applies remote
+   migrations, deploys, and attaches the custom domain.
+5. Put the secrets with `kinko exec -- bunx wrangler secret put`:
+   `FLYING_MAIL_BOOTSTRAP_TOKEN` (generated with `openssl rand -base64 48`)
+   and `FLYING_MAIL_TURNSTILE_SECRET_KEY`.
+6. Add the mail domain to Cloudflare, enable **Email Routing**, create the
+   catch-all rule to the `mailcal-api` Worker, and verify the domain for
+   **sending**, so that `FLYING_MAIL_MAIL_FROM` is a verified sender.
+7. Bootstrap the first admin:
+   `kinko exec -- env FLYING_MAIL_ENDPOINT=https://mail.tacoserve.online mise run bootstrap-admin you@example.com "You"`.
+   It prints the admin and the API key prefix only. The full-capability key
+   is written to `.private/bootstrap-admin-api-key` (mode 0600, gitignored).
+   Bootstrap succeeds once, only on an empty instance, and only with the
+   token.
+8. Delete the bootstrap secret:
+   `kinko exec -- bunx wrangler secret delete FLYING_MAIL_BOOTSTRAP_TOKEN`.
+9. Sign in at `/login`. Add domains and mailboxes, and invite users from
+   Settings > Users. Each invitee receives a single-use link that lasts 7
+   days.
+10. Issue narrowly scoped API keys for agents, and revoke the bootstrap key
+    once they exist. It is unrestricted by design and is only needed for
+    the setup above.
 
 ## Local development
 
@@ -108,3 +133,7 @@ clean checkout is usable immediately. Inbound mail cannot be exercised against
 a local SMTP path; `apps/api` exposes a dev-only `POST /dev/inbound` route
 (registered only when `graphiql` is enabled) that feeds a raw `.eml` fixture
 through the identical ingest use case.
+
+Locally, the auth mutations are rate limited by an in-memory limiter keyed
+on the socket peer address. Forwarding headers are never trusted there.
+Turnstile and bootstrap stay disabled unless their secrets are exported.

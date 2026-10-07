@@ -84,6 +84,14 @@ Two credential kinds resolve to the same `Viewer` abstraction:
 
 See `design-api-keys-and-permissions.md`.
 
+Onboarding is invite-only. The first admin is created once, by
+`bootstrapAdmin` gated on the deploy-time secret
+`FLYING_MAIL_BOOTSTRAP_TOKEN`. Every later user is created by an admin and
+receives a single-use invitation link. The login-link request is protected
+by Cloudflare Turnstile. The unauthenticated auth mutations are rate limited
+per client IP. The Worker is reachable only through the
+`mail.tacoserve.online` custom domain. See `design-security-model.md`.
+
 ## GraphQL API
 
 A single `POST /graphql` endpoint (graphql-yoga on hono) exposes queries for
@@ -162,6 +170,7 @@ See `design-deployment.md`.
 |----------|----------|
 | `design-domain-model.md` | Entities, value objects, invariants |
 | `design-api-keys-and-permissions.md` | Key format, scopes, matching rules |
+| `design-security-model.md` | Threat model, bootstrap token, invitations, Turnstile, rate limiting, custom-domain exposure |
 | `design-mail-pipeline.md` | Inbound `email()` ingest, outbound send |
 | `design-graphql-api.md` | Schema, errors, fetch state, pagination |
 | `design-storage-and-file-links.md` | D1 schema, R2 layout, temp file links |

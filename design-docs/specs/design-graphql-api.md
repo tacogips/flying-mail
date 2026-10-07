@@ -27,7 +27,8 @@ Every error carries `extensions.code`:
 | `NOT_FOUND` | No such entity, or it is outside the viewer's scope |
 | `BAD_USER_INPUT` | Field-level validation failure; carries `field` |
 | `CONFLICT` | Conflicts with current state (duplicate, bad transition) |
-| `SERVICE_UNAVAILABLE` | Outbound mail is not configured on this instance |
+| `SERVICE_UNAVAILABLE` | A capability is not configured on this instance: outbound mail, passwordless login, or bootstrap (`FLYING_MAIL_BOOTSTRAP_TOKEN` unset) |
+| `RATE_LIMITED` | Per-IP limit on `requestEmailAuth`, `verifyEmailAuthToken` or `bootstrapAdmin`, or the per-user invitation resend limit. Returned as a GraphQL error at HTTP 200, never as a 429. See `design-security-model.md` section 2.2 |
 | `INTERNAL_SERVER_ERROR` | Masked; the original message never reaches clients |
 
 Depth and selection-count limit plugins reject pathological documents before
@@ -541,7 +542,8 @@ deleteMailAddress(id: ID!): Boolean!
 ```graphql
 users: [User!]!
 user(id: ID!): User
-createUser(input: CreateUserInput!): User!
+createUser(input: CreateUserInput!): User!          # sends an invitation (2026-10-07)
+resendInvitation(userId: ID!): User!                 # admin user; PENDING only; 3 per 24h
 setUserRole(id: ID!, role: UserRole!): User!
 setUserActive(id: ID!, active: Boolean!): User!
 addUserMailPermission(userId: ID!, input: UserMailPermissionInput!): UserMailPermission!
@@ -564,11 +566,21 @@ removeApiKeyScope(scopeId: ID!): Boolean!
 
 ```graphql
 viewer: Viewer
-bootstrapAdmin(email: String!, name: String!): BootstrapPayload!
-requestEmailAuth(email: String!): Boolean!
+publicConfig: PublicConfig!                          # unauthenticated
+bootstrapAdmin(email: String!, name: String!, token: String!): BootstrapPayload!
+requestEmailAuth(email: String!, turnstileToken: String): Boolean!
 verifyEmailAuthToken(token: String!): AuthPayload!
 logout: Boolean!
+
+type PublicConfig { turnstileSiteKey: String }       # null while Turnstile is disabled
+enum InvitationStatus { PENDING ACCEPTED }
+# User gains: invitationStatus: InvitationStatus!
 ```
+
+These signatures changed on 2026-10-07 for authentication hardening.
+`design-security-model.md` covers the bootstrap token, the invitation
+lifecycle, Turnstile verification (a failed check returns `FORBIDDEN`
+"Verification failed. Please retry.") and per-IP `RATE_LIMITED`.
 
 ### Contacts
 

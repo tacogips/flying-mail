@@ -8,6 +8,8 @@ GraphQL call, apart from `client serve`, which serves the browser mail client.
 
 ```
 flying-mail
+├── admin
+│   └── bootstrap        Create the first admin on an empty deployment (token-gated)
 ├── client
 │   └── serve            Serve the browser mail client locally
 ├── domain
@@ -68,6 +70,25 @@ that key.
 | `--allow-remote` | boolean | `false` | Permit a non-loopback `--host`; disables API key injection |
 | `--dist <dir>` | string | bundled `apps/web/dist` | Serve an alternate build |
 
+### `admin bootstrap`
+
+Calls `bootstrapAdmin` without an API key. The token is read **only** from
+`FLYING_MAIL_BOOTSTRAP_TOKEN`, never from a flag, so it stays out of argv
+and shell history. If the token is missing, the command exits 2 before any
+network call. It also refuses to run when `--secret-file` already exists,
+because a bootstrap cannot be repeated. On success it writes the API key
+secret to `--secret-file` (exclusive create, mode 0600) and prints the user
+id, email, name, role, key prefix and file path. It never prints the
+secret. The `mise run bootstrap-admin <email> <name>` task wraps this
+command with `--secret-file <repo>/.private/bootstrap-admin-api-key`. See
+`design-security-model.md` section 3.5.
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--email <addr>` | string | required | Admin email |
+| `--name <name>` | string | required | Admin display name |
+| `--secret-file <path>` | string | `.private/bootstrap-admin-api-key` | Where the full API key is written |
+
 ### `mail list`
 
 | Flag | Type | Default | Description |
@@ -118,6 +139,7 @@ that key.
 | `FLYING_MAIL_ENDPOINT` | no | config file value | Deployment base URL |
 | `FLYING_MAIL_API_KEY` | no | config file value | API key |
 | `FLYING_MAIL_CONFIG` | no | `~/.config/mailcal/config.json` | Config file path |
+| `FLYING_MAIL_BOOTSTRAP_TOKEN` | `admin bootstrap` only | - | Bootstrap token; supply via `kinko exec` |
 | `NO_COLOR` | no | - | Disables ANSI color when set |
 
 The API key is read from the environment or the config file and is never

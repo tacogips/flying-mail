@@ -29,8 +29,8 @@ keep each under the 1000-line limit.
 
 | Path | Guard | View |
 |------|-------|------|
-| `/login` | public | Passwordless email request |
-| `/auth/verify` | public | Consumes the emailed token, establishes the session |
+| `/login` | public | Passwordless email request; renders the Turnstile widget when `publicConfig.turnstileSiteKey` is non-null (design-security-model.md section 5.4) |
+| `/auth/verify` | public | Consumes the emailed token (login or invitation), establishes the session |
 | `/` | auth | Mailbox: message list for the selected domain/address |
 | `/threads/:id` | auth | Thread view with per-message expansion |
 | `/messages/:id` | auth | Single message detail |
@@ -38,7 +38,7 @@ keep each under the 1000-line limit.
 | `/search` | auth | Filter-driven search results |
 | `/settings/domains` | admin | Domain list, add, DNS records, verify |
 | `/settings/api-keys` | admin | Key list, issue with a scope builder, revoke |
-| `/settings/users` | admin | User list, roles, activation, address/domain permissions |
+| `/settings/users` | admin | "Invite user", invitation status (pending/active), resend invitation, roles, activation, address/domain permissions |
 | `/settings/tags` | auth | User tag management |
 
 ## Key components

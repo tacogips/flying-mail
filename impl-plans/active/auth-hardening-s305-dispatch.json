@@ -1,0 +1,609 @@
+{
+  "taskId": "auth-hardening-s305",
+  "workflowMode": "issue-resolution",
+  "implementationBranch": "main",
+  "baseBranch": "main",
+  "remote": "origin",
+  "originalHead": "5e803a2f628e30bf5268c5109a2c97ee621a157c",
+  "designDocPaths": [
+    "design-docs/specs/design-security-model.md",
+    "design-docs/user-qa/pending-auth-hardening.md",
+    "design-docs/user-qa/README.md",
+    "design-docs/specs/architecture.md",
+    "design-docs/specs/command.md",
+    "design-docs/specs/design-deployment.md",
+    "design-docs/specs/design-graphql-api.md",
+    "design-docs/specs/design-web-client.md"
+  ],
+  "evidenceRoot": "tmp/auth-hardening-s305",
+  "reviewContext": {
+    "issueReference": "none (no GitHub issue or PR supplied); workflowExecutionId opus-luna-design-and-implement-review-loop-session-305, intake workflowInput; plan review step5-impl-plan-review comm-004951 (accepted; IPR-M1 and IPR-M2 resolved; IPR-L1 low residual)",
+    "userProblem": "flying-mail (Cloudflare Worker mailcal-api with D1 mailcal-db) has an unauthenticated first-caller-wins bootstrapAdmin, an optional open self-signup mode, no bot protection on the passwordless login-link request, no per-IP rate limiting of the unauthenticated auth mutations, and is reachable on workers.dev where zone-level DDoS/WAF protections do not apply.",
+    "requiredOutcomes": [
+      "bootstrapAdmin requires the one-time token from Worker secret FLYING_MAIL_BOOTSTRAP_TOKEN (hash plus constant-time compare), is disabled with SERVICE_UNAVAILABLE when the secret is unset, works only on an empty instance, cannot succeed again; mise task bootstrap-admin and CLI admin bootstrap exist and are documented.",
+      "FLYING_MAIL_SIGNUP and SignupMode are removed; createUser (admin only) sends an invitation email with a single-use sign-in link (default TTL 7 days, FLYING_MAIL_INVITE_TTL_SECONDS bounded 86400-2592000); resendInvitation is admin-only and throttled; Settings > Users shows Invite user, invitation status and resend.",
+      "requestEmailAuth requires a Turnstile token when FLYING_MAIL_TURNSTILE_SECRET_KEY is set, verified server-side via siteverify with remoteip from CF-Connecting-IP, hostname and action 'login' checks; publicConfig { turnstileSiteKey } is public; the login page renders the widget explicitly and resets after each attempt; CSP adds only https://challenges.cloudflare.com to script-src and frame-src.",
+      "requestEmailAuth, verifyEmailAuthToken and bootstrapAdmin are rate limited per IP and operation through a RateLimiter port (Workers binding, in-memory and fake adapters); exceeding returns GraphQL error RATE_LIMITED at HTTP 200 without user enumeration; the per-email LOGIN throttle is kept.",
+      "wrangler.toml declares AUTH_RATE_LIMITER, routes = [{ pattern = \"mail.tacoserve.online\", custom_domain = true }], workers_dev = false, preview_urls = false, FLYING_MAIL_PUBLIC_ORIGIN = \"https://mail.tacoserve.online\", an empty FLYING_MAIL_TURNSTILE_SITE_KEY placeholder and secret comments.",
+      "Design doc and README describe the security model and the first-deploy procedure.",
+      "mise run lint, bun run test (all workspaces including apps/web) and mise run build-web pass with at least 1720 package and 264 web tests plus new tests; the Worker dry-run bundle succeeds."
+    ],
+    "nonGoals": [
+      "No deploy, no remote wrangler, no Turnstile widget, DNS, custom domain or secret creation (orchestrator owns all live Cloudflare operations).",
+      "No git commit, push, stash, reset or checkout by workers.",
+      "No Turnstile on verifyEmailAuthToken, bootstrapAdmin, the /auth/verify page or authenticated operations.",
+      "No revocation of earlier invitation links on resend.",
+      "No single D1 batch for bootstrap user, key and scope writes.",
+      "No HTTP 429 path; no WAF or zone rules.",
+      "No passwords; no new heavy dependencies; no Turnstile wrapper package."
+    ],
+    "constraints": [
+      "AGENTS.md/CLAUDE.md: English only, no emojis, maximum TypeScript strictness, Biome clean, ts-coding-standards, no touched file at 1000+ lines.",
+      "Never edit or squash migrations 0001-0014; only apps/api/migrations/0015_auth_hardening.sql is added and must apply on top of the existing history.",
+      "Never commit secret values; secrets via kinko exec and wrangler secret put.",
+      "Turnstile and rate limiting are null (disabled) at the port level when unconfigured so local Bun development and tests run without Cloudflare; the Worker config enables both.",
+      "Uniform responses: checks before user lookup (rate limit, Turnstile, configuration) never depend on the email.",
+      "Invitation and login emails contain a plain extractable https sign-in URL alone on its own line in the text part and as an href in the HTML part.",
+      "Workers edit only their plan writePaths and their own plan Progress Log; impl-plans/PROGRESS.json and impl-plans/README.md are edited only by auth-hardening-09; no worker edits this dispatch manifest.",
+      "Record sha256 before and after each edit; on drift re-read and reapply only the plan's intent; never revert others' edits; no repository-wide formatters.",
+      "Evidence for each plan and attempt goes under tmp/auth-hardening-s305/<planId>/<attempt>/ (gitignored); plan 09 gate logs go to /tmp/flying-mail-auth-hardening/."
+    ],
+    "designDecisionsAndRationale": [
+      "Bootstrap token is a GraphQL mutation argument passed as a variable (schema-validated, no auth-middleware change); compare constantTimeEqual(hash(token), hash(secret)) before createFirstUser so a tokenless caller cannot learn whether the instance is bootstrapped (design 3.2-3.3).",
+      "One-time guarantee rests on the atomic insert-if-empty createFirstUser and the users-never-deleted invariant; no separate consumed marker because a D1 wipe is the intended re-provisioning path (design 3.4).",
+      "Invitations reuse email-auth challenges with a required purpose column (LOGIN | INVITATION) so the LOGIN 3-per-15-minutes throttle and TTL stay intact; users gain invitation_accepted_at (migration 0015, design 4.2).",
+      "Single-use links use an atomic conditional consume UPDATE instead of find-then-save (design 4.5).",
+      "RATE_LIMITED is a GraphQL error at HTTP 200 because all /graphql failures route on extensions.code and a multi-field document has no single status (design 2.2).",
+      "Client IP: Worker trusts only CF-Connecting-IP; Bun/Node server uses only the socket peer address; null maps to the key segment 'unknown' (design 2.1).",
+      "One AUTH_RATE_LIMITER binding, simple = { limit = 10, period = 60 }, key auth:<operation>:<ip>; Workers adapter fails open, siteverify adapter fails closed (design 6.1-6.2, 5.2).",
+      "Fail-fast config: secret without site key, secret without public origin, or a bootstrap token under 32 characters throws during composition; a site key without secret is silently disabled (design 3.1, 5.1).",
+      "workers_dev = false plus preview_urls = false and a custom domain route so zone protections cannot be bypassed via workers.dev (design 7.1).",
+      "Plan DAG: wave 1 (01, 02, 03, 04) -> wave 2 (05, 06) -> wave 3 (07) -> wave 4 (08) -> wave 5 (09 serial reconciliation); 07 depends on 02 for the _headers CSP equality test; 08 depends on 07 for the end-to-end CF-Connecting-IP test and on 02 for the dry-run assets."
+    ],
+    "intentionalTradeoffs": [
+      "P1 (pending user confirmation, default applied): the bootstrap API key secret is written to .private/bootstrap-admin-api-key (exclusive create, 0600) and only the prefix is printed.",
+      "P2 (pending, default applied): half-configured Turnstile or a short bootstrap token fails fast and takes the Worker down with a masked 500 until fixed.",
+      "P3 (pending, default applied): Workers rate limiting is per-location, approximate and fails open on binding errors.",
+      "P4 (pending, default applied): preview_urls = false.",
+      "Serialising 07 and 08 lengthens the critical path to five waves.",
+      "IPR-L1: both test fakes live in packages/application/src/test-support/auth-hardening-fakes.ts (re-exported from fakes.ts) instead of design 5.2's fake-turnstile-verifier.ts name.",
+      "Typecheck noise inside waves 1 and 2 is possible (plans 01-06 run scoped typechecks); plan 09's full gate is authoritative."
+    ],
+    "supportedEdgeCases": [
+      "Wrong token on a non-empty instance returns FORBIDDEN, not CONFLICT; second bootstrap with the correct token returns CONFLICT.",
+      "Rate-limited calls return RATE_LIMITED before the token check, Turnstile verification or any user lookup, identically for known and unknown emails.",
+      "Missing or invalid Turnstile token returns FORBIDDEN 'Verification failed. Please retry.' identically for known and unknown emails; with Turnstile disabled the token is ignored.",
+      "Concurrent double verification of one token yields exactly one session.",
+      "An invitation link after acceptance is invalid; a LOGIN link for a pending user accepts the invitation.",
+      "INVITATION challenges do not count toward the LOGIN throttle and vice versa; the 4th invitation within 24 hours is RATE_LIMITED.",
+      "Mail unconfigured on createUser returns SERVICE_UNAVAILABLE before any write; a send failure after save leaves the user PENDING and resendable.",
+      "Worker ignores X-Forwarded-For; local server ignores CF-Connecting-IP and X-Forwarded-For.",
+      "CLI refuses to run without FLYING_MAIL_BOOTSTRAP_TOKEN or when the secret file exists, before any network call; the secret never reaches stdout or stderr."
+    ],
+    "outOfScopeEdgeCases": [
+      "Partial bootstrap failure leaving an admin without an API key (admin can still sign in by email; residual risk).",
+      "Exact global rate-limit quotas across Cloudflare locations.",
+      "Future user deletion features (must add a persisted bootstrap marker in the same change).",
+      "namespace_id collisions on the Cloudflare account (orchestrator adjusts at deploy time)."
+    ],
+    "residualRisks": [
+      "IPR-L1 fake file name divergence (accepted).",
+      "Five-wave critical path.",
+      "Typecheck noise in waves 1 and 2; plan 09 gate authoritative.",
+      "User confirmations P1-P4 pending with defaults implemented.",
+      "auth-hardening-09 owns the impl-plans/active directory for moving plan files to completed/; it must not edit, move or delete this dispatch manifest."
+    ],
+    "sourcePaths": [
+      "design-docs/specs/design-security-model.md",
+      "design-docs/user-qa/pending-auth-hardening.md",
+      "design-docs/user-qa/README.md",
+      "design-docs/specs/architecture.md",
+      "design-docs/specs/command.md",
+      "design-docs/specs/design-deployment.md",
+      "design-docs/specs/design-graphql-api.md",
+      "design-docs/specs/design-web-client.md",
+      "impl-plans/PROGRESS.json",
+      "impl-plans/README.md",
+      "impl-plans/active/auth-hardening-01-contracts-and-persistence.md",
+      "impl-plans/active/auth-hardening-02-web-client.md",
+      "impl-plans/active/auth-hardening-03-cli-bootstrap.md",
+      "impl-plans/active/auth-hardening-04-docs.md",
+      "impl-plans/active/auth-hardening-05-auth-usecases.md",
+      "impl-plans/active/auth-hardening-06-adapters.md",
+      "impl-plans/active/auth-hardening-07-graphql-http.md",
+      "impl-plans/active/auth-hardening-08-composition-and-worker.md",
+      "impl-plans/active/auth-hardening-09-final-verification.md"
+    ]
+  },
+  "plans": [
+    {
+      "planId": "auth-hardening-01-contracts-and-persistence",
+      "planPath": "impl-plans/active/auth-hardening-01-contracts-and-persistence.md",
+      "dependsOn": [],
+      "writePaths": [
+        "packages/domain/src/entities/email-auth-challenge.ts",
+        "packages/domain/src/entities/user.ts",
+        "packages/domain/src/entities/user.test.ts",
+        "packages/domain/src/entities/email-auth-challenge.test.ts",
+        "packages/application/src/errors.ts",
+        "packages/application/src/dependencies.ts",
+        "packages/application/src/ports/auth-repository.ts",
+        "packages/application/src/ports/rate-limiter.ts",
+        "packages/application/src/ports/turnstile-verifier.ts",
+        "packages/application/src/test-support/fakes.ts",
+        "packages/application/src/test-support/repository-fakes.ts",
+        "packages/application/src/test-support/auth-hardening-fakes.ts",
+        "packages/application/src/usecases/email-auth.ts",
+        "packages/adapter/src/repositories/auth-repository.ts",
+        "packages/adapter/src/repositories/auth-repository.test.ts",
+        "packages/adapter/src/repositories/repositories.test.ts",
+        "packages/adapter/src/migrations/runner.test.ts",
+        "apps/api/migrations/0015_auth_hardening.sql",
+        "packages/infrastructure/src/composition/config.ts",
+        "packages/infrastructure/src/composition/config.test.ts",
+        "packages/infrastructure/src/composition/build-dependencies.ts",
+        "packages/infrastructure/src/graphql/context.ts",
+        "packages/infrastructure/src/http/app.ts",
+        "apps/api/src/env.ts",
+        "apps/api/src/worker.ts",
+        "apps/api/src/worker.test.ts",
+        "impl-plans/active/auth-hardening-01-contracts-and-persistence.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/application/src/usecases/email-auth.ts",
+          "intendedEdit": "Mechanical edits only (LOGIN purpose, invitationAcceptedAt: now on bootstrap); auth-hardening-05 rewrites the behaviour in wave 2."
+        },
+        {
+          "path": "packages/adapter/src/repositories/repositories.test.ts",
+          "intendedEdit": "Call-site update only: createEmailAuthChallenge gains purpose Login and countRecentByEmail gains the purpose argument."
+        },
+        {
+          "path": "packages/infrastructure/src/composition/config.ts",
+          "intendedEdit": "Remove SignupMode and resolveSignupMode, add DEFAULT_INVITE_TTL_SECONDS only; auth-hardening-08 adds resolvers in wave 4. The same applies to config.test.ts, build-dependencies.ts, apps/api/src/env.ts, worker.ts and worker.test.ts (compile-clean placeholders only)."
+        },
+        {
+          "path": "impl-plans/active/auth-hardening-01-contracts-and-persistence.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "EmailAuthChallengePurpose, invitationAcceptedAt, markInvitationAccepted, invitationStatus, RateLimitedError, RateLimiter, TurnstileVerifier, consume, countRecentByEmail(purpose), InstanceConfig fields, AppDependencies rateLimiter/turnstileVerifier, fakes, GraphQLContext.clientIp and CreateAppOptions.resolveClientIp exist exactly as specified.",
+        "Migration 0015_auth_hardening.sql exists with the purpose column, invitation_accepted_at, backfill and index; the runner test lists it and it applies on top of 0001-0014.",
+        "SignupMode and resolveSignupMode are gone from all TypeScript; behaviour is otherwise unchanged.",
+        "auth-repository.test.ts covers purpose round-trip, purpose-scoped counting, atomic single consume (including concurrent) and invitationAcceptedAt persistence.",
+        "All verification commands pass with exit codes and logs recorded in the plan Progress Log."
+      ],
+      "verification": [
+        "bunx vitest run packages/domain packages/adapter/src/repositories/auth-repository.test.ts packages/adapter/src/migrations/runner.test.ts packages/application packages/infrastructure apps/api",
+        "bun run --cwd packages/domain typecheck",
+        "bun run --cwd packages/application typecheck",
+        "bun run --cwd packages/adapter typecheck",
+        "bun run --cwd packages/infrastructure typecheck",
+        "bun run --cwd apps/api typecheck",
+        "bunx biome check packages/domain packages/application packages/adapter/src/repositories packages/infrastructure/src apps/api/src --diagnostic-level=warn",
+        "! rg -n -i -l signup packages apps | rg -v -x apps/api/wrangler.toml",
+        "wc -l packages/domain/src/entities/email-auth-challenge.ts packages/domain/src/entities/user.ts packages/domain/src/entities/user.test.ts packages/application/src/dependencies.ts packages/application/src/test-support/fakes.ts packages/application/src/test-support/repository-fakes.ts packages/application/src/usecases/email-auth.ts packages/adapter/src/repositories/auth-repository.ts packages/adapter/src/repositories/repositories.test.ts packages/infrastructure/src/composition/config.ts packages/infrastructure/src/composition/config.test.ts packages/infrastructure/src/http/app.ts apps/api/src/worker.ts apps/api/src/worker.test.ts"
+      ]
+    },
+    {
+      "planId": "auth-hardening-02-web-client",
+      "planPath": "impl-plans/active/auth-hardening-02-web-client.md",
+      "dependsOn": [],
+      "writePaths": [
+        "apps/web/public/_headers",
+        "apps/web/src/lib/turnstile.ts",
+        "apps/web/src/lib/turnstile.test.ts",
+        "apps/web/src/pages/login-page.tsx",
+        "apps/web/src/pages/login-page.test.tsx",
+        "apps/web/src/pages/settings/users-page.tsx",
+        "apps/web/src/pages/settings/users-page.test.tsx",
+        "apps/web/src/api/documents.ts",
+        "apps/web/src/api/schema-types.ts",
+        "apps/web/src/api/graphql-client.ts",
+        "apps/web/src/api/graphql-client.test.ts",
+        "apps/web/src/lib/mutation-error.ts",
+        "impl-plans/active/auth-hardening-02-web-client.md",
+        "apps/web/dist"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "apps/web/dist",
+          "intendedEdit": "Build artifact root produced by mise run build-web; gitignored; never edited by hand."
+        },
+        {
+          "path": "impl-plans/active/auth-hardening-02-web-client.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [
+        "apps/web/dist"
+      ],
+      "acceptanceCriteria": [
+        "_headers CSP changes exactly script-src and frame-src to add https://challenges.cloudflare.com, matching the server HTML_CSP byte for byte.",
+        "Login page loads publicConfig, renders Turnstile (explicit, action login, theme auto) only when a site key exists, blocks submit until a token is held, sends turnstileToken, resets the widget after every attempt, and shows errors when config or script loading fails.",
+        "Settings > Users uses Invite user wording, shows Invitation pending / Active, offers Resend invitation for active pending users, surfaces RATE_LIMITED, and reloads the list after a createUser error.",
+        "RATE_LIMITED is a known GraphQL error code in the web client; no new npm dependency; no hard-coded site key.",
+        "All listed tests exist and pass; verification commands pass with evidence recorded."
+      ],
+      "verification": [
+        "bun run --cwd apps/web test",
+        "bun run --cwd apps/web typecheck",
+        "mise run build-web",
+        "bunx biome check apps/web --diagnostic-level=warn",
+        "! rg -o -N --no-filename 'https://[A-Za-z0-9.-]+' apps/web/src/lib/turnstile.ts apps/web/public/_headers | rg -v -x 'https://challenges.cloudflare.com'"
+      ]
+    },
+    {
+      "planId": "auth-hardening-03-cli-bootstrap",
+      "planPath": "impl-plans/active/auth-hardening-03-cli-bootstrap.md",
+      "dependsOn": [],
+      "writePaths": [
+        "apps/cli/src/commands/admin-bootstrap.ts",
+        "apps/cli/src/admin-bootstrap.test.ts",
+        "apps/cli/src/main.ts",
+        "mise.toml",
+        "impl-plans/active/auth-hardening-03-cli-bootstrap.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "mise.toml",
+          "intendedEdit": "Add only the [tasks.bootstrap-admin] block after cf-deploy; nothing else changes."
+        },
+        {
+          "path": "impl-plans/active/auth-hardening-03-cli-bootstrap.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "flying-mail admin bootstrap reads the token only from FLYING_MAIL_BOOTSTRAP_TOKEN (no --token flag), sends it as a GraphQL variable without any API key, writes the secret to --secret-file with mode 0600 and exclusive create, and prints only the admin and key prefix.",
+        "Missing token or email exits 2 and an existing secret file exits 1, both before any network call; FORBIDDEN exits 4 and CONFLICT exits 1 with no file written.",
+        "mise run bootstrap-admin <email> <name> wraps the CLI with an absolute .private/bootstrap-admin-api-key path.",
+        "All listed tests pass; verification commands pass with evidence recorded."
+      ],
+      "verification": [
+        "bunx vitest run apps/cli",
+        "bun run --cwd apps/cli typecheck",
+        "bunx biome check apps/cli/src --diagnostic-level=warn",
+        "mise tasks ls | rg -q bootstrap-admin",
+        "! env -u FLYING_MAIL_BOOTSTRAP_TOKEN mise run bootstrap-admin a@example.com A",
+        "env -u FLYING_MAIL_BOOTSTRAP_TOKEN mise run bootstrap-admin a@example.com A 2>&1 | rg -q 'FLYING_MAIL_BOOTSTRAP_TOKEN is not set'"
+      ]
+    },
+    {
+      "planId": "auth-hardening-04-docs",
+      "planPath": "impl-plans/active/auth-hardening-04-docs.md",
+      "dependsOn": [],
+      "writePaths": [
+        "README.md",
+        ".agents/skills/cloudflare-mail-setup/SKILL.md",
+        "design-docs/specs/design-deployment.md",
+        "design-docs/specs/design-security-model.md",
+        "impl-plans/active/auth-hardening-04-docs.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "design-docs/specs/design-security-model.md",
+          "intendedEdit": "DR-L2 only: one sentence before the section 7.1 toml block stating it lists only new or changed keys; nothing else in the design changes."
+        },
+        {
+          "path": "design-docs/specs/design-deployment.md",
+          "intendedEdit": "DR-L1 only: move the 'There is no self-signup setting' paragraph from inside the env table to directly below it; no row content changes."
+        },
+        {
+          "path": "impl-plans/active/auth-hardening-04-docs.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "README Deploying and Bootstrapping sections match design section 8 (site key before secret, custom domain mail.tacoserve.online, workers_dev and preview_urls disabled, mise run bootstrap-admin under kinko exec, delete the bootstrap secret afterwards) with a secrets/vars table and a Security model paragraph linking design-security-model.md.",
+        "No self-signup or FLYING_MAIL_SIGNUP mention remains in README or .agents; no token-less inline bootstrap curl example remains; no secret values or real site keys.",
+        "cloudflare-mail-setup skill gains the First deployment order subsection.",
+        "DR-L1 and DR-L2 are fixed; verification commands pass with evidence recorded."
+      ],
+      "verification": [
+        "! rg -n -i signup README.md .agents",
+        "sh -c 'for t in bootstrap-admin FLYING_MAIL_BOOTSTRAP_TOKEN FLYING_MAIL_TURNSTILE_SECRET_KEY FLYING_MAIL_TURNSTILE_SITE_KEY mail.tacoserve.online; do rg -q -F \"$t\" README.md || exit 1; done'",
+        "! rg -n -F 'name: \\\"You\\\") { secret' README.md",
+        "rg -n -A1 FLYING_MAIL_S3_ design-docs/specs/design-deployment.md",
+        "! rg -n '[\\x{1F300}-\\x{1FAFF}\\x{2600}-\\x{27BF}]' README.md .agents/skills/cloudflare-mail-setup/SKILL.md design-docs/specs/design-deployment.md design-docs/specs/design-security-model.md"
+      ]
+    },
+    {
+      "planId": "auth-hardening-05-auth-usecases",
+      "planPath": "impl-plans/active/auth-hardening-05-auth-usecases.md",
+      "dependsOn": [
+        "auth-hardening-01-contracts-and-persistence"
+      ],
+      "writePaths": [
+        "packages/application/src/usecases/email-auth.ts",
+        "packages/application/src/usecases/invitations.ts",
+        "packages/application/src/usecases/auth-guards.ts",
+        "packages/application/src/usecases/users.ts",
+        "packages/application/src/usecases.ts",
+        "packages/application/src/usecases/auth.test.ts",
+        "packages/application/src/usecases/users.test.ts",
+        "packages/application/src/usecases/user-template-permissions.test.ts",
+        "packages/application/src/usecases/auth-guards.test.ts",
+        "packages/application/src/usecases/email-auth-hardening.test.ts",
+        "packages/application/src/usecases/invitations.test.ts",
+        "impl-plans/active/auth-hardening-05-auth-usecases.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/application/src/usecases/user-template-permissions.test.ts",
+          "intendedEdit": "Edit only if a signature change breaks it; call-site updates only."
+        },
+        {
+          "path": "packages/application/src/usecases/email-auth.ts",
+          "intendedEdit": "Written by auth-hardening-01 in wave 1 (mechanical edits); this plan rewrites requestEmailAuth, verifyEmailAuthToken and bootstrapAdmin behaviour in wave 2."
+        },
+        {
+          "path": "impl-plans/active/auth-hardening-05-auth-usecases.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "The four pinned use-case signatures (requestEmailAuth, verifyEmailAuthToken, bootstrapAdmin, resendInvitation) exist exactly as written in the plan.",
+        "Order of checks: rate limit and Turnstile before any user lookup; bootstrap disabled -> SERVICE_UNAVAILABLE, wrong token -> FORBIDDEN before createFirstUser; verification uses the atomic consume and accepts pending invitations.",
+        "createUser checks mail configuration before any write and sends one INVITATION mail with the sign-in URL alone on a line and as an href; resendInvitation enforces admin, state checks and 3 per 24 hours.",
+        "enforceAuthRateLimit keys auth:<op>:<ip|unknown> without email; constantTimeEqual has no early exit.",
+        "Every listed test exists and passes; verification commands pass with evidence recorded; expected temporary infrastructure/apps/api typecheck breakage is recorded, not fixed."
+      ],
+      "verification": [
+        "bunx vitest run packages/application",
+        "bun run --cwd packages/application typecheck",
+        "bun run --cwd packages/domain typecheck",
+        "bunx biome check packages/application/src --diagnostic-level=warn",
+        "wc -l packages/application/src/usecases.ts packages/application/src/usecases/email-auth.ts packages/application/src/usecases/invitations.ts"
+      ]
+    },
+    {
+      "planId": "auth-hardening-06-adapters",
+      "planPath": "impl-plans/active/auth-hardening-06-adapters.md",
+      "dependsOn": [
+        "auth-hardening-01-contracts-and-persistence"
+      ],
+      "writePaths": [
+        "packages/adapter/src/turnstile/siteverify.ts",
+        "packages/adapter/src/turnstile/siteverify.test.ts",
+        "packages/adapter/src/rate-limit/workers-binding.ts",
+        "packages/adapter/src/rate-limit/in-memory.ts",
+        "packages/adapter/src/rate-limit/rate-limit.test.ts",
+        "packages/adapter/package.json",
+        "impl-plans/active/auth-hardening-06-adapters.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/adapter/package.json",
+          "intendedEdit": "Add exactly three exports entries (./turnstile/siteverify, ./rate-limit/workers-binding, ./rate-limit/in-memory); change nothing else, no dependency changes."
+        },
+        {
+          "path": "impl-plans/active/auth-hardening-06-adapters.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "Pinned exports exist exactly: TURNSTILE_SITEVERIFY_URL, createSiteverifyTurnstileVerifier, RateLimitBindingLike, createWorkersRateLimiter, InMemoryRateLimiterOptions, createInMemoryRateLimiter, AUTH_RATE_LIMIT = { limit: 10, periodSeconds: 60 }.",
+        "Siteverify adapter fails closed and returns true only for 2xx JSON with success, matching hostname and action; empty or over-2048-char tokens skip fetch; remoteip only when non-null; secrets and tokens never logged.",
+        "Workers binding adapter passes the key through and fails open on throw; in-memory limiter uses fixed windows with bounded key pruning.",
+        "All listed tests pass; no new dependency in any package.json."
+      ],
+      "verification": [
+        "bunx vitest run packages/adapter/src/turnstile packages/adapter/src/rate-limit",
+        "bun run --cwd packages/adapter typecheck",
+        "bunx biome check packages/adapter/src/turnstile packages/adapter/src/rate-limit --diagnostic-level=warn"
+      ]
+    },
+    {
+      "planId": "auth-hardening-07-graphql-http",
+      "planPath": "impl-plans/active/auth-hardening-07-graphql-http.md",
+      "dependsOn": [
+        "auth-hardening-01-contracts-and-persistence",
+        "auth-hardening-02-web-client",
+        "auth-hardening-05-auth-usecases"
+      ],
+      "writePaths": [
+        "packages/infrastructure/src/graphql/schema.graphql.ts",
+        "packages/infrastructure/src/graphql/resolvers/mutation.ts",
+        "packages/infrastructure/src/graphql/resolvers/auth.ts",
+        "packages/infrastructure/src/graphql/resolvers/query.ts",
+        "packages/infrastructure/src/graphql/resolvers/types.ts",
+        "packages/infrastructure/src/graphql/graphql-test-support.ts",
+        "packages/infrastructure/src/graphql/schema.test.ts",
+        "packages/infrastructure/src/graphql/schema-users.test.ts",
+        "packages/infrastructure/src/graphql/schema-templates.test.ts",
+        "packages/infrastructure/src/graphql/schema-auth-hardening.test.ts",
+        "packages/infrastructure/src/http/security-headers.ts",
+        "packages/infrastructure/src/http/security-headers.test.ts",
+        "packages/infrastructure/src/http/app.test.ts",
+        "impl-plans/active/auth-hardening-07-graphql-http.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/src/graphql/schema-templates.test.ts",
+          "intendedEdit": "Call-site updates only, and only if they break."
+        },
+        {
+          "path": "packages/infrastructure/src/http/app.test.ts",
+          "intendedEdit": "Edit only if existing assertions break."
+        },
+        {
+          "path": "packages/infrastructure/src/graphql/resolvers/auth.ts",
+          "intendedEdit": "New file; authMutations move here from mutation.ts and are spread back into mutationResolvers."
+        },
+        {
+          "path": "impl-plans/active/auth-hardening-07-graphql-http.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "SDL adds InvitationStatus, User.invitationStatus, PublicConfig, Query.publicConfig, bootstrapAdmin token: String!, nullable requestEmailAuth turnstileToken, and resendInvitation(userId: ID!): User!, matching design-graphql-api.md Auth and Users exactly.",
+        "Resolvers pass ctx.clientIp to the use cases; publicConfig works unauthenticated; no secrets are exposed in the schema.",
+        "HTML_CSP is exported and adds https://challenges.cloudflare.com only to script-src and frame-src; it equals the apps/web/public/_headers CSP.",
+        "RATE_LIMITED is returned as a GraphQL error at HTTP 200.",
+        "All listed tests pass; schema.graphql.ts, mutation.ts and auth.ts stay under 1000 lines; verification commands pass with evidence recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/graphql packages/infrastructure/src/http",
+        "bun run --cwd packages/infrastructure typecheck",
+        "bunx biome check packages/infrastructure/src/graphql packages/infrastructure/src/http --diagnostic-level=warn",
+        "wc -l packages/infrastructure/src/graphql/schema.graphql.ts packages/infrastructure/src/graphql/resolvers/mutation.ts packages/infrastructure/src/graphql/resolvers/auth.ts"
+      ]
+    },
+    {
+      "planId": "auth-hardening-08-composition-and-worker",
+      "planPath": "impl-plans/active/auth-hardening-08-composition-and-worker.md",
+      "dependsOn": [
+        "auth-hardening-01-contracts-and-persistence",
+        "auth-hardening-02-web-client",
+        "auth-hardening-05-auth-usecases",
+        "auth-hardening-06-adapters",
+        "auth-hardening-07-graphql-http"
+      ],
+      "writePaths": [
+        "packages/infrastructure/src/composition/config.ts",
+        "packages/infrastructure/src/composition/config.test.ts",
+        "packages/infrastructure/src/composition/build-dependencies.ts",
+        "apps/api/src/env.ts",
+        "apps/api/src/worker.ts",
+        "apps/api/src/worker.test.ts",
+        "apps/api/src/server.ts",
+        "apps/api/src/server.test.ts",
+        "apps/api/wrangler.toml",
+        "impl-plans/active/auth-hardening-08-composition-and-worker.md",
+        "apps/web/dist",
+        "apps/api/.wrangler"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/src/composition/config.ts",
+          "intendedEdit": "Placeholders from auth-hardening-01 (wave 1) are replaced with resolveInviteTtlSeconds, resolveBootstrapToken, resolveTurnstileConfig and the new BuildDependenciesConfig fields; same cross-wave reuse for config.test.ts, build-dependencies.ts, env.ts, worker.ts and worker.test.ts."
+        },
+        {
+          "path": "apps/api/wrangler.toml",
+          "intendedEdit": "Edit in place: add workers_dev = false, preview_urls = false, custom domain route, [[ratelimits]] AUTH_RATE_LIMITER, new vars and secret comments; remove FLYING_MAIL_SIGNUP; keep every other binding and var."
+        },
+        {
+          "path": "apps/web/dist",
+          "intendedEdit": "Build artifact root regenerated only via mise run build-web for the dry-run assets directory."
+        },
+        {
+          "path": "apps/api/.wrangler",
+          "intendedEdit": "Wrangler local bundling cache created by the dry run; gitignored artifact root."
+        },
+        {
+          "path": "impl-plans/active/auth-hardening-08-composition-and-worker.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [
+        "apps/web/dist",
+        "apps/api/.wrangler"
+      ],
+      "acceptanceCriteria": [
+        "Config resolvers and error classes exist as specified; fail-fast errors never echo secret values; a site key without a secret is silently disabled.",
+        "buildDependencies wires the siteverify verifier and the injected rateLimiter; turnstileSiteKey is non-null exactly when turnstileVerifier is non-null; rateLimiter defaults to null.",
+        "Worker resolves client IP only from CF-Connecting-IP and builds the Workers rate limiter when AUTH_RATE_LIMITER is bound; the local server uses the in-memory limiter and only the socket address.",
+        "wrangler.toml contains every key in design section 7.1 and no FLYING_MAIL_SIGNUP; the dry-run bundle succeeds and mentions AUTH_RATE_LIMITER, with output saved to /tmp/flying-mail-dryrun.log.",
+        "All listed tests pass (including CF-Connecting-IP vs X-Forwarded-For end-to-end RATE_LIMITED at HTTP 200); verification commands pass with evidence recorded; failures in other plans' files are routed to their owners."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/composition apps/api",
+        "bun run --cwd packages/infrastructure typecheck",
+        "bun run --cwd apps/api typecheck",
+        "mise run build-web",
+        "bun run --cwd apps/api cf:deploy -- --dry-run --outdir /tmp/flying-mail-dryrun > /tmp/flying-mail-dryrun.log 2>&1",
+        "rg -q AUTH_RATE_LIMITER /tmp/flying-mail-dryrun.log",
+        "! rg -n -i signup packages apps",
+        "bunx biome check packages/infrastructure/src/composition apps/api/src --diagnostic-level=warn"
+      ]
+    },
+    {
+      "planId": "auth-hardening-09-final-verification",
+      "planPath": "impl-plans/active/auth-hardening-09-final-verification.md",
+      "dependsOn": [
+        "auth-hardening-01-contracts-and-persistence",
+        "auth-hardening-02-web-client",
+        "auth-hardening-03-cli-bootstrap",
+        "auth-hardening-04-docs",
+        "auth-hardening-05-auth-usecases",
+        "auth-hardening-06-adapters",
+        "auth-hardening-07-graphql-http",
+        "auth-hardening-08-composition-and-worker"
+      ],
+      "writePaths": [
+        "impl-plans/PROGRESS.json",
+        "impl-plans/README.md",
+        "impl-plans/active",
+        "impl-plans/completed",
+        "apps/web/dist",
+        "apps/api/.wrangler"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "impl-plans/active",
+          "intendedEdit": "Only after every gate passes: move the nine auth-hardening plan files to impl-plans/completed. Never edit, move or delete impl-plans/active/auth-hardening-s305-dispatch.json."
+        },
+        {
+          "path": "impl-plans/completed",
+          "intendedEdit": "Receives the nine moved auth-hardening plan files only; existing completed files are untouched."
+        },
+        {
+          "path": "impl-plans/PROGRESS.json",
+          "intendedEdit": "Serial reconciliation: set the nine plans and phases 17-21 to Completed, update planPath values and lastUpdated."
+        },
+        {
+          "path": "impl-plans/README.md",
+          "intendedEdit": "Serial reconciliation: point the Authentication hardening table links to completed/."
+        },
+        {
+          "path": "apps/web/dist",
+          "intendedEdit": "Build artifact root from mise run build-web."
+        },
+        {
+          "path": "apps/api/.wrangler",
+          "intendedEdit": "Dry-run cache artifact root."
+        }
+      ],
+      "artifactRoots": [
+        "apps/web/dist",
+        "apps/api/.wrangler"
+      ],
+      "acceptanceCriteria": [
+        "mise run lint, bun run test (at least 1720 package tests and 264 web tests plus new ones, both counts recorded) and mise run build-web exit 0 with logs in /tmp/flying-mail-auth-hardening/.",
+        "The Worker dry run exits 0 and its log mentions AUTH_RATE_LIMITER.",
+        "No signup mention remains in packages, apps, README.md, mise.toml or .agents; every changed TypeScript/TSX file is under 1000 lines; both CSP sources contain https://challenges.cloudflare.com.",
+        "git status --porcelain -- apps/api/migrations prints exactly '?? apps/api/migrations/0015_auth_hardening.sql'.",
+        "On any failure the owning plan, log path and Blocked status are recorded without patching others' source; on success PROGRESS.json and README.md are reconciled and plan files moved to completed/."
+      ],
+      "verification": [
+        "mkdir -p /tmp/flying-mail-auth-hardening",
+        "mise run lint > /tmp/flying-mail-auth-hardening/lint.log 2>&1",
+        "bun run test > /tmp/flying-mail-auth-hardening/test.log 2>&1",
+        "mise run build-web > /tmp/flying-mail-auth-hardening/build-web.log 2>&1",
+        "bun run --cwd apps/api cf:deploy -- --dry-run --outdir /tmp/flying-mail-dryrun > /tmp/flying-mail-auth-hardening/dryrun.log 2>&1",
+        "rg -q AUTH_RATE_LIMITER /tmp/flying-mail-auth-hardening/dryrun.log",
+        "! rg -n -i signup packages apps README.md mise.toml .agents",
+        "git ls-files -m -o --exclude-standard -- '*.ts' '*.tsx' | xargs wc -l | awk '$2 != \"total\" && $1 >= 1000 { print; bad = 1 } END { exit bad }'",
+        "rg -q -F https://challenges.cloudflare.com packages/infrastructure/src/http/security-headers.ts && rg -q -F https://challenges.cloudflare.com apps/web/public/_headers",
+        "test \"$(git status --porcelain -- apps/api/migrations)\" = '?? apps/api/migrations/0015_auth_hardening.sql'"
+      ]
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-10-07T09:30:00Z",
+  "lastUpdated": "2026-10-07T12:00:00Z",
   "phases": {
     "1": {
       "status": "COMPLETED"
@@ -48,6 +48,21 @@
     },
     "16": {
       "status": "COMPLETED"
+    },
+    "17": {
+      "status": "READY"
+    },
+    "18": {
+      "status": "BLOCKED"
+    },
+    "19": {
+      "status": "BLOCKED"
+    },
+    "20": {
+      "status": "BLOCKED"
+    },
+    "21": {
+      "status": "BLOCKED"
     }
   },
   "plans": {
@@ -1155,6 +1170,96 @@
             "TASK-002"
           ]
         }
+      }
+    },
+    "auth-hardening-01-contracts-and-persistence": {
+      "phase": 17,
+      "status": "Ready",
+      "planPath": "impl-plans/active/auth-hardening-01-contracts-and-persistence.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": [] }
+      }
+    },
+    "auth-hardening-02-web-client": {
+      "phase": 17,
+      "status": "Ready",
+      "planPath": "impl-plans/active/auth-hardening-02-web-client.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": [] }
+      }
+    },
+    "auth-hardening-03-cli-bootstrap": {
+      "phase": 17,
+      "status": "Ready",
+      "planPath": "impl-plans/active/auth-hardening-03-cli-bootstrap.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": [] }
+      }
+    },
+    "auth-hardening-04-docs": {
+      "phase": 17,
+      "status": "Ready",
+      "planPath": "impl-plans/active/auth-hardening-04-docs.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": [] }
+      }
+    },
+    "auth-hardening-05-auth-usecases": {
+      "phase": 18,
+      "status": "Not Started",
+      "planPath": "impl-plans/active/auth-hardening-05-auth-usecases.md",
+      "dependsOn": ["auth-hardening-01-contracts-and-persistence"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["auth-hardening-01-contracts-and-persistence:TASK-001"] }
+      }
+    },
+    "auth-hardening-06-adapters": {
+      "phase": 18,
+      "status": "Not Started",
+      "planPath": "impl-plans/active/auth-hardening-06-adapters.md",
+      "dependsOn": ["auth-hardening-01-contracts-and-persistence"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["auth-hardening-01-contracts-and-persistence:TASK-001"] }
+      }
+    },
+    "auth-hardening-07-graphql-http": {
+      "phase": 19,
+      "status": "Not Started",
+      "planPath": "impl-plans/active/auth-hardening-07-graphql-http.md",
+      "dependsOn": ["auth-hardening-01-contracts-and-persistence", "auth-hardening-02-web-client", "auth-hardening-05-auth-usecases"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["auth-hardening-02-web-client:TASK-001", "auth-hardening-05-auth-usecases:TASK-001"] }
+      }
+    },
+    "auth-hardening-08-composition-and-worker": {
+      "phase": 20,
+      "status": "Not Started",
+      "planPath": "impl-plans/active/auth-hardening-08-composition-and-worker.md",
+      "dependsOn": ["auth-hardening-01-contracts-and-persistence", "auth-hardening-02-web-client", "auth-hardening-05-auth-usecases", "auth-hardening-06-adapters", "auth-hardening-07-graphql-http"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": false, "deps": ["auth-hardening-02-web-client:TASK-001", "auth-hardening-05-auth-usecases:TASK-001", "auth-hardening-06-adapters:TASK-001", "auth-hardening-07-graphql-http:TASK-001"] }
+      }
+    },
+    "auth-hardening-09-final-verification": {
+      "phase": 21,
+      "status": "Not Started",
+      "planPath": "impl-plans/active/auth-hardening-09-final-verification.md",
+      "dependsOn": [
+        "auth-hardening-01-contracts-and-persistence",
+        "auth-hardening-02-web-client",
+        "auth-hardening-03-cli-bootstrap",
+        "auth-hardening-04-docs",
+        "auth-hardening-05-auth-usecases",
+        "auth-hardening-06-adapters",
+        "auth-hardening-07-graphql-http",
+        "auth-hardening-08-composition-and-worker"
+      ],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": false, "deps": ["auth-hardening-07-graphql-http:TASK-001", "auth-hardening-08-composition-and-worker:TASK-001", "auth-hardening-02-web-client:TASK-001", "auth-hardening-03-cli-bootstrap:TASK-001", "auth-hardening-04-docs:TASK-001"] }
       }
     }
   }

@@ -260,3 +260,26 @@ Rules for workers:
   re-read and merge rather than overwrite.
 - A conflict found after a wave joins is repaired serially.
 - There are no worktrees and no private branches.
+
+## Authentication hardening (phases 17-21)
+
+Design reference: `design-docs/specs/design-security-model.md` (accepted
+2026-10-07). Open user confirmations, with defaults applied, are in
+`design-docs/user-qa/pending-auth-hardening.md`. Plans live in
+`impl-plans/active/`; plan 09 moves them to `completed/`.
+
+| Wave / Phase | Plan | Depends on |
+|--------------|------|------------|
+| 1 / 17 | [auth-hardening-01-contracts-and-persistence](active/auth-hardening-01-contracts-and-persistence.md) | - |
+| 1 / 17 | [auth-hardening-02-web-client](active/auth-hardening-02-web-client.md) | - |
+| 1 / 17 | [auth-hardening-03-cli-bootstrap](active/auth-hardening-03-cli-bootstrap.md) | - |
+| 1 / 17 | [auth-hardening-04-docs](active/auth-hardening-04-docs.md) | - |
+| 2 / 18 | [auth-hardening-05-auth-usecases](active/auth-hardening-05-auth-usecases.md) | 01 |
+| 2 / 18 | [auth-hardening-06-adapters](active/auth-hardening-06-adapters.md) | 01 |
+| 3 / 19 | [auth-hardening-07-graphql-http](active/auth-hardening-07-graphql-http.md) | 01, 02, 05 |
+| 4 / 20 | [auth-hardening-08-composition-and-worker](active/auth-hardening-08-composition-and-worker.md) | 01, 02, 05, 06, 07 |
+| 5 / 21 | [auth-hardening-09-final-verification](active/auth-hardening-09-final-verification.md) | all of 01-08 (serial) |
+
+The same worker rules as for webmail completion apply. Plan 09 alone
+updates statuses in `PROGRESS.json` and this table after the final gates
+pass.
