@@ -75,15 +75,15 @@ FLYING_MAIL_TURNSTILE_SITE_KEY = ""   # public site key; fill before putting the
 | `FLYING_MAIL_TURNSTILE_SECRET_KEY` | **secret**, optional | - | Enables Turnstile on `requestEmailAuth`. It requires `FLYING_MAIL_TURNSTILE_SITE_KEY` and `FLYING_MAIL_PUBLIC_ORIGIN`, otherwise the build fails fast. |
 | `FLYING_MAIL_TURNSTILE_SITE_KEY` | with the secret | - | Public site key, exposed through `publicConfig` only while the secret is set. |
 | `AUTH_RATE_LIMITER` | binding | - | Workers Rate Limiting binding for the auth mutations. When it is absent, rate limiting is disabled in the Worker. The Bun server always uses an in-memory limiter. |
-
-There is no self-signup setting. `FLYING_MAIL_SIGNUP` was removed on
-2026-10-07, and users exist only through `bootstrapAdmin` (once) or an
-admin's `createUser` invitation. See `design-security-model.md`.
 | `FLYING_MAIL_SPAM_THRESHOLD` | no | `0.6` | Score at or above which the `SPAM` tag is applied. |
 | `FLYING_MAIL_FILE_LINK_MAX_TTL` | no | `604800` | Cap, in seconds, on `ttlSeconds` for file links. |
 | `FLYING_MAIL_BLOB_BACKEND` | no | `r2` | `r2` \| `s3` \| `memory`. |
 | `FLYING_MAIL_S3_*` | if `s3` | - | `ENDPOINT`, `BUCKET`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `REGION`. |
 | `FLYING_MAIL_SQLITE_URL` | local only | `file:./data/mailcal.db` | libsql location for the Bun/Node server. A bare filesystem path is accepted and promoted to a `file:` URL. |
+
+There is no self-signup setting. `FLYING_MAIL_SIGNUP` was removed on
+2026-10-07, and users exist only through `bootstrapAdmin` (once) or an
+admin's `createUser` invitation. See `design-security-model.md`.
 
 Secrets go through `wrangler secret put`, never into `wrangler.toml`. Local
 secret-dependent commands run under `kinko exec`.

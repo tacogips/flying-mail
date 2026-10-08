@@ -22,6 +22,7 @@ export type GraphQLErrorCode =
   | "BAD_USER_INPUT"
   | "CONFLICT"
   | "SERVICE_UNAVAILABLE"
+  | "RATE_LIMITED"
   | "UNKNOWN";
 
 export interface GraphQLClientError {
@@ -71,6 +72,7 @@ const GRAPHQL_ERROR_CODES: readonly GraphQLErrorCode[] = [
   "BAD_USER_INPUT",
   "CONFLICT",
   "SERVICE_UNAVAILABLE",
+  "RATE_LIMITED",
   "UNKNOWN",
 ];
 

@@ -43,6 +43,7 @@ export interface GraphQLContext {
   readonly viewer: Viewer | null;
   readonly token: string | null;
   readonly requestOrigin: string | null;
+  readonly clientIp: string | null;
   readonly deps: AppDependencies;
   readonly usecases: UseCases;
   readonly loaders: RequestLoaders;
@@ -53,6 +54,7 @@ export function buildGraphQLContext(params: {
   readonly viewer: Viewer | null;
   readonly token: string | null;
   readonly requestOrigin?: string | null;
+  readonly clientIp?: string | null;
   readonly deps: AppDependencies;
   readonly usecases: UseCases;
 }): GraphQLContext {
@@ -60,6 +62,7 @@ export function buildGraphQLContext(params: {
     viewer: params.viewer,
     token: params.token,
     requestOrigin: params.requestOrigin ?? null,
+    clientIp: params.clientIp ?? null,
     deps: params.deps,
     usecases: params.usecases,
     loaders: createRequestLoaders(params.deps, params.viewer),

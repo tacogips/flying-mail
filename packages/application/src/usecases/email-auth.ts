@@ -1,5 +1,5 @@
 import {
-  consumeEmailAuthChallenge,
+  EmailAuthChallengePurpose,
   createEmailAuthChallenge,
 } from "@flying-mail/domain/entities/email-auth-challenge";
 import {
@@ -16,6 +16,7 @@ import { MATCH_ALL_ADDRESSES } from "@flying-mail/domain/value-objects/address-p
 import {
   createUser,
   isUserActive,
+  markInvitationAccepted,
   type User,
   UserRole,
 } from "@flying-mail/domain/entities/user";
@@ -30,9 +31,11 @@ import {
 import type { AppDependencies } from "../dependencies";
 import {
   ConflictError,
+  ForbiddenError,
   ServiceUnavailableError,
   UnauthenticatedError,
 } from "../errors";
+import { constantTimeEqual, enforceAuthRateLimit } from "./auth-guards";
 import { generateApiKeySecret } from "./api-keys";
 import { deleteAttachmentsAndUnreferencedBlobs } from "./attachment-blobs";
 import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
@@ -53,7 +56,7 @@ export interface EmailAuthSession {
   readonly user: User;
 }
 
-function toBase64Url(bytes: Uint8Array): string {
+export function toBase64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
@@ -64,7 +67,7 @@ function toBase64Url(bytes: Uint8Array): string {
     .replaceAll("=", "");
 }
 
-interface MailConfiguration {
+export interface MailConfiguration {
   readonly origin: string;
   readonly from: string;
 }
@@ -73,7 +76,9 @@ interface MailConfiguration {
  * resolves) and a verified sender (so the mail is accepted). Missing either
  * is an operator problem, and saying so plainly beats mailing a link that
  * cannot work or letting the provider reject the send opaquely. */
-function requireMailConfigured(deps: AppDependencies): MailConfiguration {
+export function requireMailConfigured(
+  deps: AppDependencies,
+): MailConfiguration {
   const origin = deps.instanceConfig.publicOrigin;
   const from = deps.instanceConfig.mailFrom;
   if (origin === null || from === null) {
@@ -91,9 +96,24 @@ function requireMailConfigured(deps: AppDependencies): MailConfiguration {
  * user-enumeration oracle for anyone who can reach it. */
 export function createRequestEmailAuthUseCase(
   deps: AppDependencies,
-): (email: string) => Promise<boolean> {
-  return async (rawEmail) =>
+): (input: {
+  readonly email: string;
+  readonly turnstileToken: string | null;
+  readonly clientIp: string | null;
+}) => Promise<boolean> {
+  return async ({ email: rawEmail, turnstileToken, clientIp }) =>
     withAsyncDomainErrorTranslation(async () => {
+      await enforceAuthRateLimit(deps, "requestEmailAuth", clientIp);
+      if (deps.turnstileVerifier !== null) {
+        const verified = await deps.turnstileVerifier.verify({
+          token: turnstileToken ?? "",
+          remoteIp: clientIp,
+          action: "login",
+        });
+        if (!verified) {
+          throw new ForbiddenError("Verification failed. Please retry.");
+        }
+      }
       const mail = requireMailConfigured(deps);
       const email = createEmailAddress(rawEmail, "email");
       const user = await deps.userRepository.findByEmail(email);
@@ -113,6 +133,7 @@ export function createRequestEmailAuthUseCase(
       const recent = await deps.emailAuthChallengeRepository.countRecentByEmail(
         email,
         windowStart,
+        EmailAuthChallengePurpose.Login,
       );
       if (recent >= MAX_CHALLENGES_PER_WINDOW) {
         return true;
@@ -122,6 +143,7 @@ export function createRequestEmailAuthUseCase(
       const challenge = createEmailAuthChallenge({
         id: createEmailAuthChallengeId(deps.random.uuid()),
         email,
+        purpose: EmailAuthChallengePurpose.Login,
         tokenHash: await deps.tokenHasher.hash(token),
         expiresAt: new Date(
           now.getTime() + CHALLENGE_TTL_SECONDS * 1000,
@@ -147,9 +169,10 @@ export function createRequestEmailAuthUseCase(
  * so a token cannot be probed for validity separately from freshness. */
 export function createVerifyEmailAuthTokenUseCase(
   deps: AppDependencies,
-): (token: string) => Promise<EmailAuthSession> {
-  return async (token) =>
+): (token: string, clientIp: string | null) => Promise<EmailAuthSession> {
+  return async (token, clientIp) =>
     withAsyncDomainErrorTranslation(async () => {
+      await enforceAuthRateLimit(deps, "verifyEmailAuthToken", clientIp);
       const invalid = (): never => {
         throw new UnauthenticatedError("This sign-in link is not valid");
       };
@@ -165,17 +188,27 @@ export function createVerifyEmailAuthTokenUseCase(
 
       const now = deps.clock.now();
       const nowIso = now.toISOString();
-      let consumed: ReturnType<typeof consumeEmailAuthChallenge>;
-      try {
-        consumed = consumeEmailAuthChallenge(challenge, nowIso);
-      } catch {
+      const consumed = await deps.emailAuthChallengeRepository.consume(
+        challenge.id,
+        nowIso,
+      );
+      if (!consumed) {
         return invalid();
       }
-      await deps.emailAuthChallengeRepository.save(consumed);
 
-      const user = await deps.userRepository.findByEmail(challenge.email);
+      let user = await deps.userRepository.findByEmail(challenge.email);
       if (user === null || !isUserActive(user)) {
         return invalid();
+      }
+      if (
+        challenge.purpose === EmailAuthChallengePurpose.Invitation &&
+        user.invitationAcceptedAt !== null
+      ) {
+        return invalid();
+      }
+      if (user.invitationAcceptedAt === null) {
+        user = markInvitationAccepted(user, nowIso);
+        await deps.userRepository.save(user);
       }
 
       const sessionToken = toBase64Url(deps.random.tokenBytes(TOKEN_BYTES));
@@ -201,7 +234,9 @@ export interface BootstrapResult {
 }
 
 /** Creates the very first `ADMIN` user **and** a full-capability API key for
- * them. Succeeds only while the instance has no users at all.
+ * them when presented with the configured bootstrap token. Succeeds only
+ * once on an empty instance; the users-never-deleted invariant preserves
+ * that one-time guarantee.
  *
  * The key is not a convenience: a freshly deployed Worker has no shell, and
  * passwordless login needs a verified sending domain -- which itself needs
@@ -209,15 +244,33 @@ export interface BootstrapResult {
  * instance operable at all, and it closes the same one-shot door. */
 export function createBootstrapAdminUseCase(
   deps: AppDependencies,
-): (email: string, name: string) => Promise<BootstrapResult> {
-  return async (rawEmail, name) =>
+): (input: {
+  readonly email: string;
+  readonly name: string;
+  readonly token: string;
+  readonly clientIp: string | null;
+}) => Promise<BootstrapResult> {
+  return async ({ email: rawEmail, name, token, clientIp }) =>
     withAsyncDomainErrorTranslation(async () => {
+      await enforceAuthRateLimit(deps, "bootstrapAdmin", clientIp);
+      const bootstrapToken = deps.instanceConfig.bootstrapToken;
+      if (bootstrapToken === null) {
+        throw new ServiceUnavailableError(
+          "Bootstrap is disabled on this server",
+        );
+      }
+      const presentedHash = await deps.tokenHasher.hash(token);
+      const configuredHash = await deps.tokenHasher.hash(bootstrapToken);
+      if (!constantTimeEqual(presentedHash, configuredHash)) {
+        throw new ForbiddenError("Invalid bootstrap token");
+      }
       const now = deps.clock.now().toISOString();
       const user = createUser({
         id: createUserId(deps.random.uuid()),
         email: createEmailAddress(rawEmail, "email"),
         name,
         role: UserRole.Admin,
+        invitationAcceptedAt: now,
         createdAt: now,
       });
       // The emptiness check lives inside the insert statement itself, so

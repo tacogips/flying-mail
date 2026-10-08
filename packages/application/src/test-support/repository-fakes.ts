@@ -412,14 +412,30 @@ export function fakeEmailAuthChallengeRepository(
       }
       return null;
     },
-    async countRecentByEmail(email, since) {
+    async countRecentByEmail(email, since, purpose) {
       let count = 0;
       for (const challenge of stores.challenges.values()) {
-        if (challenge.email === email && challenge.createdAt >= since) {
+        if (
+          challenge.email === email &&
+          challenge.purpose === purpose &&
+          challenge.createdAt >= since
+        ) {
           count += 1;
         }
       }
       return count;
+    },
+    async consume(id, now) {
+      const challenge = stores.challenges.get(id);
+      if (
+        challenge === undefined ||
+        challenge.consumedAt !== null ||
+        challenge.expiresAt <= now
+      ) {
+        return false;
+      }
+      stores.challenges.set(id, { ...challenge, consumedAt: now });
+      return true;
     },
     async save(challenge) {
       stores.challenges.set(challenge.id, challenge);

@@ -29,7 +29,7 @@ import type {
 import type { MessageEventKind } from "@flying-mail/domain/entities/message-event";
 import type { UserPermissionEffect } from "@flying-mail/domain/entities/user-mail-permission";
 import { requireViewerOrThrow } from "./helpers";
-import type { ViewerSource } from "./types";
+import { authMutations } from "./auth";
 
 interface ScopeInputArg {
   readonly capability: Capability;
@@ -236,6 +236,18 @@ const userMutations = {
     const result = await ctx.usecases.createUser(
       requireViewerOrThrow(ctx),
       args.input,
+    );
+    return result.user;
+  },
+
+  async resendInvitation(
+    _parent: unknown,
+    args: { readonly userId: string },
+    ctx: GraphQLContext,
+  ) {
+    const result = await ctx.usecases.resendInvitation(
+      requireViewerOrThrow(ctx),
+      createUserId(args.userId),
     );
     return result.user;
   },
@@ -696,70 +708,6 @@ const fileLinkMutations = {
       requireViewerOrThrow(ctx),
       createFileLinkId(args.id),
     );
-  },
-};
-
-const authMutations = {
-  /** Deliberately unauthenticated: it is the only way to create the first
-   * admin on a deployment with no shell. The use case refuses once any user
-   * exists, so the door closes permanently after one successful call. */
-  async bootstrapAdmin(
-    _parent: unknown,
-    args: { readonly email: string; readonly name: string },
-    ctx: GraphQLContext,
-  ) {
-    return ctx.usecases.bootstrapAdmin(args.email, args.name);
-  },
-
-  /** Always resolves `true`; see `usecases/email-auth.ts` for why it must
-   * not reveal whether the address is known. */
-  async requestEmailAuth(
-    _parent: unknown,
-    args: { readonly email: string },
-    ctx: GraphQLContext,
-  ) {
-    return ctx.usecases.requestEmailAuth(args.email);
-  },
-
-  async verifyEmailAuthToken(
-    _parent: unknown,
-    args: { readonly token: string },
-    ctx: GraphQLContext,
-  ): Promise<{
-    readonly viewer: ViewerSource;
-    readonly expiresAt: string;
-  }> {
-    const result = await ctx.usecases.verifyEmailAuthToken(args.token);
-    // The resolver only records the *intent*; `http/app.ts` renders the
-    // header, because only it knows whether `Secure` applies.
-    ctx.sessionCookies.setSession(
-      result.token,
-      new Date(result.session.expiresAt),
-    );
-    // The two rule sets travel together, exactly as
-    // `resolveViewerFromToken` loads them: a partially-loaded viewer would
-    // under-authorize the very first request after sign-in.
-    const [permissions, templatePermissions] = await Promise.all([
-      ctx.deps.userMailPermissionRepository.listByUserId(result.user.id),
-      ctx.deps.userTemplatePermissionRepository.listByUserId(result.user.id),
-    ]);
-    return {
-      viewer: {
-        viewer: {
-          kind: "USER",
-          userId: result.user.id,
-          role: result.user.role,
-          permissions,
-          templatePermissions,
-        },
-      },
-      expiresAt: result.session.expiresAt,
-    };
-  },
-
-  async logout(_parent: unknown, _args: unknown, ctx: GraphQLContext) {
-    ctx.sessionCookies.clearSession();
-    return ctx.token === null ? true : ctx.usecases.logout(ctx.token);
   },
 };
 

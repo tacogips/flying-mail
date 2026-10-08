@@ -313,8 +313,20 @@ describe("passwordless email auth", () => {
   test("does not reveal whether an address is known", async () => {
     seedUser(fake);
     const request = createRequestEmailAuthUseCase(fake.deps);
-    expect(await request("me@example.com")).toBe(true);
-    expect(await request("stranger@example.com")).toBe(true);
+    expect(
+      await request({
+        email: "me@example.com",
+        turnstileToken: null,
+        clientIp: null,
+      }),
+    ).toBe(true);
+    expect(
+      await request({
+        email: "stranger@example.com",
+        turnstileToken: null,
+        clientIp: null,
+      }),
+    ).toBe(true);
     // Only the known address actually produced a challenge and a mail.
     expect(fake.stores.challenges.size).toBe(1);
     expect(fake.mailSender.sent).toHaveLength(1);
@@ -323,7 +335,11 @@ describe("passwordless email auth", () => {
   test("mails a link from the configured sender", async () => {
     seedUser(fake);
     const request = createRequestEmailAuthUseCase(fake.deps);
-    await request("me@example.com");
+    await request({
+      email: "me@example.com",
+      turnstileToken: null,
+      clientIp: null,
+    });
     const mail = fake.mailSender.sent[0];
     expect(mail?.from).toBe("postmaster@example.com");
     expect(mail?.to).toEqual(["me@example.com"]);
@@ -337,22 +353,30 @@ describe("passwordless email auth", () => {
     const unconfigured = createFakeDependencies({ now: NOW, instanceConfig });
     seedUser(unconfigured);
     const request = createRequestEmailAuthUseCase(unconfigured.deps);
-    await expect(request("me@example.com")).rejects.toBeInstanceOf(
-      ServiceUnavailableError,
-    );
+    await expect(
+      request({
+        email: "me@example.com",
+        turnstileToken: null,
+        clientIp: null,
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableError);
   });
 
   test("exchanges a fresh token for a session", async () => {
     const user = seedUser(fake);
     const request = createRequestEmailAuthUseCase(fake.deps);
-    await request("me@example.com");
+    await request({
+      email: "me@example.com",
+      turnstileToken: null,
+      clientIp: null,
+    });
     const url = fake.mailSender.sent[0]?.text ?? "";
     const token = decodeURIComponent(
       url.split("token=")[1]?.split(/\s/)[0] ?? "",
     );
 
     const verify = createVerifyEmailAuthTokenUseCase(fake.deps);
-    const result = await verify(token);
+    const result = await verify(token, null);
     expect(result.user.id).toBe(user.id);
     expect(result.session.userId).toBe(user.id);
     expect(fake.stores.sessions.size).toBe(1);
@@ -361,21 +385,31 @@ describe("passwordless email auth", () => {
   test("rejects a replayed token", async () => {
     seedUser(fake);
     const request = createRequestEmailAuthUseCase(fake.deps);
-    await request("me@example.com");
+    await request({
+      email: "me@example.com",
+      turnstileToken: null,
+      clientIp: null,
+    });
     const url = fake.mailSender.sent[0]?.text ?? "";
     const token = decodeURIComponent(
       url.split("token=")[1]?.split(/\s/)[0] ?? "",
     );
 
     const verify = createVerifyEmailAuthTokenUseCase(fake.deps);
-    await verify(token);
-    await expect(verify(token)).rejects.toBeInstanceOf(UnauthenticatedError);
+    await verify(token, null);
+    await expect(verify(token, null)).rejects.toBeInstanceOf(
+      UnauthenticatedError,
+    );
   });
 
   test("rejects an expired token", async () => {
     seedUser(fake);
     const request = createRequestEmailAuthUseCase(fake.deps);
-    await request("me@example.com");
+    await request({
+      email: "me@example.com",
+      turnstileToken: null,
+      clientIp: null,
+    });
     const url = fake.mailSender.sent[0]?.text ?? "";
     const token = decodeURIComponent(
       url.split("token=")[1]?.split(/\s/)[0] ?? "",
@@ -383,7 +417,9 @@ describe("passwordless email auth", () => {
     fake.clock.advanceSeconds(16 * 60);
 
     const verify = createVerifyEmailAuthTokenUseCase(fake.deps);
-    await expect(verify(token)).rejects.toBeInstanceOf(UnauthenticatedError);
+    await expect(verify(token, null)).rejects.toBeInstanceOf(
+      UnauthenticatedError,
+    );
   });
 
   test.each([
@@ -391,7 +427,9 @@ describe("passwordless email auth", () => {
     ["an empty token", ""],
   ])("rejects %s", async (_label, token) => {
     const verify = createVerifyEmailAuthTokenUseCase(fake.deps);
-    await expect(verify(token)).rejects.toBeInstanceOf(UnauthenticatedError);
+    await expect(verify(token, null)).rejects.toBeInstanceOf(
+      UnauthenticatedError,
+    );
   });
 });
 
@@ -403,7 +441,13 @@ describe("login link throttle", () => {
     for (let i = 0; i < 5; i += 1) {
       // Uniformly true: a distinguishable throttle answer would be a
       // user-enumeration oracle.
-      expect(await request("me@example.com")).toBe(true);
+      expect(
+        await request({
+          email: "me@example.com",
+          turnstileToken: null,
+          clientIp: null,
+        }),
+      ).toBe(true);
     }
     expect(fake.stores.challenges.size).toBe(3);
     expect(fake.mailSender.sent).toHaveLength(3);
@@ -422,9 +466,17 @@ describe("login link throttle", () => {
     fake.stores.users.set(other.id, other);
     const request = createRequestEmailAuthUseCase(fake.deps);
     for (let i = 0; i < 4; i += 1) {
-      await request("me@example.com");
+      await request({
+        email: "me@example.com",
+        turnstileToken: null,
+        clientIp: null,
+      });
     }
-    await request("other@example.com");
+    await request({
+      email: "other@example.com",
+      turnstileToken: null,
+      clientIp: null,
+    });
     const toOther = fake.mailSender.sent.filter((mail) =>
       mail.to.includes("other@example.com"),
     );
@@ -434,9 +486,17 @@ describe("login link throttle", () => {
 
 describe("bootstrapAdmin", () => {
   test("creates the first admin with a root key, then refuses", async () => {
-    const fake = createFakeDependencies({ now: NOW });
+    const fake = createFakeDependencies({
+      now: NOW,
+      instanceConfig: { bootstrapToken: "test-bootstrap-token" },
+    });
     const bootstrap = createBootstrapAdminUseCase(fake.deps);
-    const result = await bootstrap("first@example.com", "First");
+    const result = await bootstrap({
+      email: "first@example.com",
+      name: "First",
+      token: "test-bootstrap-token",
+      clientIp: null,
+    });
     expect(result.user.role).toBe(UserRole.Admin);
     // A fresh deployment has no shell and no verified sending domain, so
     // bootstrap must hand back a usable credential or the instance is
@@ -451,18 +511,36 @@ describe("bootstrapAdmin", () => {
       Object.values(Capability).length,
     );
     await expect(
-      bootstrap("second@example.com", "Second"),
+      bootstrap({
+        email: "second@example.com",
+        name: "Second",
+        token: "test-bootstrap-token",
+        clientIp: null,
+      }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
   test("two concurrent bootstraps produce exactly one admin", async () => {
-    const fake = createFakeDependencies({ now: NOW });
+    const fake = createFakeDependencies({
+      now: NOW,
+      instanceConfig: { bootstrapToken: "test-bootstrap-token" },
+    });
     const bootstrap = createBootstrapAdminUseCase(fake.deps);
     // Neither call awaits the other, so both pass any read-then-write
     // emptiness check; only the atomic first-user insert keeps this at one.
     const results = await Promise.allSettled([
-      bootstrap("first@example.com", "First"),
-      bootstrap("second@example.com", "Second"),
+      bootstrap({
+        email: "first@example.com",
+        name: "First",
+        token: "test-bootstrap-token",
+        clientIp: null,
+      }),
+      bootstrap({
+        email: "second@example.com",
+        name: "Second",
+        token: "test-bootstrap-token",
+        clientIp: null,
+      }),
     ]);
     expect(
       results.filter((entry) => entry.status === "fulfilled"),

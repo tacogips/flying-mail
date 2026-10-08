@@ -606,24 +606,34 @@ describe("graphql schema", () => {
 
   describe("bootstrapAdmin", () => {
     test("creates the first admin and hands back a usable root key", async () => {
-      const result = await harness.run(
-        `mutation {
-           bootstrapAdmin(email: "first@example.com", name: "First") {
-             user { email role }
+      const configuredHarness = createGraphQLHarness(
+        createFakeDependencies({
+          now: NOW,
+          instanceConfig: {
+            bootstrapToken: "bootstrap-test-token-with-32-chars",
+          },
+        }),
+      );
+      const result = await configuredHarness.run(
+        `mutation Bootstrap($token: String!) {
+           bootstrapAdmin(email: "first@example.com", name: "First", token: $token) {
+             user { email role invitationStatus }
              apiKey { keyPrefix scopes { capability } }
              secret
            }
          }`,
         null,
+        { token: "bootstrap-test-token-with-32-chars" },
       );
       expect(result.errors).toBeUndefined();
       const payload = result.data?.["bootstrapAdmin"] as {
-        user: { email: string; role: string };
+        user: { email: string; role: string; invitationStatus: string };
         apiKey: { keyPrefix: string; scopes: { capability: string }[] };
         secret: string;
       };
       expect(payload.user.email).toBe("first@example.com");
       expect(payload.user.role).toBe("ADMIN");
+      expect(payload.user.invitationStatus).toBe("ACCEPTED");
       // Without this credential a deployed instance would be unreachable:
       // login needs a verified sending domain that only an admin can add.
       expect(payload.secret.startsWith(payload.apiKey.keyPrefix)).toBe(true);
@@ -634,13 +644,23 @@ describe("graphql schema", () => {
     });
 
     test("the door closes permanently after the first admin exists", async () => {
-      await harness.run(
-        `mutation { bootstrapAdmin(email: "first@example.com", name: "First") { secret } }`,
-        null,
+      const configuredHarness = createGraphQLHarness(
+        createFakeDependencies({
+          now: NOW,
+          instanceConfig: {
+            bootstrapToken: "bootstrap-test-token-with-32-chars",
+          },
+        }),
       );
-      const second = await harness.run(
-        `mutation { bootstrapAdmin(email: "second@example.com", name: "Second") { secret } }`,
+      const mutation = `mutation Bootstrap($token: String!) {
+        bootstrapAdmin(email: "first@example.com", name: "First", token: $token) { secret }
+      }`;
+      const variables = { token: "bootstrap-test-token-with-32-chars" };
+      await configuredHarness.run(mutation, null, variables);
+      const second = await configuredHarness.run(
+        mutation.replace("first@example.com", "second@example.com"),
         null,
+        variables,
       );
       expect(errorCodes(second)).toEqual(["CONFLICT"]);
     });

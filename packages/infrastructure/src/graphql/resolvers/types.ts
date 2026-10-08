@@ -14,7 +14,11 @@ import type { ClassificationRule } from "@flying-mail/domain/entities/classifica
 import type { MessageEvent } from "@flying-mail/domain/entities/message-event";
 import type { SpamMark } from "@flying-mail/domain/entities/spam-mark";
 import type { Tag } from "@flying-mail/domain/entities/tag";
-import { isUserActive, type User } from "@flying-mail/domain/entities/user";
+import {
+  invitationStatus,
+  isUserActive,
+  type User,
+} from "@flying-mail/domain/entities/user";
 import type { UserMailPermission } from "@flying-mail/domain/entities/user-mail-permission";
 import type { GraphQLContext } from "../context";
 import { holdsCapability, viewerCapabilities } from "./helpers";
@@ -346,6 +350,10 @@ export const viewerResolvers = {
 export const userResolvers = {
   active(user: User): boolean {
     return isUserActive(user);
+  },
+
+  invitationStatus(user: User) {
+    return invitationStatus(user);
   },
 
   /** Loader-based, like `ApiKey.scopes` -- the use cases that return a

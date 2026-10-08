@@ -1,6 +1,7 @@
 import type { R2BucketLike } from "@flying-mail/adapter/blob/r2";
 import type { CloudflareSendEmailBinding } from "@flying-mail/adapter/mail/cloudflare-email";
 import type { D1DatabaseLike } from "@flying-mail/adapter/sql/d1";
+import type { RateLimitBindingLike } from "@flying-mail/adapter/rate-limit/workers-binding";
 
 /** Minimal structural surface of the Workers Static Assets binding, used by
  * `worker.ts`'s SPA fallthrough. Kept local (see `D1DatabaseLike` and
@@ -45,14 +46,18 @@ export interface Env {
   readonly BLOB: R2BucketLike;
   readonly ASSETS: FetcherLike;
   readonly EMAIL: CloudflareSendEmailBinding;
+  readonly AUTH_RATE_LIMITER?: RateLimitBindingLike;
   readonly FLYING_MAIL_PUBLIC_ORIGIN?: string;
   readonly FLYING_MAIL_MAIL_FROM?: string;
+  readonly FLYING_MAIL_BOOTSTRAP_TOKEN?: string;
+  readonly FLYING_MAIL_TURNSTILE_SECRET_KEY?: string;
+  readonly FLYING_MAIL_TURNSTILE_SITE_KEY?: string;
+  readonly FLYING_MAIL_INVITE_TTL_SECONDS?: string;
   /** Cloudflare Email Sending credentials. Set both to send to arbitrary
    * recipients instead of only the account's verified destinations. Keep
    * the token a Worker *secret*, never a plaintext var. */
   readonly FLYING_MAIL_EMAIL_SENDING_ACCOUNT_ID?: string;
   readonly FLYING_MAIL_EMAIL_SENDING_TOKEN?: string;
-  readonly FLYING_MAIL_SIGNUP?: string;
   readonly FLYING_MAIL_SPAM_THRESHOLD?: string;
   readonly FLYING_MAIL_SPAM_PHRASES?: string;
   readonly FLYING_MAIL_FILE_LINK_MAX_TTL?: string;
@@ -72,10 +77,13 @@ export function envToRecord(env: Env): Record<string, string | undefined> {
   return {
     FLYING_MAIL_PUBLIC_ORIGIN: env.FLYING_MAIL_PUBLIC_ORIGIN,
     FLYING_MAIL_MAIL_FROM: env.FLYING_MAIL_MAIL_FROM,
+    FLYING_MAIL_BOOTSTRAP_TOKEN: env.FLYING_MAIL_BOOTSTRAP_TOKEN,
+    FLYING_MAIL_TURNSTILE_SECRET_KEY: env.FLYING_MAIL_TURNSTILE_SECRET_KEY,
+    FLYING_MAIL_TURNSTILE_SITE_KEY: env.FLYING_MAIL_TURNSTILE_SITE_KEY,
+    FLYING_MAIL_INVITE_TTL_SECONDS: env.FLYING_MAIL_INVITE_TTL_SECONDS,
     FLYING_MAIL_EMAIL_SENDING_ACCOUNT_ID:
       env.FLYING_MAIL_EMAIL_SENDING_ACCOUNT_ID,
     FLYING_MAIL_EMAIL_SENDING_TOKEN: env.FLYING_MAIL_EMAIL_SENDING_TOKEN,
-    FLYING_MAIL_SIGNUP: env.FLYING_MAIL_SIGNUP,
     FLYING_MAIL_SPAM_THRESHOLD: env.FLYING_MAIL_SPAM_THRESHOLD,
     FLYING_MAIL_SPAM_PHRASES: env.FLYING_MAIL_SPAM_PHRASES,
     FLYING_MAIL_FILE_LINK_MAX_TTL: env.FLYING_MAIL_FILE_LINK_MAX_TTL,

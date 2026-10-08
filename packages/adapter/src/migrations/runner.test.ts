@@ -112,6 +112,7 @@ describe("createMigrationRunner", () => {
       "0012_remove_calendar.sql",
       "0013_webmail_completion.sql",
       "0014_address_activity_index.sql",
+      "0015_auth_hardening.sql",
     ]);
 
     const names = await tableNames(db);
@@ -144,6 +145,43 @@ describe("createMigrationRunner", () => {
       "STARRED",
       "TRASH",
     ]);
+  });
+
+  test("0015 backfills existing users and defaults existing challenges to LOGIN", async () => {
+    const db = createInMemoryDatabase();
+    const migrations = loadMigrationFiles();
+    const runner = createMigrationRunner(db);
+    await runner.apply(
+      migrations.filter(
+        (migration) => migration.name < "0015_auth_hardening.sql",
+      ),
+    );
+    await db.execute(
+      `INSERT INTO users (id, email, name, role, created_at, updated_at)
+       VALUES ('usr-old', 'old@example.com', 'Old User', 'ADMIN', ?, ?)`,
+      ["2020-01-02T03:04:05.000Z", "2020-01-02T03:04:05.000Z"],
+    );
+    await db.execute(
+      `INSERT INTO email_auth_challenges (id, email, token_hash, expires_at, created_at)
+       VALUES ('cha-old', 'old@example.com', 'old-hash', '2020-01-03T00:00:00.000Z', '2020-01-02T03:04:05.000Z')`,
+    );
+    expect((await runner.apply(migrations)).applied).toEqual([
+      "0015_auth_hardening.sql",
+    ]);
+    expect(
+      (
+        await db.query<{ invitation_accepted_at: string }>(
+          "SELECT invitation_accepted_at FROM users WHERE id = 'usr-old'",
+        )
+      )[0]?.invitation_accepted_at,
+    ).toBe("2020-01-02T03:04:05.000Z");
+    expect(
+      (
+        await db.query<{ purpose: string }>(
+          "SELECT purpose FROM email_auth_challenges WHERE id = 'cha-old'",
+        )
+      )[0]?.purpose,
+    ).toBe("LOGIN");
   });
 
   test("upgrades populated users to VIEWER without losing dependent rows", async () => {
@@ -241,6 +279,7 @@ describe("createMigrationRunner", () => {
       "idx_user_mail_permissions_user",
       "idx_user_mail_permissions_domain",
       "idx_user_mail_permissions_rule",
+      "idx_email_auth_challenges_email_purpose_created",
     ]) {
       expect(names).toContain(expected);
     }

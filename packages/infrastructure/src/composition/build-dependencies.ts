@@ -1,4 +1,5 @@
 import { createMemoryBlobStore } from "@flying-mail/adapter/blob/memory";
+import { createSiteverifyTurnstileVerifier } from "@flying-mail/adapter/turnstile/siteverify";
 import { createR2BlobStore } from "@flying-mail/adapter/blob/r2";
 import { createS3BlobStore } from "@flying-mail/adapter/blob/s3";
 import {
@@ -54,6 +55,7 @@ import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   type BuildDependenciesConfig,
   DEFAULT_FILE_LINK_MAX_TTL_SECONDS,
+  DEFAULT_INVITE_TTL_SECONDS,
   DEFAULT_INBOUND_MX_SUFFIX,
   DEFAULT_SPAM_THRESHOLD,
   DEFAULT_SQLITE_URL,
@@ -228,11 +230,21 @@ export function buildDependencies(
     carddavAccountRepository: createCarddavAccountRepository(db),
     externalMailAccountRepository: createExternalMailAccountRepository(db),
     externalMessageStateRepository: createExternalMessageStateRepository(db),
+    rateLimiter: config.rateLimiter ?? null,
+    turnstileVerifier:
+      config.turnstile === undefined
+        ? null
+        : createSiteverifyTurnstileVerifier({
+            secret: config.turnstile.secret,
+            expectedHostname: config.turnstile.expectedHostname,
+          }),
     sessionRepository: createSessionRepository(db),
     emailAuthChallengeRepository: createEmailAuthChallengeRepository(db),
 
     instanceConfig: {
-      signupMode: config.signupMode ?? "closed",
+      inviteTtlSeconds: config.inviteTtlSeconds ?? DEFAULT_INVITE_TTL_SECONDS,
+      bootstrapToken: config.bootstrapToken ?? null,
+      turnstileSiteKey: config.turnstile?.siteKey ?? null,
       publicOrigin: config.publicOrigin ?? null,
       mailFrom: config.mailFrom ?? null,
       spamThreshold: config.spamThreshold ?? DEFAULT_SPAM_THRESHOLD,

@@ -2,11 +2,17 @@ import { InvalidStateTransitionError } from "../errors";
 import type { EmailAddress } from "../value-objects/email-address";
 import type { EmailAuthChallengeId } from "../value-objects/ids";
 
+export enum EmailAuthChallengePurpose {
+  Login = "LOGIN",
+  Invitation = "INVITATION",
+}
+
 /** A single-use, short-lived passwordless login token. Only the token's
  * SHA-256 hash is stored, so the database never holds a usable credential. */
 export interface EmailAuthChallenge {
   readonly id: EmailAuthChallengeId;
   readonly email: EmailAddress;
+  readonly purpose: EmailAuthChallengePurpose;
   readonly tokenHash: string;
   readonly expiresAt: string;
   readonly consumedAt: string | null;
@@ -16,6 +22,7 @@ export interface EmailAuthChallenge {
 export interface CreateEmailAuthChallengeInput {
   readonly id: EmailAuthChallengeId;
   readonly email: EmailAddress;
+  readonly purpose: EmailAuthChallengePurpose;
   readonly tokenHash: string;
   readonly expiresAt: string;
   readonly createdAt: string;
@@ -27,6 +34,7 @@ export function createEmailAuthChallenge(
   return {
     id: input.id,
     email: input.email,
+    purpose: input.purpose,
     tokenHash: input.tokenHash,
     expiresAt: input.expiresAt,
     consumedAt: null,

@@ -6,8 +6,8 @@ import { parseCloudflareSenderAddress } from "@flying-mail/adapter/mail/cloudfla
 import type { R2BucketLike } from "@flying-mail/adapter/blob/r2";
 import type { S3Config } from "@flying-mail/adapter/blob/s3";
 import type { D1DatabaseLike } from "@flying-mail/adapter/sql/d1";
-import type { SignupMode } from "@flying-mail/application/dependencies";
 import type { DnsResolver } from "@flying-mail/application/ports/dns-resolver";
+import type { RateLimiter } from "@flying-mail/application/ports/rate-limiter";
 import type {
   Clock,
   RandomSource,
@@ -24,6 +24,7 @@ export type ExternalMailRuntime = "cloudflare" | "node";
 export const DEFAULT_SQLITE_URL = "file:./data/mailcal.db";
 export const DEFAULT_SPAM_THRESHOLD = 0.6;
 export const DEFAULT_FILE_LINK_MAX_TTL_SECONDS = 604800;
+export const DEFAULT_INVITE_TTL_SECONDS = 604800;
 export const DEFAULT_INBOUND_MX_SUFFIX = "mx.cloudflare.net";
 const DEFAULT_S3_REGION = "us-east-1";
 
@@ -43,10 +44,17 @@ export interface BuildDependenciesConfig {
   readonly emailSendingAccountId?: string;
   readonly emailSendingToken?: string;
   readonly publicOrigin?: string;
-  readonly signupMode?: SignupMode;
   readonly spamThreshold?: number;
   readonly spamPhrases?: readonly string[];
   readonly fileLinkMaxTtlSeconds?: number;
+  readonly inviteTtlSeconds?: number;
+  readonly bootstrapToken?: string;
+  readonly turnstile?: {
+    readonly secret: string;
+    readonly siteKey: string;
+    readonly expectedHostname: string;
+  };
+  readonly rateLimiter?: RateLimiter;
   readonly inboundMxSuffix?: string | null;
   /** Base64-encoded 32-byte AES key for stored CardDAV and external-mail
    * credentials. Absent means credential-dependent operations are disabled. */
@@ -82,6 +90,134 @@ export class CredentialKeyConfigurationError extends Error {
     super(message);
     this.name = "CredentialKeyConfigurationError";
   }
+}
+
+/** A configured bootstrap token that is too short to be safe to use. */
+export class BootstrapTokenConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BootstrapTokenConfigurationError";
+  }
+}
+
+/** An incomplete Turnstile configuration that cannot verify login tokens. */
+export class TurnstileConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TurnstileConfigurationError";
+  }
+}
+
+/** Returns a stable rate-limit key for a trusted client IP address.
+ * IPv6 clients are grouped by their /64 network to limit address rotation;
+ * IPv4 and IPv4-mapped IPv6 addresses retain their full address. */
+export function normalizeClientIpForRateLimit(
+  clientIp: string | null,
+): string | null {
+  if (clientIp === null) {
+    return null;
+  }
+  const value = clientIp.trim();
+  if (value.length === 0) {
+    return null;
+  }
+
+  const ipv4 = parseIpv4(value);
+  if (ipv4 !== null) {
+    return ipv4.join(".");
+  }
+
+  const ipv6 = parseIpv6(value);
+  if (ipv6 === null) {
+    return null;
+  }
+  const isMappedIpv4 =
+    ipv6.slice(0, 5).every((part) => part === 0) && ipv6[5] === 0xffff;
+  if (isMappedIpv4) {
+    const mappedIpv4 = ipv6.slice(6);
+    const first = mappedIpv4[0];
+    const second = mappedIpv4[1];
+    if (first === undefined || second === undefined) {
+      return null;
+    }
+    return [first >> 8, first & 0xff, second >> 8, second & 0xff].join(".");
+  }
+  return `${ipv6
+    .slice(0, 4)
+    .map((part) => part.toString(16))
+    .join(":")}::/64`;
+}
+
+function parseIpv4(value: string): readonly number[] | null {
+  const parts = value.split(".");
+  if (parts.length !== 4) {
+    return null;
+  }
+  const octets = parts.map((part) => {
+    if (!/^\d{1,3}$/.test(part)) {
+      return null;
+    }
+    const octet = Number(part);
+    return octet <= 255 ? octet : null;
+  });
+  return octets.every((octet) => octet !== null) ? (octets as number[]) : null;
+}
+
+function parseIpv6(value: string): readonly number[] | null {
+  if (value.includes("%")) {
+    return null;
+  }
+  let address = value.toLowerCase();
+  if (address.includes(".")) {
+    const separator = address.lastIndexOf(":");
+    const ipv4 = parseIpv4(address.slice(separator + 1));
+    if (separator < 0 || ipv4 === null) {
+      return null;
+    }
+    const [first, second, third, fourth] = ipv4;
+    if (
+      first === undefined ||
+      second === undefined ||
+      third === undefined ||
+      fourth === undefined
+    ) {
+      return null;
+    }
+    address = `${address.slice(0, separator)}:${((first << 8) | second).toString(16)}:${((third << 8) | fourth).toString(16)}`;
+  }
+
+  const halves = address.split("::");
+  if (halves.length > 2) {
+    return null;
+  }
+  const left = halves[0] === "" ? [] : (halves[0]?.split(":") ?? []);
+  const right =
+    halves.length === 2 && halves[1] !== ""
+      ? (halves[1]?.split(":") ?? [])
+      : [];
+  const hasCompression = halves.length === 2;
+  if (
+    (!hasCompression && left.length !== 8) ||
+    (hasCompression && left.length + right.length >= 8)
+  ) {
+    return null;
+  }
+  const parts = hasCompression
+    ? [
+        ...left,
+        ...Array<string>(8 - left.length - right.length).fill("0"),
+        ...right,
+      ]
+    : left;
+  const groups = parts.map((part) => {
+    if (!/^[0-9a-f]{1,4}$/.test(part)) {
+      return null;
+    }
+    return Number.parseInt(part, 16);
+  });
+  return groups.length === 8 && groups.every((group) => group !== null)
+    ? (groups as number[])
+    : null;
 }
 
 /** A sender configured without a resolvable public origin, or an invalid
@@ -174,12 +310,6 @@ export function assertMailOriginConsistency(params: {
   }
 }
 
-/** Defaults to `"closed"`. This is a mail server, not a SaaS trial: an
- * unset or unrecognized value must not leave registration open. */
-export function resolveSignupMode(env: EnvLike): SignupMode {
-  return env["FLYING_MAIL_SIGNUP"] === "open" ? "open" : "closed";
-}
-
 function resolveNumber(
   raw: string | undefined,
   fallback: number,
@@ -219,6 +349,76 @@ export function resolveFileLinkMaxTtl(env: EnvLike): number {
     DEFAULT_FILE_LINK_MAX_TTL_SECONDS,
     (value) => Number.isInteger(value) && value >= 60,
   );
+}
+
+/** Invalid invite lifetimes fall back to the seven-day default. */
+export function resolveInviteTtlSeconds(env: EnvLike): number {
+  const raw = env["FLYING_MAIL_INVITE_TTL_SECONDS"];
+  if (raw === undefined || raw.trim().length === 0) {
+    return DEFAULT_INVITE_TTL_SECONDS;
+  }
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return DEFAULT_INVITE_TTL_SECONDS;
+  }
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) && parsed >= 86400 && parsed <= 2592000
+    ? parsed
+    : DEFAULT_INVITE_TTL_SECONDS;
+}
+
+/** Returns a trimmed bootstrap secret, or disables bootstrap when unset. */
+export function resolveBootstrapToken(env: EnvLike): string | undefined {
+  const raw = env["FLYING_MAIL_BOOTSTRAP_TOKEN"];
+  if (raw === undefined || raw.trim().length === 0) {
+    return undefined;
+  }
+  const token = raw.trim();
+  if (token.length < 32) {
+    throw new BootstrapTokenConfigurationError(
+      "FLYING_MAIL_BOOTSTRAP_TOKEN must contain at least 32 characters",
+    );
+  }
+  return token;
+}
+
+/** Resolves Turnstile only when its private secret is configured. */
+export function resolveTurnstileConfig(
+  env: EnvLike,
+  publicOrigin: string | undefined,
+):
+  | {
+      readonly secret: string;
+      readonly siteKey: string;
+      readonly expectedHostname: string;
+    }
+  | undefined {
+  const secret = env["FLYING_MAIL_TURNSTILE_SECRET_KEY"]?.trim();
+  if (secret === undefined || secret.length === 0) {
+    return undefined;
+  }
+
+  const siteKey = env["FLYING_MAIL_TURNSTILE_SITE_KEY"]?.trim();
+  if (siteKey === undefined || siteKey.length === 0) {
+    throw new TurnstileConfigurationError(
+      "FLYING_MAIL_TURNSTILE_SECRET_KEY requires FLYING_MAIL_TURNSTILE_SITE_KEY",
+    );
+  }
+  if (publicOrigin === undefined) {
+    throw new TurnstileConfigurationError(
+      "FLYING_MAIL_TURNSTILE_SECRET_KEY requires FLYING_MAIL_PUBLIC_ORIGIN",
+    );
+  }
+
+  let expectedHostname: string;
+  try {
+    expectedHostname = new URL(publicOrigin).hostname;
+  } catch {
+    throw new TurnstileConfigurationError(
+      "FLYING_MAIL_PUBLIC_ORIGIN must be a valid URL when Turnstile is enabled",
+    );
+  }
+  return { secret, siteKey, expectedHostname };
 }
 
 /** `FLYING_MAIL_INBOUND_MX_SUFFIX` defaults to Cloudflare Email Routing.
@@ -286,6 +486,9 @@ export function resolveS3Config(env: EnvLike): S3Config {
  * checkout runs with no setup at all. */
 export function loadConfigFromEnv(env: EnvLike): BuildDependenciesConfig {
   const publicOrigin = resolvePublicOrigin(env);
+  const inviteTtlSeconds = resolveInviteTtlSeconds(env);
+  const bootstrapToken = resolveBootstrapToken(env);
+  const turnstile = resolveTurnstileConfig(env, publicOrigin);
   const mailFrom = resolveMailFrom(env);
   assertMailOriginConsistency({ mailFrom, publicOrigin });
 
@@ -304,12 +507,14 @@ export function loadConfigFromEnv(env: EnvLike): BuildDependenciesConfig {
     ...(localBlobBackend === "s3" ? { s3: resolveS3Config(env) } : {}),
     ...(publicOrigin === undefined ? {} : { publicOrigin }),
     ...(mailFrom === undefined ? {} : { mailFrom }),
-    signupMode: resolveSignupMode(env),
     spamThreshold: resolveSpamThreshold(env),
     spamPhrases: resolveSpamPhrases(env),
     fileLinkMaxTtlSeconds: resolveFileLinkMaxTtl(env),
+    inviteTtlSeconds,
     inboundMxSuffix: resolveInboundMxSuffix(env),
     ...(credentialKey === undefined ? {} : { credentialKey }),
+    ...(bootstrapToken === undefined ? {} : { bootstrapToken }),
+    ...(turnstile === undefined ? {} : { turnstile }),
   };
 }
 

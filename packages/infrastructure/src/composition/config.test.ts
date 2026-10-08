@@ -7,23 +7,29 @@ import {
   resolveExternalMailRuntime,
 } from "./build-dependencies";
 import {
+  BootstrapTokenConfigurationError,
   CredentialKeyConfigurationError,
   DEFAULT_FILE_LINK_MAX_TTL_SECONDS,
+  DEFAULT_INVITE_TTL_SECONDS,
   DEFAULT_INBOUND_MX_SUFFIX,
   DEFAULT_SPAM_THRESHOLD,
   MailConfigurationError,
   PublicOriginConfigurationError,
+  TurnstileConfigurationError,
   assertMailOriginConsistency,
   loadConfigFromEnv,
   normalizeSqliteUrl,
+  normalizeClientIpForRateLimit,
   resolveBlobBackend,
+  resolveBootstrapToken,
   resolveCredentialKey,
   resolveFileLinkMaxTtl,
+  resolveInviteTtlSeconds,
   resolveInboundMxSuffix,
   resolveMailFrom,
   resolvePublicOrigin,
-  resolveSignupMode,
   resolveSpamThreshold,
+  resolveTurnstileConfig,
 } from "./config";
 
 describe("resolvePublicOrigin", () => {
@@ -99,12 +105,6 @@ describe("assertMailOriginConsistency", () => {
 });
 
 describe("scalar env resolution", () => {
-  test("signup defaults closed", () => {
-    expect(resolveSignupMode({})).toBe("closed");
-    expect(resolveSignupMode({ FLYING_MAIL_SIGNUP: "yes" })).toBe("closed");
-    expect(resolveSignupMode({ FLYING_MAIL_SIGNUP: "open" })).toBe("open");
-  });
-
   test("spam threshold falls back for anything out of range", () => {
     expect(resolveSpamThreshold({})).toBe(DEFAULT_SPAM_THRESHOLD);
     expect(resolveSpamThreshold({ FLYING_MAIL_SPAM_THRESHOLD: "0.8" })).toBe(
@@ -157,6 +157,137 @@ describe("scalar env resolution", () => {
   });
 });
 
+describe("resolveInviteTtlSeconds", () => {
+  test.each([
+    ["unset", undefined, DEFAULT_INVITE_TTL_SECONDS],
+    ["minimum", "86400", 86400],
+    ["maximum", "2592000", 2592000],
+    ["below minimum", "3600", DEFAULT_INVITE_TTL_SECONDS],
+    ["non-integer", "abc", DEFAULT_INVITE_TTL_SECONDS],
+    ["fractional", "90000.5", DEFAULT_INVITE_TTL_SECONDS],
+  ] as const)("resolves %s", (_label, value, expected) => {
+    expect(
+      resolveInviteTtlSeconds(
+        value === undefined ? {} : { FLYING_MAIL_INVITE_TTL_SECONDS: value },
+      ),
+    ).toBe(expected);
+  });
+});
+
+describe("resolveBootstrapToken", () => {
+  test.each(["unset", "blank"])("disables bootstrap when %s", (kind) => {
+    const env = kind === "unset" ? {} : { FLYING_MAIL_BOOTSTRAP_TOKEN: "  " };
+    expect(resolveBootstrapToken(env)).toBeUndefined();
+  });
+
+  test("rejects short tokens without including their value in the error", () => {
+    const token = "sensitive-short-token-value-123";
+    try {
+      resolveBootstrapToken({ FLYING_MAIL_BOOTSTRAP_TOKEN: token });
+      throw new Error("Expected a configuration error");
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(BootstrapTokenConfigurationError);
+      expect(error instanceof Error ? error.message : "").not.toContain(token);
+    }
+  });
+
+  test("returns a 32-character token trimmed", () => {
+    const token = "a".repeat(32);
+    expect(
+      resolveBootstrapToken({ FLYING_MAIL_BOOTSTRAP_TOKEN: ` ${token} ` }),
+    ).toBe(token);
+  });
+});
+
+describe("resolveTurnstileConfig", () => {
+  test("disables Turnstile without a secret, including when only the site key is set", () => {
+    expect(resolveTurnstileConfig({}, undefined)).toBeUndefined();
+    expect(
+      resolveTurnstileConfig(
+        { FLYING_MAIL_TURNSTILE_SITE_KEY: "public-site-key" },
+        undefined,
+      ),
+    ).toBeUndefined();
+  });
+
+  test("requires a site key and public origin when the secret is set", () => {
+    const secret = "private-turnstile-secret";
+    expect(() =>
+      resolveTurnstileConfig(
+        { FLYING_MAIL_TURNSTILE_SECRET_KEY: secret },
+        "https://mail.example.com",
+      ),
+    ).toThrow(TurnstileConfigurationError);
+    expect(() =>
+      resolveTurnstileConfig(
+        {
+          FLYING_MAIL_TURNSTILE_SECRET_KEY: secret,
+          FLYING_MAIL_TURNSTILE_SITE_KEY: "public-site-key",
+        },
+        undefined,
+      ),
+    ).toThrow(TurnstileConfigurationError);
+  });
+
+  test("masks the secret when the public origin is invalid", () => {
+    const secret = "private-turnstile-secret";
+    try {
+      resolveTurnstileConfig(
+        {
+          FLYING_MAIL_TURNSTILE_SECRET_KEY: secret,
+          FLYING_MAIL_TURNSTILE_SITE_KEY: "public-site-key",
+        },
+        "not-a-url",
+      );
+      throw new Error("Expected a configuration error");
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(TurnstileConfigurationError);
+      expect(error instanceof Error ? error.message : "").not.toContain(secret);
+    }
+  });
+
+  test("trims settings and derives the expected hostname", () => {
+    expect(
+      resolveTurnstileConfig(
+        {
+          FLYING_MAIL_TURNSTILE_SECRET_KEY: " private-secret ",
+          FLYING_MAIL_TURNSTILE_SITE_KEY: " public-site-key ",
+        },
+        "https://mail.tacoserve.online",
+      ),
+    ).toEqual({
+      secret: "private-secret",
+      siteKey: "public-site-key",
+      expectedHostname: "mail.tacoserve.online",
+    });
+  });
+});
+
+describe("normalizeClientIpForRateLimit", () => {
+  test.each([
+    ["192.0.2.1", "192.0.2.1"],
+    ["::ffff:192.0.2.1", "192.0.2.1"],
+    ["0:0:0:0:0:ffff:c000:201", "192.0.2.1"],
+  ])("keeps IPv4 address identity for %s", (input, expected) => {
+    expect(normalizeClientIpForRateLimit(input)).toBe(expected);
+  });
+
+  test.each([
+    ["2001:db8:1:2::1", "2001:db8:1:2::/64"],
+    ["2001:0db8:0001:0002:ffff::1", "2001:db8:1:2::/64"],
+    ["2001:db8:1:3::1", "2001:db8:1:3::/64"],
+  ])("groups IPv6 addresses by /64 for %s", (input, expected) => {
+    expect(normalizeClientIpForRateLimit(input)).toBe(expected);
+  });
+
+  test.each([null, "", "   ", "not-an-ip"])(
+    "returns null for invalid or empty client IP %j",
+    (input) => {
+      expect(normalizeClientIpForRateLimit(input)).toBeNull();
+    },
+  );
+});
+
 describe("normalizeSqliteUrl", () => {
   test.each([
     // A bare path is what an operator naturally writes; libsql rejects it
@@ -189,8 +320,26 @@ describe("loadConfigFromEnv", () => {
     expect(config.sqliteUrl).toBe("file:./data/mailcal.db");
     // Local defaults to memory blobs so a clean checkout runs with no setup.
     expect(config.blobBackend).toBe("memory");
-    expect(config.signupMode).toBe("closed");
     expect(config.inboundMxSuffix).toBe(DEFAULT_INBOUND_MX_SUFFIX);
+    expect(config.inviteTtlSeconds).toBe(DEFAULT_INVITE_TTL_SECONDS);
+  });
+
+  test("resolves auth settings for the local server", () => {
+    const config = loadConfigFromEnv({
+      FLYING_MAIL_INVITE_TTL_SECONDS: "2592000",
+      FLYING_MAIL_BOOTSTRAP_TOKEN: ` ${"t".repeat(32)} `,
+      FLYING_MAIL_PUBLIC_ORIGIN: "https://mail.tacoserve.online",
+      FLYING_MAIL_TURNSTILE_SECRET_KEY: " private-secret ",
+      FLYING_MAIL_TURNSTILE_SITE_KEY: " public-site-key ",
+    });
+    expect(config.inviteTtlSeconds).toBe(2592000);
+    expect(config.bootstrapToken).toBe("t".repeat(32));
+    expect(config.turnstile).toEqual({
+      secret: "private-secret",
+      siteKey: "public-site-key",
+      expectedHostname: "mail.tacoserve.online",
+    });
+    expect(config.rateLimiter).toBeUndefined();
   });
 
   test("an empty inbound MX suffix disables the gate", () => {
@@ -235,7 +384,6 @@ describe("buildDependencies", () => {
     });
     expect(deps.messageRepository).toBeDefined();
     expect(deps.mimeParser).toBeDefined();
-    expect(deps.instanceConfig.signupMode).toBe("closed");
     expect(deps.instanceConfig.publicOrigin).toBeNull();
     expect(deps.instanceConfig.spamThreshold).toBe(DEFAULT_SPAM_THRESHOLD);
     expect(deps.instanceConfig.inboundMxSuffix).toBe(DEFAULT_INBOUND_MX_SUFFIX);
@@ -248,6 +396,35 @@ describe("buildDependencies", () => {
     expect(deps.smtpSubmissionClient).toBeDefined();
     expect(deps.externalMailAccountRepository).toBeDefined();
     expect(deps.externalMessageStateRepository).toBeDefined();
+    expect(deps.turnstileVerifier).toBeNull();
+    expect(deps.instanceConfig.turnstileSiteKey).toBeNull();
+    expect(deps.rateLimiter).toBeNull();
+  });
+
+  test("wires Turnstile and rate limiting only when configured", () => {
+    const rateLimiter = {
+      async limit() {
+        return true;
+      },
+    };
+    const deps = buildDependencies({
+      sqlBackend: "sqlite",
+      sqliteUrl: ":memory:",
+      blobBackend: "memory",
+      inviteTtlSeconds: 86400,
+      bootstrapToken: "b".repeat(32),
+      turnstile: {
+        secret: "private-secret",
+        siteKey: "public-site-key",
+        expectedHostname: "mail.example.com",
+      },
+      rateLimiter,
+    });
+    expect(deps.turnstileVerifier).not.toBeNull();
+    expect(deps.instanceConfig.turnstileSiteKey).toBe("public-site-key");
+    expect(deps.rateLimiter).toBe(rateLimiter);
+    expect(deps.instanceConfig.inviteTtlSeconds).toBe(86400);
+    expect(deps.instanceConfig.bootstrapToken).toBe("b".repeat(32));
   });
 
   test("installs the unavailable mail sender without a verified sender", async () => {

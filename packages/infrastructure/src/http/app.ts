@@ -73,6 +73,7 @@ export interface CreateAppOptions {
    * production -- it accepts a raw message with no authentication, which is
    * exactly what makes it useful locally and unacceptable anywhere else. */
   readonly devInbound?: (c: Context) => Promise<Response>;
+  readonly resolveClientIp?: (c: Context) => string | null;
 }
 
 /** Assembles the single hono app shared by every execution target.
@@ -97,6 +98,7 @@ export function createApp(
       viewer: c.get("viewer"),
       token: c.get("token"),
       requestOrigin: resolveRequestOrigin(c.req.raw),
+      clientIp: options.resolveClientIp?.(c) ?? null,
       deps: options.deps,
       usecases: options.usecases,
     });

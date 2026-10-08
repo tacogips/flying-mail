@@ -578,6 +578,12 @@ mail and blobs.
 
 ### 7.1 `apps/api/wrangler.toml`
 
+The block lists only new or changed keys; every existing binding and var
+(`[[d1_databases]]`, `[[r2_buckets]]`, `[[send_email]]`, `[assets]`,
+`FLYING_MAIL_MAIL_FROM`, `FLYING_MAIL_SPAM_THRESHOLD`,
+`FLYING_MAIL_FILE_LINK_MAX_TTL`) is kept; only `FLYING_MAIL_SIGNUP` is
+removed.
+
 ```toml
 workers_dev = false
 preview_urls = false

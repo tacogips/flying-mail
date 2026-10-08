@@ -80,6 +80,14 @@ run = [
   "bun run --cwd apps/api cf:deploy",
 ]
 
+[tasks.bootstrap-admin]
+description = "Create the first admin on an empty deployment (run under kinko exec; needs FLYING_MAIL_BOOTSTRAP_TOKEN and FLYING_MAIL_ENDPOINT)"
+usage = '''
+arg "<email>"
+arg "<name>"
+'''
+run = 'bun run --cwd apps/cli start -- admin bootstrap --email "$usage_email" --name "$usage_name" --secret-file "{{config_root}}/.private/bootstrap-admin-api-key"'
+
 [tasks.test]
 description = "Run tests with Vitest"
 run = "bun run test"

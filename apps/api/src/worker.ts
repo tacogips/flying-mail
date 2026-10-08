@@ -3,6 +3,7 @@ import {
   type UseCases,
 } from "@flying-mail/application/usecases";
 import { drainBlobCleanupQueue } from "@flying-mail/adapter/migrations/blob-cleanup";
+import { createWorkersRateLimiter } from "@flying-mail/adapter/rate-limit/workers-binding";
 import type { BlobStore } from "@flying-mail/application/ports/blob-store";
 import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import { buildDependencies } from "@flying-mail/infrastructure/composition/build-dependencies";
@@ -10,17 +11,20 @@ import {
   assertMailOriginConsistency,
   type BuildDependenciesConfig,
   resolveBlobBackend,
+  resolveBootstrapToken,
   resolveCredentialKey,
   resolveFileLinkMaxTtl,
+  resolveInviteTtlSeconds,
   resolveInboundMxSuffix,
   resolveEmailSendingAccountId,
   resolveEmailSendingToken,
   resolveMailFrom,
   resolvePublicOrigin,
   resolveS3Config,
-  resolveSignupMode,
   resolveSpamPhrases,
   resolveSpamThreshold,
+  resolveTurnstileConfig,
+  normalizeClientIpForRateLimit,
 } from "@flying-mail/infrastructure/composition/config";
 import { createApp } from "@flying-mail/infrastructure/http/app";
 import type { AuthVariables } from "@flying-mail/infrastructure/http/auth-middleware";
@@ -48,15 +52,17 @@ export function buildWorkerConfig(env: Env): BuildDependenciesConfig {
   const credentialKey = resolveCredentialKey(record);
   const emailSendingAccountId = resolveEmailSendingAccountId(record);
   const emailSendingToken = resolveEmailSendingToken(record);
+  const bootstrapToken = resolveBootstrapToken(record);
+  const turnstile = resolveTurnstileConfig(record, publicOrigin);
 
   return {
     sqlBackend: "d1",
     d1: env.DB,
     blobBackend,
-    signupMode: resolveSignupMode(record),
     spamThreshold: resolveSpamThreshold(record),
     spamPhrases: resolveSpamPhrases(record),
     fileLinkMaxTtlSeconds: resolveFileLinkMaxTtl(record),
+    inviteTtlSeconds: resolveInviteTtlSeconds(record),
     inboundMxSuffix: resolveInboundMxSuffix(record),
     email: env.EMAIL,
     ...(publicOrigin === undefined ? {} : { publicOrigin }),
@@ -66,6 +72,11 @@ export function buildWorkerConfig(env: Env): BuildDependenciesConfig {
     ...(credentialKey === undefined ? {} : { credentialKey }),
     ...(emailSendingAccountId === undefined ? {} : { emailSendingAccountId }),
     ...(emailSendingToken === undefined ? {} : { emailSendingToken }),
+    ...(bootstrapToken === undefined ? {} : { bootstrapToken }),
+    ...(turnstile === undefined ? {} : { turnstile }),
+    ...(env.AUTH_RATE_LIMITER === undefined
+      ? {}
+      : { rateLimiter: createWorkersRateLimiter(env.AUTH_RATE_LIMITER) }),
   };
 }
 
@@ -123,6 +134,10 @@ function getOrBuildWorker(env: Env): BuiltWorker {
     deps,
     usecases,
     graphiql: false,
+    resolveClientIp: (c) =>
+      normalizeClientIpForRateLimit(
+        c.req.header("cf-connecting-ip")?.trim() || null,
+      ),
     onNotFound: (c) => env.ASSETS.fetch(c.req.raw),
   });
   const built: BuiltWorker = {

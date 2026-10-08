@@ -21,6 +21,7 @@ import {
 } from "./server";
 
 const ORIGIN = "http://localhost:8787";
+const BOOTSTRAP_TOKEN = "server-test-bootstrap-token-with-32-chars";
 const MIGRATIONS_DIR = fileURLToPath(new URL("../migrations", import.meta.url));
 
 const SAMPLE_EML = [
@@ -48,6 +49,7 @@ describe("createLocalApp", () => {
     // A throwaway in-memory database per test, so migrations run fresh.
     process.env["FLYING_MAIL_SQLITE_URL"] = ":memory:";
     process.env["FLYING_MAIL_BLOB_BACKEND"] = "memory";
+    process.env["FLYING_MAIL_BOOTSTRAP_TOKEN"] = BOOTSTRAP_TOKEN;
     delete process.env["FLYING_MAIL_PUBLIC_ORIGIN"];
     delete process.env["FLYING_MAIL_MAIL_FROM"];
   });
@@ -120,10 +122,20 @@ describe("createLocalApp", () => {
     const { app, deps, usecases } = await createLocalApp();
 
     // The route needs a managed, active domain, exactly like production.
-    const { user } = await usecases.bootstrapAdmin(
-      "admin@example.com",
-      "Admin",
-    );
+    const { user } = await usecases.bootstrapAdmin({
+      email: "admin@example.com",
+      name: "Admin",
+      token: BOOTSTRAP_TOKEN,
+      clientIp: null,
+    });
+    await expect(
+      usecases.bootstrapAdmin({
+        email: "second@example.com",
+        name: "Second",
+        token: BOOTSTRAP_TOKEN,
+        clientIp: null,
+      }),
+    ).rejects.toThrow();
     const viewer = {
       kind: "USER" as const,
       userId: user.id,
@@ -181,6 +193,88 @@ describe("createLocalApp", () => {
       }),
     );
     expect(response.status).toBe(400);
+  });
+
+  test("uses app.request client IP env and ignores spoofed IP headers", async () => {
+    const { app } = await createLocalApp();
+    const responses: Response[] = [];
+    for (let call = 0; call < 11; call += 1) {
+      responses.push(
+        await app.request(
+          new Request(`${ORIGIN}/graphql`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "CF-Connecting-IP": `203.0.113.${call + 1}`,
+              "X-Forwarded-For": `198.51.100.${call + 1}`,
+            },
+            body: JSON.stringify({
+              query:
+                'mutation { requestEmailAuth(email: "person@example.com") }',
+            }),
+          }),
+          undefined,
+          { clientIp: "192.0.2.1" },
+        ),
+      );
+    }
+
+    expect(responses).toHaveLength(11);
+    for (const response of responses.slice(0, 10)) {
+      expect(response.status).toBe(200);
+      expect(await response.text()).not.toContain('"code":"RATE_LIMITED"');
+    }
+    expect(responses[10]?.status).toBe(200);
+    expect(await responses[10]?.text()).toContain('"code":"RATE_LIMITED"');
+
+    const otherAddress = await app.request(
+      new Request(`${ORIGIN}/graphql`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          query: 'mutation { requestEmailAuth(email: "person@example.com") }',
+        }),
+      }),
+      undefined,
+      { clientIp: "192.0.2.2" },
+    );
+    expect(otherAddress.status).toBe(200);
+    expect(await otherAddress.text()).not.toContain('"code":"RATE_LIMITED"');
+  });
+
+  test("uses the Node socket peer address as an independent rate limit key", async () => {
+    const { app } = await createLocalApp();
+    const depleted = { clientIp: "192.0.2.1" };
+    for (let call = 0; call < 11; call += 1) {
+      await app.request(
+        new Request(`${ORIGIN}/graphql`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            query: 'mutation { requestEmailAuth(email: "person@example.com") }',
+          }),
+        }),
+        undefined,
+        depleted,
+      );
+    }
+
+    const socketAddress = await app.request(
+      new Request(`${ORIGIN}/graphql`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "X-Forwarded-For": "198.51.100.10",
+        },
+        body: JSON.stringify({
+          query: 'mutation { requestEmailAuth(email: "person@example.com") }',
+        }),
+      }),
+      undefined,
+      { incoming: { socket: { remoteAddress: "192.0.2.3" } } },
+    );
+    expect(socketAddress.status).toBe(200);
+    expect(await socketAddress.text()).not.toContain('"code":"RATE_LIMITED"');
   });
 });
 

@@ -34,14 +34,16 @@ import type {
   SmtpSubmissionClient,
   TcpDialer,
 } from "./ports/external-mail";
-
-/** Instance-wide self-signup gate. Defaults to `"closed"`: this is a mail
- * server, not a SaaS trial, so an unset value must not leave registration
- * open to the internet. */
-export type SignupMode = "open" | "closed";
+import type { RateLimiter } from "./ports/rate-limiter";
+import type { TurnstileVerifier } from "./ports/turnstile-verifier";
 
 export interface InstanceConfig {
-  readonly signupMode: SignupMode;
+  /** Invitation sign-in link lifetime in seconds. */
+  readonly inviteTtlSeconds: number;
+  /** Raw one-time bootstrap secret held in memory only; never log it. */
+  readonly bootstrapToken: string | null;
+  /** Public Turnstile site key; null disables the widget. */
+  readonly turnstileSiteKey: string | null;
   /** Absolute origin (scheme + host, no trailing slash) this deployment is
    * reachable at, or `null` when unconfigured -- in which case passwordless
    * login is disabled rather than mailing broken links, and file-link URLs
@@ -118,6 +120,11 @@ export interface AppDependencies {
   readonly carddavAccountRepository: CarddavAccountRepository;
   readonly externalMailAccountRepository: ExternalMailAccountRepository;
   readonly externalMessageStateRepository: ExternalMessageStateRepository;
+
+  /** Optional per-IP limiter; null disables rate limiting. */
+  readonly rateLimiter: RateLimiter | null;
+  /** Optional bot verifier; null disables Turnstile. */
+  readonly turnstileVerifier: TurnstileVerifier | null;
 
   readonly instanceConfig: InstanceConfig;
 }

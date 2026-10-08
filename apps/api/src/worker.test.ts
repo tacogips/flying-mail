@@ -262,13 +262,23 @@ describe("env helpers", () => {
   test("envToRecord exposes every var the config resolvers read", () => {
     const record = envToRecord({
       FLYING_MAIL_PUBLIC_ORIGIN: "https://mail.example.com",
-      FLYING_MAIL_SIGNUP: "open",
     } as Env);
     expect(record["FLYING_MAIL_PUBLIC_ORIGIN"]).toBe(
       "https://mail.example.com",
     );
-    expect(record["FLYING_MAIL_SIGNUP"]).toBe("open");
     expect(record["FLYING_MAIL_MAIL_FROM"]).toBeUndefined();
+    const authRecord = envToRecord({
+      FLYING_MAIL_BOOTSTRAP_TOKEN: "bootstrap-token",
+      FLYING_MAIL_TURNSTILE_SECRET_KEY: "turnstile-secret",
+      FLYING_MAIL_TURNSTILE_SITE_KEY: "turnstile-site",
+      FLYING_MAIL_INVITE_TTL_SECONDS: "86400",
+    } as Env);
+    expect(authRecord["FLYING_MAIL_BOOTSTRAP_TOKEN"]).toBe("bootstrap-token");
+    expect(authRecord["FLYING_MAIL_TURNSTILE_SECRET_KEY"]).toBe(
+      "turnstile-secret",
+    );
+    expect(authRecord["FLYING_MAIL_TURNSTILE_SITE_KEY"]).toBe("turnstile-site");
+    expect(authRecord["FLYING_MAIL_INVITE_TTL_SECONDS"]).toBe("86400");
   });
 
   test("headersToMap lower-cases keys and joins repeats", () => {
@@ -295,6 +305,14 @@ describe("buildWorkerConfig", () => {
     expect(config.r2).toBe(harness.env.BLOB);
     expect(config.publicOrigin).toBe("https://mail.example.com");
     expect(config.inboundMxSuffix).toBe("mx.cloudflare.net");
+  });
+
+  test("creates the Workers limiter only when its binding is present", async () => {
+    expect(buildWorkerConfig(harness.env).rateLimiter).toBeUndefined();
+    const { env } = await createWorkerEnv({
+      AUTH_RATE_LIMITER: { limit: async () => ({ success: false }) },
+    });
+    expect(buildWorkerConfig(env).rateLimiter).toBeDefined();
   });
 
   test("passes an empty inbound MX suffix through as a disabled gate", async () => {
@@ -358,6 +376,78 @@ describe("worker fetch", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as { data: { viewer: null } };
     expect(body.data.viewer).toBeNull();
+    await executionContext.drain();
+  });
+
+  test("uses CF-Connecting-IP for the auth rate limit and returns RATE_LIMITED at HTTP 200", async () => {
+    const keys: string[] = [];
+    const env: Env = {
+      ...harness.env,
+      AUTH_RATE_LIMITER: {
+        async limit({ key }) {
+          keys.push(key);
+          return { success: false };
+        },
+      },
+    };
+    clearWorkerCacheForTesting(env);
+    const executionContext = createExecutionContext();
+    const response = await worker.fetch(
+      new Request("https://mail.example.com/graphql", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "CF-Connecting-IP": "203.0.113.7",
+          "X-Forwarded-For": "198.51.100.1",
+        },
+        body: JSON.stringify({
+          query: 'mutation { requestEmailAuth(email: "person@example.com") }',
+        }),
+      }),
+      env,
+      executionContext,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('"code":"RATE_LIMITED"');
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).toMatch(/203\.0\.113\.7$/);
+    expect(keys[0]).not.toContain("198.51.100.1");
+    await executionContext.drain();
+  });
+
+  test("treats a blank CF-Connecting-IP as an unknown client", async () => {
+    const keys: string[] = [];
+    const env: Env = {
+      ...harness.env,
+      AUTH_RATE_LIMITER: {
+        async limit({ key }) {
+          keys.push(key);
+          return { success: false };
+        },
+      },
+    };
+    clearWorkerCacheForTesting(env);
+    const executionContext = createExecutionContext();
+    const response = await worker.fetch(
+      new Request("https://mail.example.com/graphql", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "CF-Connecting-IP": "   ",
+        },
+        body: JSON.stringify({
+          query: 'mutation { requestEmailAuth(email: "person@example.com") }',
+        }),
+      }),
+      env,
+      executionContext,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('"code":"RATE_LIMITED"');
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).toMatch(/unknown$/);
     await executionContext.drain();
   });
 

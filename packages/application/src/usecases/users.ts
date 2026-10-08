@@ -4,7 +4,6 @@ import {
   isAdmin,
   reactivateUser,
   setUserRole,
-  type User,
   UserRole,
 } from "@flying-mail/domain/entities/user";
 import {
@@ -26,8 +25,15 @@ import {
   type UserMailPermissionId,
 } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
-import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
+import { ConflictError, NotFoundError } from "../errors";
 import type { Viewer } from "../policies/viewer";
+import {
+  loadUserWithPermissions,
+  requireAdminUser,
+  type UserWithPermissions,
+} from "./auth-guards";
+import { issueInvitation } from "./invitations";
+import { requireMailConfigured } from "./email-auth";
 import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
 
 export interface CreateUserInput {
@@ -36,31 +42,12 @@ export interface CreateUserInput {
   readonly role: UserRole;
 }
 
-export interface UserWithPermissions {
-  readonly user: User;
-  readonly permissions: readonly UserMailPermission[];
-}
+export type { UserWithPermissions } from "./auth-guards";
 
 export interface UserMailPermissionInput {
   readonly effect: UserPermissionEffect;
   readonly domainId: DomainId | null;
   readonly addressPattern: string;
-}
-
-/** Narrows `viewer` to an admin `USER` viewer, or rejects.
- *
- * User administration is deliberately not expressed as a `Capability`: it
- * lives entirely outside the API-key scope system, so an API key can never
- * administer users even while holding `KEY_ADMIN` -- the design doc calls
- * this exclusion out explicitly, and routing this through
- * `requireGlobalCapability` would make it one added `case` away from
- * silently reopening. */
-function requireAdminUser(
-  viewer: Viewer,
-): asserts viewer is Extract<Viewer, { kind: "USER" }> {
-  if (viewer.kind !== "USER" || viewer.role !== UserRole.Admin) {
-    throw new ForbiddenError("Only an admin user may administer users");
-  }
 }
 
 /** The number of users who are both `ADMIN` and active -- the quantity the
@@ -77,16 +64,6 @@ function parsePermissionPattern(value: string): AddressPattern {
   return value === "*"
     ? MATCH_ALL_ADDRESSES
     : createAddressPattern(value, "addressPattern");
-}
-
-async function loadUserWithPermissions(
-  deps: AppDependencies,
-  user: User,
-): Promise<UserWithPermissions> {
-  const permissions = await deps.userMailPermissionRepository.listByUserId(
-    user.id,
-  );
-  return { user, permissions };
 }
 
 export function createListUsersUseCase(
@@ -117,6 +94,7 @@ export function createCreateUserUseCase(
   return async (viewer, input) =>
     withAsyncDomainErrorTranslation(async () => {
       requireAdminUser(viewer);
+      const mail = requireMailConfigured(deps);
       const email = createEmailAddress(input.email, "email");
       const existing = await deps.userRepository.findByEmail(email);
       if (existing !== null) {
@@ -129,9 +107,11 @@ export function createCreateUserUseCase(
         email,
         name: input.name,
         role: input.role,
+        invitationAcceptedAt: null,
         createdAt: deps.clock.now().toISOString(),
       });
       await deps.userRepository.save(user);
+      await issueInvitation(deps, mail, user);
       return { user, permissions: [] };
     });
 }

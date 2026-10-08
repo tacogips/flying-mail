@@ -7,6 +7,7 @@ import {
   createUserId,
 } from "../value-objects/ids";
 import {
+  EmailAuthChallengePurpose,
   consumeEmailAuthChallenge,
   createEmailAuthChallenge,
   isChallengeUsable,
@@ -15,8 +16,10 @@ import { createSession, isSessionExpired } from "./session";
 import {
   createUser,
   deactivateUser,
+  invitationStatus,
   isAdmin,
   isUserActive,
+  markInvitationAccepted,
   reactivateUser,
   setUserRole,
   UserRole,
@@ -39,6 +42,7 @@ describe("createUser", () => {
     expect(created.name).toBe("Taro");
     expect(isUserActive(created)).toBe(true);
     expect(created.deactivatedAt).toBeNull();
+    expect(created.invitationAcceptedAt).toBeNull();
   });
 
   test("rejects a blank name", () => {
@@ -59,6 +63,21 @@ describe("createUser", () => {
 });
 
 describe("user lifecycle", () => {
+  test("invitation acceptance is idempotent and reports status", () => {
+    const pending = user();
+    expect(invitationStatus(pending)).toBe("PENDING");
+    const accepted = markInvitationAccepted(
+      pending,
+      "2026-08-23T01:00:00.000Z",
+    );
+    expect(accepted.invitationAcceptedAt).toBe("2026-08-23T01:00:00.000Z");
+    expect(accepted.updatedAt).toBe("2026-08-23T01:00:00.000Z");
+    expect(invitationStatus(accepted)).toBe("ACCEPTED");
+    expect(markInvitationAccepted(accepted, "2026-08-24T01:00:00.000Z")).toBe(
+      accepted,
+    );
+  });
+
   test("deactivation is idempotent and clears admin status", () => {
     const admin = user(UserRole.Admin);
     expect(isAdmin(admin)).toBe(true);
@@ -113,6 +132,7 @@ describe("EmailAuthChallenge", () => {
     createEmailAuthChallenge({
       id: createEmailAuthChallengeId("cha-1"),
       email: createEmailAddress("me@example.com"),
+      purpose: EmailAuthChallengePurpose.Login,
       tokenHash: "hash",
       expiresAt: "2026-08-23T00:15:00.000Z",
       createdAt: now,

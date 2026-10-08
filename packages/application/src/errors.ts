@@ -7,7 +7,8 @@ export type ApplicationErrorCode =
   | "NOT_FOUND"
   | "BAD_USER_INPUT"
   | "CONFLICT"
-  | "SERVICE_UNAVAILABLE";
+  | "SERVICE_UNAVAILABLE"
+  | "RATE_LIMITED";
 
 /** Base class for every application-layer error surfaced at the
  * GraphQL/REST boundary. Use cases translate `@flying-mail/domain` `DomainError`
@@ -76,4 +77,9 @@ export class ConflictError extends ApplicationError {
  * problem the caller can act on, and saying so leaks nothing. */
 export class ServiceUnavailableError extends ApplicationError {
   readonly code = "SERVICE_UNAVAILABLE";
+}
+
+/** The caller exceeded an operation's configured request limit. */
+export class RateLimitedError extends ApplicationError {
+  readonly code = "RATE_LIMITED";
 }

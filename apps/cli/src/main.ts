@@ -1,6 +1,10 @@
 import { flagBoolean, type ParsedArgs, parseArgs } from "./args";
 import { createCliClient } from "./client";
 import {
+  adminCommands,
+  validateAdminBootstrapInputs,
+} from "./commands/admin-bootstrap";
+import {
   createClientServeApp,
   describeServe,
   resolveClientServeOptions,
@@ -26,6 +30,7 @@ Usage
   flying-mail <command> <subcommand> [flags]
 
 Commands
+  admin bootstrap             Create the first admin (token from $FLYING_MAIL_BOOTSTRAP_TOKEN)
   client serve                Serve the browser mail client locally
   domain list|add|verify      Manage mail domains
   key list|create|revoke      Manage API keys
@@ -46,6 +51,11 @@ client serve flags
   --allow-remote              Permit a non-loopback host; disables API key
                               injection, since a key-injecting proxy on a
                               reachable address is an open relay for that key
+
+admin bootstrap flags
+  --email <addr>              Admin email
+  --name <name>               Admin display name
+  --secret-file <path>        API key destination (default .private/bootstrap-admin-api-key)
 
 mail list flags
   --limit <n>                 Messages to show (default 20)
@@ -88,6 +98,7 @@ const COMMAND_GROUPS: ReadonlyMap<
   string,
   ReadonlyMap<string, CommandHandler>
 > = new Map([
+  ["admin", adminCommands],
   ["domain", domainCommands],
   ["key", keyCommands],
   ["mail", mailCommands],
@@ -166,6 +177,9 @@ export async function runCli(
     );
   }
 
+  if (group === "admin" && subcommand === "bootstrap") {
+    validateAdminBootstrapInputs(args, env);
+  }
   const config = await resolveConfig(args, env);
   const context: CommandContext = {
     args,

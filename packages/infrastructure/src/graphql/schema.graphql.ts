@@ -182,6 +182,11 @@ export const typeDefs = /* GraphQL */ `
     VIEWER
   }
 
+  enum InvitationStatus {
+    PENDING
+    ACCEPTED
+  }
+
   """
   ALLOW grants a role's mail capabilities on the matching mailbox; DENY
   always wins over any overlapping ALLOW, including an ADMIN's default
@@ -509,6 +514,10 @@ export const typeDefs = /* GraphQL */ `
     """
     active: Boolean!
     """
+    PENDING until the user's first successful sign-in.
+    """
+    invitationStatus: InvitationStatus!
+    """
     Empty for an ADMIN with no self-imposed denies, and for a MEMBER/VIEWER
     with no mailbox assigned yet.
     """
@@ -539,6 +548,13 @@ export const typeDefs = /* GraphQL */ `
     domainId: ID!
     lastActivityAt: DateTime
     unreadCount: Int!
+  }
+
+  """
+  Public client configuration. The site key is null while Turnstile is disabled.
+  """
+  type PublicConfig {
+    turnstileSiteKey: String
   }
 
   type BootstrapPayload {
@@ -707,6 +723,7 @@ export const typeDefs = /* GraphQL */ `
 
   type Query {
     viewer: Viewer
+    publicConfig: PublicConfig!
 
     domains: [MailDomain!]!
     domain(id: ID!): MailDomain
@@ -826,14 +843,16 @@ export const typeDefs = /* GraphQL */ `
     passwordless login needs a verified sending domain that only an
     authenticated admin can add. Store the secret: it is shown once.
     """
-    bootstrapAdmin(email: String!, name: String!): BootstrapPayload!
+    bootstrapAdmin(email: String!, name: String!, token: String!): BootstrapPayload!
 
-    requestEmailAuth(email: String!): Boolean!
+    requestEmailAuth(email: String!, turnstileToken: String): Boolean!
     verifyEmailAuthToken(token: String!): AuthPayload!
     logout: Boolean!
 
     "Admin only. Creates a user with no password; see CreateUserInput."
     createUser(input: CreateUserInput!): User!
+    "Admin only. Resends an invitation to a pending user."
+    resendInvitation(userId: ID!): User!
     "Admin only. Rejected if it would demote the last active admin."
     setUserRole(id: ID!, role: UserRole!): User!
     "Admin only. Rejected if it would deactivate the last active admin."

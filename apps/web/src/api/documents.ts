@@ -292,8 +292,14 @@ export const REVOKE_API_KEY_MUTATION = `
 `;
 
 export const REQUEST_EMAIL_AUTH_MUTATION = `
-  mutation RequestEmailAuth($email: String!) {
-    requestEmailAuth(email: $email)
+  mutation RequestEmailAuth($email: String!, $turnstileToken: String) {
+    requestEmailAuth(email: $email, turnstileToken: $turnstileToken)
+  }
+`;
+
+export const PUBLIC_CONFIG_QUERY = `
+  query PublicConfig {
+    publicConfig { turnstileSiteKey }
   }
 `;
 
@@ -435,6 +441,7 @@ const USER_FIELDS = `
   name
   role
   active
+  invitationStatus
   createdAt
   updatedAt
   permissions {
@@ -463,6 +470,12 @@ export const USERS_QUERY = `
 export const CREATE_USER_MUTATION = `
   mutation CreateUser($input: CreateUserInput!) {
     createUser(input: $input) { ${USER_FIELDS} }
+  }
+`;
+
+export const RESEND_INVITATION_MUTATION = `
+  mutation ResendInvitation($userId: ID!) {
+    resendInvitation(userId: $userId) { ${USER_FIELDS} }
   }
 `;
 

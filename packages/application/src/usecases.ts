@@ -124,6 +124,7 @@ import {
   createVerifyEmailAuthTokenUseCase,
   type EmailAuthSession,
 } from "./usecases/email-auth";
+import { createResendInvitationUseCase } from "./usecases/invitations";
 import {
   createMarkMessagesFetchedUseCase,
   createMarkMessagesNotFetchedUseCase,
@@ -220,12 +221,21 @@ export interface UseCases {
   readonly resolveViewerFromToken: (token: string) => Promise<Viewer | null>;
   readonly logout: (token: string) => Promise<boolean>;
   readonly getViewerUser: (viewer: Viewer) => Promise<User | null>;
-  readonly requestEmailAuth: (email: string) => Promise<boolean>;
-  readonly verifyEmailAuthToken: (token: string) => Promise<EmailAuthSession>;
-  readonly bootstrapAdmin: (
-    email: string,
-    name: string,
-  ) => Promise<BootstrapResult>;
+  readonly requestEmailAuth: (input: {
+    readonly email: string;
+    readonly turnstileToken: string | null;
+    readonly clientIp: string | null;
+  }) => Promise<boolean>;
+  readonly verifyEmailAuthToken: (
+    token: string,
+    clientIp: string | null,
+  ) => Promise<EmailAuthSession>;
+  readonly bootstrapAdmin: (input: {
+    readonly email: string;
+    readonly name: string;
+    readonly token: string;
+    readonly clientIp: string | null;
+  }) => Promise<BootstrapResult>;
   readonly sweepExpiredAuth: () => Promise<void>;
 
   // --- inbound ---
@@ -467,6 +477,10 @@ export interface UseCases {
     viewer: Viewer,
     input: CreateUserInput,
   ) => Promise<UserWithPermissions>;
+  readonly resendInvitation: (
+    viewer: Viewer,
+    userId: UserId,
+  ) => Promise<UserWithPermissions>;
   readonly setUserRole: (
     viewer: Viewer,
     id: UserId,
@@ -650,6 +664,7 @@ export function createUseCases(deps: AppDependencies): UseCases {
     listUsers: createListUsersUseCase(deps),
     getUser: createGetUserUseCase(deps),
     createUser: createCreateUserUseCase(deps),
+    resendInvitation: createResendInvitationUseCase(deps),
     setUserRole: createSetUserRoleUseCase(deps),
     setUserActive: createSetUserActiveUseCase(deps),
     addUserMailPermission: createAddUserMailPermissionUseCase(deps),

@@ -48,6 +48,18 @@ describe("mapGraphQLError", () => {
     ).toEqual({ message: "nope", code: "FORBIDDEN", path: ["messages", 0] });
   });
 
+  test("recognizes RATE_LIMITED as a known client error code", () => {
+    expect(
+      mapGraphQLError({
+        message: "Too many requests; try again later",
+        extensions: { code: "RATE_LIMITED" },
+      }),
+    ).toEqual({
+      message: "Too many requests; try again later",
+      code: "RATE_LIMITED",
+    });
+  });
+
   test("preserves entity and field extensions for typed error handling", () => {
     expect(
       mapGraphQLError({
@@ -205,8 +217,14 @@ describe("publicGraphqlRequest", () => {
 
   test("requestEmailAuth omits credentials entirely", async () => {
     const calls = stubFetch(() => jsonResponse({ data: { ok: true } }));
-    await publicGraphqlRequest(REQUEST_EMAIL_AUTH_MUTATION, { email: "a@b" });
+    await publicGraphqlRequest(REQUEST_EMAIL_AUTH_MUTATION, {
+      email: "a@b",
+      turnstileToken: "token-value",
+    });
     expect(calls[0]?.init.credentials).toBe("omit");
+    expect(JSON.parse(String(calls[0]?.init.body))).toMatchObject({
+      variables: { email: "a@b", turnstileToken: "token-value" },
+    });
   });
 
   test("never clears the session on its own unauthenticated error", async () => {

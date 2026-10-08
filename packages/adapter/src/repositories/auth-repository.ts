@@ -4,7 +4,10 @@ import type {
   UserRepository,
 } from "@flying-mail/application/ports/auth-repository";
 import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
-import type { EmailAuthChallenge } from "@flying-mail/domain/entities/email-auth-challenge";
+import {
+  EmailAuthChallengePurpose,
+  type EmailAuthChallenge,
+} from "@flying-mail/domain/entities/email-auth-challenge";
 import type { Session } from "@flying-mail/domain/entities/session";
 import { type User, UserRole } from "@flying-mail/domain/entities/user";
 import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
@@ -23,6 +26,7 @@ interface UserRow {
   readonly created_at: string;
   readonly updated_at: string;
   readonly deactivated_at: string | null;
+  readonly invitation_accepted_at: string | null;
 }
 
 function rowToUser(row: UserRow): User {
@@ -34,18 +38,20 @@ function rowToUser(row: UserRow): User {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deactivatedAt: row.deactivated_at,
+    invitationAcceptedAt: row.invitation_accepted_at,
   };
 }
 
 const UPSERT_USER_SQL = `INSERT INTO users
-  (id, email, name, role, created_at, updated_at, deactivated_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
+  (id, email, name, role, created_at, updated_at, deactivated_at, invitation_accepted_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(id) DO UPDATE SET
     email = excluded.email,
     name = excluded.name,
     role = excluded.role,
     updated_at = excluded.updated_at,
-    deactivated_at = excluded.deactivated_at`;
+    deactivated_at = excluded.deactivated_at,
+    invitation_accepted_at = excluded.invitation_accepted_at`;
 
 export function createUserRepository(db: SqlDatabase): UserRepository {
   return {
@@ -87,6 +93,7 @@ export function createUserRepository(db: SqlDatabase): UserRepository {
         user.createdAt,
         user.updatedAt,
         user.deactivatedAt,
+        user.invitationAcceptedAt,
       ]);
     },
 
@@ -95,8 +102,8 @@ export function createUserRepository(db: SqlDatabase): UserRepository {
       // into the insert itself: of N racing bootstrap calls, exactly one
       // observes an empty table inside its own statement and wins.
       const result = await db.execute(
-        `INSERT INTO users (id, email, name, role, created_at, updated_at, deactivated_at)
-         SELECT ?, ?, ?, ?, ?, ?, NULL
+        `INSERT INTO users (id, email, name, role, created_at, updated_at, deactivated_at, invitation_accepted_at)
+         SELECT ?, ?, ?, ?, ?, ?, NULL, ?
          WHERE NOT EXISTS (SELECT 1 FROM users)`,
         [
           user.id,
@@ -105,6 +112,7 @@ export function createUserRepository(db: SqlDatabase): UserRepository {
           user.role,
           user.createdAt,
           user.updatedAt,
+          user.invitationAcceptedAt,
         ],
       );
       return result.rowsAffected > 0;
@@ -182,12 +190,18 @@ interface ChallengeRow {
   readonly expires_at: string;
   readonly consumed_at: string | null;
   readonly created_at: string;
+  readonly purpose: string;
 }
 
 function rowToChallenge(row: ChallengeRow): EmailAuthChallenge {
   return {
     id: createEmailAuthChallengeId(row.id),
     email: createEmailAddress(row.email),
+    purpose: assertEnumValue(
+      EmailAuthChallengePurpose,
+      row.purpose,
+      "email auth challenge purpose",
+    ),
     tokenHash: row.token_hash,
     expiresAt: row.expires_at,
     consumedAt: row.consumed_at,
@@ -215,20 +229,30 @@ export function createEmailAuthChallengeRepository(
       return rows[0] === undefined ? null : rowToChallenge(rows[0]);
     },
 
-    async countRecentByEmail(email, since) {
+    async countRecentByEmail(email, since, purpose) {
       const rows = await db.query<{ count: number }>(
         `SELECT COUNT(*) AS count FROM email_auth_challenges
-         WHERE email = ? AND created_at >= ?`,
-        [email, since],
+         WHERE email = ? AND created_at >= ? AND purpose = ?`,
+        [email, since, purpose],
       );
       return rows[0]?.count ?? 0;
+    },
+
+    async consume(id, now) {
+      const result = await db.execute(
+        `UPDATE email_auth_challenges
+         SET consumed_at = ?
+         WHERE id = ? AND consumed_at IS NULL AND expires_at > ?`,
+        [now, id, now],
+      );
+      return result.rowsAffected === 1;
     },
 
     async save(challenge) {
       await db.execute(
         `INSERT INTO email_auth_challenges
-           (id, email, token_hash, expires_at, consumed_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+           (id, email, token_hash, expires_at, consumed_at, created_at, purpose)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET consumed_at = excluded.consumed_at`,
         [
           challenge.id,
@@ -237,6 +261,7 @@ export function createEmailAuthChallengeRepository(
           challenge.expiresAt,
           challenge.consumedAt,
           challenge.createdAt,
+          challenge.purpose,
         ],
       );
     },

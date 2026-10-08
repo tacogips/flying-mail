@@ -270,15 +270,15 @@ Design reference: `design-docs/specs/design-security-model.md` (accepted
 
 | Wave / Phase | Plan | Depends on |
 |--------------|------|------------|
-| 1 / 17 | [auth-hardening-01-contracts-and-persistence](active/auth-hardening-01-contracts-and-persistence.md) | - |
-| 1 / 17 | [auth-hardening-02-web-client](active/auth-hardening-02-web-client.md) | - |
-| 1 / 17 | [auth-hardening-03-cli-bootstrap](active/auth-hardening-03-cli-bootstrap.md) | - |
-| 1 / 17 | [auth-hardening-04-docs](active/auth-hardening-04-docs.md) | - |
-| 2 / 18 | [auth-hardening-05-auth-usecases](active/auth-hardening-05-auth-usecases.md) | 01 |
-| 2 / 18 | [auth-hardening-06-adapters](active/auth-hardening-06-adapters.md) | 01 |
-| 3 / 19 | [auth-hardening-07-graphql-http](active/auth-hardening-07-graphql-http.md) | 01, 02, 05 |
-| 4 / 20 | [auth-hardening-08-composition-and-worker](active/auth-hardening-08-composition-and-worker.md) | 01, 02, 05, 06, 07 |
-| 5 / 21 | [auth-hardening-09-final-verification](active/auth-hardening-09-final-verification.md) | all of 01-08 (serial) |
+| 1 / 17 | [auth-hardening-01-contracts-and-persistence](completed/auth-hardening-01-contracts-and-persistence.md) | - |
+| 1 / 17 | [auth-hardening-02-web-client](completed/auth-hardening-02-web-client.md) | - |
+| 1 / 17 | [auth-hardening-03-cli-bootstrap](completed/auth-hardening-03-cli-bootstrap.md) | - |
+| 1 / 17 | [auth-hardening-04-docs](completed/auth-hardening-04-docs.md) | - |
+| 2 / 18 | [auth-hardening-05-auth-usecases](completed/auth-hardening-05-auth-usecases.md) | 01 |
+| 2 / 18 | [auth-hardening-06-adapters](completed/auth-hardening-06-adapters.md) | 01 |
+| 3 / 19 | [auth-hardening-07-graphql-http](completed/auth-hardening-07-graphql-http.md) | 01, 02, 05 |
+| 4 / 20 | [auth-hardening-08-composition-and-worker](completed/auth-hardening-08-composition-and-worker.md) | 01, 02, 05, 06, 07 |
+| 5 / 21 | [auth-hardening-09-final-verification](completed/auth-hardening-09-final-verification.md) | all of 01-08 (serial) |
 
 The same worker rules as for webmail completion apply. Plan 09 alone
 updates statuses in `PROGRESS.json` and this table after the final gates

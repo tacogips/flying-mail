@@ -151,6 +151,16 @@ with `wrangler d1 execute --remote` and it does work, but it bypasses the
 ownership check for everyone who reads the row afterwards. If you ever do it
 under time pressure, say so explicitly and re-verify properly later.
 
+### First deployment order
+
+Set `FLYING_MAIL_PUBLIC_ORIGIN` to `https://mail.tacoserve.online` so login
+and invitation links resolve to the protected custom domain. After Email
+Sending is configured and `FLYING_MAIL_MAIL_FROM` is verified, bootstrap
+the first admin with `mise run bootstrap-admin` through `kinko exec`. An
+invitation send failure is diagnosed like a login-link send failure: confirm
+that Email Sending or the Email Routing binding is configured and that
+`FLYING_MAIL_MAIL_FROM` is a verified sender.
+
 ## Attachments
 
 Binary never goes through GraphQL. Upload first, reference by id:

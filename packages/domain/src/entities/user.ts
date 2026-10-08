@@ -18,6 +18,7 @@ export interface User {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly deactivatedAt: string | null;
+  readonly invitationAcceptedAt: string | null;
 }
 
 export interface CreateUserInput {
@@ -26,6 +27,7 @@ export interface CreateUserInput {
   readonly name: string;
   readonly role: UserRole;
   readonly createdAt: string;
+  readonly invitationAcceptedAt?: string | null;
 }
 
 const MAX_USER_NAME_LENGTH = 128;
@@ -49,7 +51,18 @@ export function createUser(input: CreateUserInput): User {
     createdAt: input.createdAt,
     updatedAt: input.createdAt,
     deactivatedAt: null,
+    invitationAcceptedAt: input.invitationAcceptedAt ?? null,
   };
+}
+
+export function markInvitationAccepted(user: User, at: string): User {
+  return user.invitationAcceptedAt === null
+    ? { ...user, invitationAcceptedAt: at, updatedAt: at }
+    : user;
+}
+
+export function invitationStatus(user: User): "PENDING" | "ACCEPTED" {
+  return user.invitationAcceptedAt === null ? "PENDING" : "ACCEPTED";
 }
 
 export function deactivateUser(user: User, at: string): User {

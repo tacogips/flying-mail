@@ -3,10 +3,17 @@ main = "src/worker.ts"
 compatibility_date = "2026-08-23"
 compatibility_flags = ["nodejs_compat"]
 
+# Zone-level DDoS/WAF protection applies because `workers.dev` is disabled.
+workers_dev = false
+# Per-version preview URLs bypass the zone-level DDoS/WAF protection.
+preview_urls = false
+# Serve through the custom domain so zone-level DDoS/WAF protection applies.
+routes = [{ pattern = "mail.tacoserve.online", custom_domain = true }]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "mailcal-db"
-database_id = "a2eb3297-4f2d-4a3a-9dc7-70ccb142f2df"
+database_id = "1ab1ecaa-7f98-4490-8a9e-3a6a5c293a6a"
 
 [[r2_buckets]]
 binding = "BLOB"
@@ -20,6 +27,11 @@ directory = "../web/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 
+[[ratelimits]]
+name = "AUTH_RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+
 [vars]
 # Public HTTPS origin this Worker is deployed at. Required for passwordless
 # login links and for absolute file-link URLs to be generated at all; left
@@ -27,7 +39,7 @@ not_found_handling = "single-page-application"
 # and file links are returned as relative paths. A set-but-invalid value
 # fails deployment fast instead of silently degrading -- see
 # composition/config.ts's resolvePublicOrigin.
-FLYING_MAIL_PUBLIC_ORIGIN = "https://mailcal-api.tacotest.workers.dev"
+FLYING_MAIL_PUBLIC_ORIGIN = "https://mail.tacoserve.online"
 
 # The sender used for SYSTEM mail only -- the passwordless login link, which
 # has no user-chosen sender to use. Set it to one verified Cloudflare Email
@@ -40,15 +52,15 @@ FLYING_MAIL_PUBLIC_ORIGIN = "https://mailcal-api.tacotest.workers.dev"
 # binding above.
 FLYING_MAIL_MAIL_FROM = "flying-mail@tacoserve.online"
 
-# Self-service signup is closed by default: this is a mail server, not a SaaS
-# trial. Set to "open" only when you intend anyone to be able to register.
-FLYING_MAIL_SIGNUP = "closed"
-
 # Spam score at or above which the SPAM system tag is applied on ingest.
 FLYING_MAIL_SPAM_THRESHOLD = "0.6"
 
 # Hard cap, in seconds, on a file link's requested ttlSeconds (7 days).
 FLYING_MAIL_FILE_LINK_MAX_TTL = "604800"
+# Public site key for the Turnstile widget; fill in before putting the secret.
+# The build fails if the secret is set while this value is empty.
+FLYING_MAIL_TURNSTILE_SITE_KEY = "0x4AAAAAAFQRa9wv44nKmL-v"
+# FLYING_MAIL_INVITE_TTL_SECONDS = "604800"
 # FLYING_MAIL_INBOUND_MX_SUFFIX defaults to "mx.cloudflare.net" when unset.
 # Set it to an empty string only when inbound mail uses another delivery path.
 
@@ -58,3 +70,9 @@ FLYING_MAIL_FILE_LINK_MAX_TTL = "604800"
 #   kinko exec -- bunx wrangler secret put FLYING_MAIL_CREDENTIAL_KEY
 # Unset is a supported deployment: CardDAV and external-mail account mutations
 # then fail with SERVICE_UNAVAILABLE; mail and local contacts keep working.
+
+# Bootstrap and Turnstile secrets; set Turnstile only after filling in the
+# public FLYING_MAIL_TURNSTILE_SITE_KEY above.
+#   kinko exec -- bunx wrangler secret put FLYING_MAIL_BOOTSTRAP_TOKEN
+#   Remove FLYING_MAIL_BOOTSTRAP_TOKEN after the first admin is created.
+#   kinko exec -- bunx wrangler secret put FLYING_MAIL_TURNSTILE_SECRET_KEY

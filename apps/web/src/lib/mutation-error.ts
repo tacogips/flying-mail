@@ -17,6 +17,8 @@ export function describeErrors(errors: readonly GraphQLClientError[]): string {
       return "You do not have permission to do that.";
     case "SERVICE_UNAVAILABLE":
       return "Sending is not configured on this server yet.";
+    case "RATE_LIMITED":
+      return first.message;
     default:
       return first.message;
   }

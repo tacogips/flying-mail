@@ -5,6 +5,7 @@ import {
   CREATE_USER_MUTATION,
   REMOVE_USER_MAIL_PERMISSION_MUTATION,
   REMOVE_USER_TEMPLATE_PERMISSION_MUTATION,
+  RESEND_INVITATION_MUTATION,
   SET_USER_ACTIVE_MUTATION,
   SET_USER_ROLE_MUTATION,
   USERS_QUERY,
@@ -47,6 +48,7 @@ function UserRow(props: {
   readonly domains: readonly MailDomainView[];
   readonly onSetRole: (role: UserRole) => void;
   readonly onSetActive: (active: boolean) => void;
+  readonly onResendInvitation: () => Promise<void>;
   readonly onAddRule: (form: AddRuleFormState) => Promise<boolean>;
   readonly onRemoveRule: (permissionId: string) => void;
   readonly onAddTemplateRule: (
@@ -57,6 +59,13 @@ function UserRow(props: {
 }): JSX.Element {
   const [form, setForm] = createSignal<AddRuleFormState>(EMPTY_RULE_FORM);
   const [adding, setAdding] = createSignal(false);
+  const [resending, setResending] = createSignal(false);
+
+  async function resendInvitation(): Promise<void> {
+    setResending(true);
+    await props.onResendInvitation();
+    setResending(false);
+  }
 
   async function submitRule(event: Event): Promise<void> {
     event.preventDefault();
@@ -100,6 +109,25 @@ function UserRow(props: {
             onClick={() => props.onSetActive(false)}
           >
             Deactivate
+          </button>
+        </Show>
+        <span>
+          {props.user.active
+            ? props.user.invitationStatus === "PENDING"
+              ? "Invitation pending"
+              : "Active"
+            : "Inactive"}
+        </span>
+        <Show
+          when={props.user.active && props.user.invitationStatus === "PENDING"}
+        >
+          <button
+            type="button"
+            aria-label={`Resend invitation to ${props.user.email}`}
+            disabled={resending()}
+            onClick={() => void resendInvitation()}
+          >
+            Resend invitation
           </button>
         </Show>
       </div>
@@ -321,15 +349,26 @@ export default function UsersPage(): JSX.Element {
     setBusy(false);
     if (!result.ok) {
       pushToast("error", describeErrors(result.errors));
+      await reload();
       return;
     }
     setEmail("");
     setName("");
     setRole("MEMBER");
-    pushToast(
-      "success",
-      "User created. They sign in through the existing email link flow.",
-    );
+    pushToast("success", `Invitation sent to ${result.data.createUser.email}`);
+    await reload();
+  }
+
+  async function resendInvitation(user: UserView): Promise<void> {
+    const result = await graphqlRequest<
+      { readonly resendInvitation: UserView },
+      Record<string, unknown>
+    >(RESEND_INVITATION_MUTATION, { userId: user.id });
+    if (!result.ok) {
+      pushToast("error", describeErrors(result.errors));
+      return;
+    }
+    pushToast("success", `Invitation resent to ${user.email}`);
     await reload();
   }
 
@@ -453,7 +492,7 @@ export default function UsersPage(): JSX.Element {
       </p>
 
       <form class="panel" onSubmit={(event) => void createUser(event)}>
-        <h2>Create a user</h2>
+        <h2>Invite user</h2>
         <div class="field">
           <label for="user-email">Email</label>
           <input
@@ -488,7 +527,7 @@ export default function UsersPage(): JSX.Element {
           </select>
         </div>
         <button type="submit" class="primary" disabled={busy()}>
-          Create user
+          Invite user
         </button>
       </form>
 
@@ -506,6 +545,7 @@ export default function UsersPage(): JSX.Element {
                   domains={store.domains()}
                   onSetRole={(nextRole) => void setRoleFor(user, nextRole)}
                   onSetActive={(active) => void setActiveFor(user, active)}
+                  onResendInvitation={() => resendInvitation(user)}
                   onAddRule={(form) => addRuleFor(user, form)}
                   onRemoveRule={(id) => void removeRule(id)}
                   onAddTemplateRule={(capability, effect) =>

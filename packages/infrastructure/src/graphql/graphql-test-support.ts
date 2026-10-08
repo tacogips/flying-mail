@@ -22,6 +22,7 @@ import { buildGraphQLSchema, createGraphQLYoga } from "./schema";
 const yoga = createGraphQLYoga(buildGraphQLSchema(), { graphiql: false });
 
 export interface ExecutionResult {
+  readonly httpStatus?: number;
   readonly data?: Record<string, unknown> | null;
   readonly errors?: readonly {
     readonly message: string;
@@ -37,6 +38,7 @@ export interface GraphQLHarness {
     source: string,
     viewer: Viewer | null,
     variables?: Record<string, unknown>,
+    clientIp?: string | null,
   ) => Promise<ExecutionResult>;
 }
 
@@ -50,10 +52,12 @@ async function execute(
   source: string,
   viewer: Viewer | null,
   variables?: Record<string, unknown>,
+  clientIp?: string | null,
 ): Promise<ExecutionResult> {
   const context = buildGraphQLContext({
     viewer,
     token: null,
+    ...(clientIp === undefined ? {} : { clientIp }),
     deps,
     usecases,
   });
@@ -69,7 +73,8 @@ async function execute(
     }),
     context as unknown as Record<string, unknown>,
   );
-  return (await response.json()) as ExecutionResult;
+  const result = (await response.json()) as ExecutionResult;
+  return { ...result, httpStatus: response.status };
 }
 
 /** Wraps an already-built `FakeDependencies` into a runnable harness. The
@@ -81,7 +86,7 @@ export function createGraphQLHarness(fake: FakeDependencies): GraphQLHarness {
     fake,
     deps: fake.deps,
     usecases,
-    run: (source, viewer, variables) =>
-      execute(fake.deps, usecases, source, viewer, variables),
+    run: (source, viewer, variables, clientIp) =>
+      execute(fake.deps, usecases, source, viewer, variables, clientIp),
   };
 }

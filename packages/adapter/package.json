@@ -25,6 +25,9 @@
     "./tcp/cloudflare-tcp-dialer": "./src/tcp/cloudflare-tcp-dialer.ts",
     "./tcp/node-tcp-dialer": "./src/tcp/node-tcp-dialer.ts",
     "./tcp/fake-socket": "./src/tcp/fake-socket.ts",
+    "./turnstile/siteverify": "./src/turnstile/siteverify.ts",
+    "./rate-limit/workers-binding": "./src/rate-limit/workers-binding.ts",
+    "./rate-limit/in-memory": "./src/rate-limit/in-memory.ts",
     "./jmap/jmap-client": "./src/jmap/jmap-client.ts",
     "./pop3/pop3-client": "./src/pop3/pop3-client.ts",
     "./smtp/smtp-client": "./src/smtp/smtp-client.ts"

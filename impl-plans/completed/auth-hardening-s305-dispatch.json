@@ -104,21 +104,21 @@
       "design-docs/specs/design-web-client.md",
       "impl-plans/PROGRESS.json",
       "impl-plans/README.md",
-      "impl-plans/active/auth-hardening-01-contracts-and-persistence.md",
-      "impl-plans/active/auth-hardening-02-web-client.md",
-      "impl-plans/active/auth-hardening-03-cli-bootstrap.md",
-      "impl-plans/active/auth-hardening-04-docs.md",
-      "impl-plans/active/auth-hardening-05-auth-usecases.md",
-      "impl-plans/active/auth-hardening-06-adapters.md",
-      "impl-plans/active/auth-hardening-07-graphql-http.md",
-      "impl-plans/active/auth-hardening-08-composition-and-worker.md",
-      "impl-plans/active/auth-hardening-09-final-verification.md"
+      "impl-plans/completed/auth-hardening-01-contracts-and-persistence.md",
+      "impl-plans/completed/auth-hardening-02-web-client.md",
+      "impl-plans/completed/auth-hardening-03-cli-bootstrap.md",
+      "impl-plans/completed/auth-hardening-04-docs.md",
+      "impl-plans/completed/auth-hardening-05-auth-usecases.md",
+      "impl-plans/completed/auth-hardening-06-adapters.md",
+      "impl-plans/completed/auth-hardening-07-graphql-http.md",
+      "impl-plans/completed/auth-hardening-08-composition-and-worker.md",
+      "impl-plans/completed/auth-hardening-09-final-verification.md"
     ]
   },
   "plans": [
     {
       "planId": "auth-hardening-01-contracts-and-persistence",
-      "planPath": "impl-plans/active/auth-hardening-01-contracts-and-persistence.md",
+      "planPath": "impl-plans/completed/auth-hardening-01-contracts-and-persistence.md",
       "dependsOn": [],
       "writePaths": [
         "packages/domain/src/entities/email-auth-challenge.ts",
@@ -147,7 +147,7 @@
         "apps/api/src/env.ts",
         "apps/api/src/worker.ts",
         "apps/api/src/worker.test.ts",
-        "impl-plans/active/auth-hardening-01-contracts-and-persistence.md"
+        "impl-plans/completed/auth-hardening-01-contracts-and-persistence.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
@@ -164,7 +164,7 @@
           "intendedEdit": "Remove SignupMode and resolveSignupMode, add DEFAULT_INVITE_TTL_SECONDS only; auth-hardening-08 adds resolvers in wave 4. The same applies to config.test.ts, build-dependencies.ts, apps/api/src/env.ts, worker.ts and worker.test.ts (compile-clean placeholders only)."
         },
         {
-          "path": "impl-plans/active/auth-hardening-01-contracts-and-persistence.md",
+          "path": "impl-plans/completed/auth-hardening-01-contracts-and-persistence.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -190,7 +190,7 @@
     },
     {
       "planId": "auth-hardening-02-web-client",
-      "planPath": "impl-plans/active/auth-hardening-02-web-client.md",
+      "planPath": "impl-plans/completed/auth-hardening-02-web-client.md",
       "dependsOn": [],
       "writePaths": [
         "apps/web/public/_headers",
@@ -205,7 +205,7 @@
         "apps/web/src/api/graphql-client.ts",
         "apps/web/src/api/graphql-client.test.ts",
         "apps/web/src/lib/mutation-error.ts",
-        "impl-plans/active/auth-hardening-02-web-client.md",
+        "impl-plans/completed/auth-hardening-02-web-client.md",
         "apps/web/dist"
       ],
       "sharedPaths": [],
@@ -215,7 +215,7 @@
           "intendedEdit": "Build artifact root produced by mise run build-web; gitignored; never edited by hand."
         },
         {
-          "path": "impl-plans/active/auth-hardening-02-web-client.md",
+          "path": "impl-plans/completed/auth-hardening-02-web-client.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -239,14 +239,14 @@
     },
     {
       "planId": "auth-hardening-03-cli-bootstrap",
-      "planPath": "impl-plans/active/auth-hardening-03-cli-bootstrap.md",
+      "planPath": "impl-plans/completed/auth-hardening-03-cli-bootstrap.md",
       "dependsOn": [],
       "writePaths": [
         "apps/cli/src/commands/admin-bootstrap.ts",
         "apps/cli/src/admin-bootstrap.test.ts",
         "apps/cli/src/main.ts",
         "mise.toml",
-        "impl-plans/active/auth-hardening-03-cli-bootstrap.md"
+        "impl-plans/completed/auth-hardening-03-cli-bootstrap.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
@@ -255,7 +255,7 @@
           "intendedEdit": "Add only the [tasks.bootstrap-admin] block after cf-deploy; nothing else changes."
         },
         {
-          "path": "impl-plans/active/auth-hardening-03-cli-bootstrap.md",
+          "path": "impl-plans/completed/auth-hardening-03-cli-bootstrap.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -277,14 +277,14 @@
     },
     {
       "planId": "auth-hardening-04-docs",
-      "planPath": "impl-plans/active/auth-hardening-04-docs.md",
+      "planPath": "impl-plans/completed/auth-hardening-04-docs.md",
       "dependsOn": [],
       "writePaths": [
         "README.md",
         ".agents/skills/cloudflare-mail-setup/SKILL.md",
         "design-docs/specs/design-deployment.md",
         "design-docs/specs/design-security-model.md",
-        "impl-plans/active/auth-hardening-04-docs.md"
+        "impl-plans/completed/auth-hardening-04-docs.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
@@ -297,7 +297,7 @@
           "intendedEdit": "DR-L1 only: move the 'There is no self-signup setting' paragraph from inside the env table to directly below it; no row content changes."
         },
         {
-          "path": "impl-plans/active/auth-hardening-04-docs.md",
+          "path": "impl-plans/completed/auth-hardening-04-docs.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -318,7 +318,7 @@
     },
     {
       "planId": "auth-hardening-05-auth-usecases",
-      "planPath": "impl-plans/active/auth-hardening-05-auth-usecases.md",
+      "planPath": "impl-plans/completed/auth-hardening-05-auth-usecases.md",
       "dependsOn": [
         "auth-hardening-01-contracts-and-persistence"
       ],
@@ -334,7 +334,7 @@
         "packages/application/src/usecases/auth-guards.test.ts",
         "packages/application/src/usecases/email-auth-hardening.test.ts",
         "packages/application/src/usecases/invitations.test.ts",
-        "impl-plans/active/auth-hardening-05-auth-usecases.md"
+        "impl-plans/completed/auth-hardening-05-auth-usecases.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
@@ -347,7 +347,7 @@
           "intendedEdit": "Written by auth-hardening-01 in wave 1 (mechanical edits); this plan rewrites requestEmailAuth, verifyEmailAuthToken and bootstrapAdmin behaviour in wave 2."
         },
         {
-          "path": "impl-plans/active/auth-hardening-05-auth-usecases.md",
+          "path": "impl-plans/completed/auth-hardening-05-auth-usecases.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -369,7 +369,7 @@
     },
     {
       "planId": "auth-hardening-06-adapters",
-      "planPath": "impl-plans/active/auth-hardening-06-adapters.md",
+      "planPath": "impl-plans/completed/auth-hardening-06-adapters.md",
       "dependsOn": [
         "auth-hardening-01-contracts-and-persistence"
       ],
@@ -380,7 +380,7 @@
         "packages/adapter/src/rate-limit/in-memory.ts",
         "packages/adapter/src/rate-limit/rate-limit.test.ts",
         "packages/adapter/package.json",
-        "impl-plans/active/auth-hardening-06-adapters.md"
+        "impl-plans/completed/auth-hardening-06-adapters.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
@@ -389,7 +389,7 @@
           "intendedEdit": "Add exactly three exports entries (./turnstile/siteverify, ./rate-limit/workers-binding, ./rate-limit/in-memory); change nothing else, no dependency changes."
         },
         {
-          "path": "impl-plans/active/auth-hardening-06-adapters.md",
+          "path": "impl-plans/completed/auth-hardening-06-adapters.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -408,7 +408,7 @@
     },
     {
       "planId": "auth-hardening-07-graphql-http",
-      "planPath": "impl-plans/active/auth-hardening-07-graphql-http.md",
+      "planPath": "impl-plans/completed/auth-hardening-07-graphql-http.md",
       "dependsOn": [
         "auth-hardening-01-contracts-and-persistence",
         "auth-hardening-02-web-client",
@@ -428,7 +428,7 @@
         "packages/infrastructure/src/http/security-headers.ts",
         "packages/infrastructure/src/http/security-headers.test.ts",
         "packages/infrastructure/src/http/app.test.ts",
-        "impl-plans/active/auth-hardening-07-graphql-http.md"
+        "impl-plans/completed/auth-hardening-07-graphql-http.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
@@ -445,7 +445,7 @@
           "intendedEdit": "New file; authMutations move here from mutation.ts and are spread back into mutationResolvers."
         },
         {
-          "path": "impl-plans/active/auth-hardening-07-graphql-http.md",
+          "path": "impl-plans/completed/auth-hardening-07-graphql-http.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -466,7 +466,7 @@
     },
     {
       "planId": "auth-hardening-08-composition-and-worker",
-      "planPath": "impl-plans/active/auth-hardening-08-composition-and-worker.md",
+      "planPath": "impl-plans/completed/auth-hardening-08-composition-and-worker.md",
       "dependsOn": [
         "auth-hardening-01-contracts-and-persistence",
         "auth-hardening-02-web-client",
@@ -484,7 +484,7 @@
         "apps/api/src/server.ts",
         "apps/api/src/server.test.ts",
         "apps/api/wrangler.toml",
-        "impl-plans/active/auth-hardening-08-composition-and-worker.md",
+        "impl-plans/completed/auth-hardening-08-composition-and-worker.md",
         "apps/web/dist",
         "apps/api/.wrangler"
       ],
@@ -507,7 +507,7 @@
           "intendedEdit": "Wrangler local bundling cache created by the dry run; gitignored artifact root."
         },
         {
-          "path": "impl-plans/active/auth-hardening-08-composition-and-worker.md",
+          "path": "impl-plans/completed/auth-hardening-08-composition-and-worker.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -535,7 +535,7 @@
     },
     {
       "planId": "auth-hardening-09-final-verification",
-      "planPath": "impl-plans/active/auth-hardening-09-final-verification.md",
+      "planPath": "impl-plans/completed/auth-hardening-09-final-verification.md",
       "dependsOn": [
         "auth-hardening-01-contracts-and-persistence",
         "auth-hardening-02-web-client",
@@ -558,7 +558,7 @@
       "sharedPathNotes": [
         {
           "path": "impl-plans/active",
-          "intendedEdit": "Only after every gate passes: move the nine auth-hardening plan files to impl-plans/completed. Never edit, move or delete impl-plans/active/auth-hardening-s305-dispatch.json."
+          "intendedEdit": "Only after every gate passes: move the nine auth-hardening plan files to impl-plans/completed. Never edit, move or delete impl-plans/completed/auth-hardening-s305-dispatch.json."
         },
         {
           "path": "impl-plans/completed",

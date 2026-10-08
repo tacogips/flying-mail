@@ -34,6 +34,7 @@ import {
 import {
   createEmailAuthChallenge,
   consumeEmailAuthChallenge,
+  EmailAuthChallengePurpose,
 } from "@flying-mail/domain/entities/email-auth-challenge";
 import {
   createUser,
@@ -549,6 +550,7 @@ describe("auth repositories", () => {
     const challenge = createEmailAuthChallenge({
       id: createEmailAuthChallengeId("cha-1"),
       email: createEmailAddress("me@example.com"),
+      purpose: EmailAuthChallengePurpose.Login,
       tokenHash: "hash-cha",
       expiresAt: "2026-08-23T00:15:00.000Z",
       createdAt: NOW,

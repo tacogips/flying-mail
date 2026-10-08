@@ -12,17 +12,18 @@ const BASELINE_HEADERS: readonly (readonly [string, string])[] = [
   ["cross-origin-opener-policy", "same-origin"],
 ];
 
-/** CSP for the SPA shell.
+/** CSP for the SPA shell and Cloudflare Turnstile.
  *
  * `frame-src 'self'` is required: the web client renders HTML mail inside a
- * sandboxed same-origin iframe. `object-src 'none'` and
- * `base-uri 'self'` close the two most common bypasses. */
-const HTML_CSP = [
+ * sandboxed same-origin iframe. Turnstile also needs its challenge origin in
+ * `script-src` and `frame-src`. `object-src 'none'` and `base-uri 'self'`
+ * close the two most common bypasses. */
+export const HTML_CSP = [
   "default-src 'self'",
   "img-src 'self' data: blob:",
   "style-src 'self' 'unsafe-inline'",
-  "script-src 'self'",
-  "frame-src 'self' blob:",
+  "script-src 'self' https://challenges.cloudflare.com",
+  "frame-src 'self' blob: https://challenges.cloudflare.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

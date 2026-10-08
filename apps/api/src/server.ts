@@ -5,13 +5,20 @@ import { serve } from "@hono/node-server";
 import type { MigrationFile } from "@flying-mail/adapter/migrations/runner";
 import { createMigrationRunner } from "@flying-mail/adapter/migrations/runner";
 import { drainBlobCleanupQueue } from "@flying-mail/adapter/migrations/blob-cleanup";
+import {
+  AUTH_RATE_LIMIT,
+  createInMemoryRateLimiter,
+} from "@flying-mail/adapter/rate-limit/in-memory";
 import type { AppDependencies } from "@flying-mail/application/dependencies";
 import {
   createUseCases,
   type UseCases,
 } from "@flying-mail/application/usecases";
 import { buildDependencies } from "@flying-mail/infrastructure/composition/build-dependencies";
-import { loadConfigFromEnv } from "@flying-mail/infrastructure/composition/config";
+import {
+  loadConfigFromEnv,
+  normalizeClientIpForRateLimit,
+} from "@flying-mail/infrastructure/composition/config";
 import { createApp } from "@flying-mail/infrastructure/http/app";
 import type { AuthVariables } from "@flying-mail/infrastructure/http/auth-middleware";
 import type { Context, Hono } from "hono";
@@ -114,6 +121,30 @@ export interface LocalApp {
 const DEFAULT_CLEANUP_MAX_ATTEMPTS = 3;
 const DEFAULT_CLEANUP_BASE_DELAY_MS = 100;
 
+interface LocalRequestEnvironment {
+  readonly clientIp?: string | null;
+  readonly incoming?: {
+    readonly socket?: { readonly remoteAddress?: string };
+  };
+}
+
+/** Reads only the peer address supplied by Bun or the Node server adapter. */
+function resolveLocalClientIp(c: Context): string | null {
+  const runtimeEnvironment: unknown = c.env;
+  if (typeof runtimeEnvironment !== "object" || runtimeEnvironment === null) {
+    return null;
+  }
+  const environment = runtimeEnvironment as LocalRequestEnvironment;
+  if (environment.clientIp !== undefined) {
+    return normalizeClientIpForRateLimit(environment.clientIp);
+  }
+  const incoming = environment.incoming;
+  if (incoming === undefined || incoming.socket === undefined) {
+    return null;
+  }
+  return normalizeClientIpForRateLimit(incoming.socket.remoteAddress ?? null);
+}
+
 function sleep(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
@@ -162,7 +193,13 @@ export async function drainBlobCleanupQueueWithRetry(
 export async function createLocalApp(
   migrationsDir: string = DEFAULT_MIGRATIONS_DIR,
 ): Promise<LocalApp> {
-  const config = loadConfigFromEnv(process.env);
+  const config = {
+    ...loadConfigFromEnv(process.env),
+    rateLimiter: createInMemoryRateLimiter({
+      ...AUTH_RATE_LIMIT,
+      clock: { now: () => new Date() },
+    }),
+  };
   if (config.sqlBackend === "sqlite" && config.sqliteUrl !== undefined) {
     ensureSqliteDirectoryExists(config.sqliteUrl);
   }
@@ -194,6 +231,7 @@ export async function createLocalApp(
     usecases,
     graphiql: true,
     devInbound: createDevInboundHandler(usecases),
+    resolveClientIp: resolveLocalClientIp,
   });
   return { app, deps, usecases, blobCleanup };
 }
@@ -208,7 +246,13 @@ export async function startServer(
 
   const runtime = detectRuntime();
   if (runtime === "bun") {
-    Bun.serve({ port, fetch: app.fetch });
+    Bun.serve({
+      port,
+      fetch: (request, server) =>
+        app.fetch(request, {
+          clientIp: server.requestIP(request)?.address ?? null,
+        }),
+    });
   } else {
     serve({ fetch: app.fetch, port });
   }

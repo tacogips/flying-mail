@@ -91,6 +91,10 @@ export function toMessageFilterInput(
 }
 
 export const queryResolvers = {
+  publicConfig(_parent: unknown, _args: unknown, ctx: GraphQLContext) {
+    return { turnstileSiteKey: ctx.deps.instanceConfig.turnstileSiteKey };
+  },
+
   /** Null rather than an error for an unauthenticated caller: this is how a
    * client asks "am I signed in?", and the web app calls it on every load. */
   viewer(

@@ -20,6 +20,7 @@ export type SpamMarkedBy = "SYSTEM" | "USER" | "RULE";
 export type DomainStatus = "PENDING" | "ACTIVE" | "DISABLED";
 export type InboundMxStatus = "READY" | "NOT_CLOUDFLARE" | "NONE" | "UNKNOWN";
 export type UserRole = "ADMIN" | "MEMBER" | "VIEWER";
+export type InvitationStatus = "PENDING" | "ACCEPTED";
 export type MailAddressStatus = "ACTIVE" | "DISABLED";
 export type UserPermissionEffect = "ALLOW" | "DENY";
 export type AttachmentKind =
@@ -326,6 +327,7 @@ export interface UserView {
   readonly name: string;
   readonly role: UserRole;
   readonly active: boolean;
+  readonly invitationStatus: InvitationStatus;
   readonly permissions: readonly UserMailPermissionView[];
   readonly templatePermissions: readonly UserTemplatePermissionView[];
   readonly createdAt: string;

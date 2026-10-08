@@ -1,4 +1,7 @@
-import type { EmailAuthChallenge } from "@flying-mail/domain/entities/email-auth-challenge";
+import type {
+  EmailAuthChallenge,
+  EmailAuthChallengePurpose,
+} from "@flying-mail/domain/entities/email-auth-challenge";
 import type { Session } from "@flying-mail/domain/entities/session";
 import type { User } from "@flying-mail/domain/entities/user";
 import type { EmailAddress } from "@flying-mail/domain/value-objects/email-address";
@@ -34,7 +37,14 @@ export interface EmailAuthChallengeRepository {
   findByTokenHash(tokenHash: string): Promise<EmailAuthChallenge | null>;
   /** Challenges issued to `email` since `since`, consumed or not. Backs the
    * login-link throttle. */
-  countRecentByEmail(email: EmailAddress, since: string): Promise<number>;
+  countRecentByEmail(
+    email: EmailAddress,
+    since: string,
+    purpose: EmailAuthChallengePurpose,
+  ): Promise<number>;
+  /** Atomically sets consumed_at only when it is NULL and expires_at > now.
+   * Returns true only when this call performed that transition. */
+  consume(id: EmailAuthChallengeId, now: string): Promise<boolean>;
   save(challenge: EmailAuthChallenge): Promise<void>;
   deleteExpired(now: string): Promise<number>;
 }

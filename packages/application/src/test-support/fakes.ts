@@ -1,4 +1,6 @@
 import type { AppDependencies, InstanceConfig } from "../dependencies";
+import type { RateLimiter } from "../ports/rate-limiter";
+import type { TurnstileVerifier } from "../ports/turnstile-verifier";
 import {
   createFakeContactStores,
   type FakeContactStores,
@@ -76,13 +78,16 @@ import {
 
 export * from "./contact-fakes";
 export * from "./external-mail-fakes";
+export * from "./auth-hardening-fakes";
 export * from "./message-repository-fake";
 export * from "./repository-fakes";
 export * from "./runtime-fakes";
 export * from "./template-fakes";
 
 export const DEFAULT_INSTANCE_CONFIG: InstanceConfig = {
-  signupMode: "closed",
+  inviteTtlSeconds: 604800,
+  bootstrapToken: null,
+  turnstileSiteKey: null,
   publicOrigin: "https://mail.example.com",
   mailFrom: "postmaster@example.com",
   spamThreshold: 0.6,
@@ -128,6 +133,8 @@ export interface CreateFakeDependenciesOptions {
   readonly smtp?: Parameters<typeof scriptedSmtpSubmissionClient>[0];
   /** Set false to simulate a deployment with no FLYING_MAIL_CREDENTIAL_KEY. */
   readonly credentialCipherAvailable?: boolean;
+  readonly rateLimiter?: RateLimiter | null;
+  readonly turnstileVerifier?: TurnstileVerifier | null;
 }
 
 /** Builds a fully in-memory `AppDependencies` plus handles on its backing
@@ -200,6 +207,8 @@ export function createFakeDependencies(
       fakeExternalMailAccountRepository(externalMailStores),
     externalMessageStateRepository:
       fakeExternalMessageStateRepository(externalMailStores),
+    rateLimiter: options.rateLimiter ?? null,
+    turnstileVerifier: options.turnstileVerifier ?? null,
     jmapClient,
     pop3Client,
     smtpSubmissionClient,
