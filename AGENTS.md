@@ -179,6 +179,14 @@ This is flying-mail - a TypeScript project with Bun runtime and mise-managed dev
 
 **Skill Reference**: Refer to `.agents/skills/design-doc/SKILL.md` for design document guidelines, templates, and naming conventions.
 
+## Cloudflare Workers Deployment
+
+**Skill Reference**: Use `.agents/skills/flying-mail-deploy/SKILL.md` when deploying
+flying-mail, re-deploying after changes, standing up a fresh environment,
+provisioning domains and mailboxes, rolling back, or resetting deployment data.
+The same skill is exposed to Codex through `.codex/skills/` symlinks. Secrets are
+referenced by name only and supplied through `kinko exec`.
+
 ## Cloudflare Mail Configuration
 
 **Skill Reference**: Use `.agents/skills/cloudflare-mail-setup/SKILL.md` when a

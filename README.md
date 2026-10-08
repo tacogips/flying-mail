@@ -176,6 +176,12 @@ curl -OJ 'https://<worker-host>/files/<token>'
 
 ## Deploying
 
+The operator runbook for agents and humans is the
+[flying-mail-deploy skill](.agents/skills/flying-mail-deploy/SKILL.md),
+available to Claude Code via `.claude/skills` and to Codex via `.codex/skills`.
+It covers routine deploys, post-deploy smoke checks, domain provisioning,
+rollback and data reset.
+
 Follow the first-deploy procedure in
 [`design-docs/specs/design-security-model.md`](design-docs/specs/design-security-model.md):
 
