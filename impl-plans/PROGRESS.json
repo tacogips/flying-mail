@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-10-08T06:50:00Z",
+  "lastUpdated": "2026-10-08T12:00:00Z",
   "phases": {
     "1": {
       "status": "COMPLETED"
@@ -78,6 +78,15 @@
     },
     "26": {
       "status": "COMPLETED"
+    },
+    "27": {
+      "status": "READY"
+    },
+    "28": {
+      "status": "BLOCKED"
+    },
+    "29": {
+      "status": "BLOCKED"
     }
   },
   "plans": {
@@ -1555,6 +1564,130 @@
             "realtime-push-07-cli-watch:TASK-001",
             "realtime-push-09-worker-durable-object:TASK-001",
             "realtime-push-10-bun-server:TASK-001"
+          ]
+        }
+      }
+    },
+    "user-admin-01-capability-contract": {
+      "phase": 27,
+      "status": "Ready",
+      "planPath": "impl-plans/active/user-admin-01-capability-contract.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Not Started",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "user-admin-02-realtime-type-filter": {
+      "phase": 27,
+      "status": "Ready",
+      "planPath": "impl-plans/active/user-admin-02-realtime-type-filter.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Not Started",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "user-admin-03-cli-watch-type": {
+      "phase": 27,
+      "status": "Ready",
+      "planPath": "impl-plans/active/user-admin-03-cli-watch-type.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Not Started",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "user-admin-04-web-api-keys": {
+      "phase": 27,
+      "status": "Ready",
+      "planPath": "impl-plans/active/user-admin-04-web-api-keys.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Not Started",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "user-admin-05-cli-user-commands": {
+      "phase": 27,
+      "status": "Ready",
+      "planPath": "impl-plans/active/user-admin-05-cli-user-commands.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Not Started",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "user-admin-06-readme-docs": {
+      "phase": 27,
+      "status": "Ready",
+      "planPath": "impl-plans/active/user-admin-06-readme-docs.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Not Started",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "user-admin-07-authorization": {
+      "phase": 28,
+      "status": "Ready",
+      "planPath": "impl-plans/active/user-admin-07-authorization.md",
+      "dependsOn": [
+        "user-admin-01-capability-contract"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Not Started",
+          "parallelizable": true,
+          "deps": [
+            "user-admin-01-capability-contract:TASK-001"
+          ]
+        }
+      }
+    },
+    "user-admin-08-final-verification": {
+      "phase": 29,
+      "status": "Ready",
+      "planPath": "impl-plans/active/user-admin-08-final-verification.md",
+      "dependsOn": [
+        "user-admin-01-capability-contract",
+        "user-admin-02-realtime-type-filter",
+        "user-admin-03-cli-watch-type",
+        "user-admin-04-web-api-keys",
+        "user-admin-05-cli-user-commands",
+        "user-admin-06-readme-docs",
+        "user-admin-07-authorization"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Not Started",
+          "parallelizable": false,
+          "deps": [
+            "user-admin-01-capability-contract:TASK-001",
+            "user-admin-02-realtime-type-filter:TASK-001",
+            "user-admin-03-cli-watch-type:TASK-001",
+            "user-admin-04-web-api-keys:TASK-001",
+            "user-admin-05-cli-user-commands:TASK-001",
+            "user-admin-06-readme-docs:TASK-001",
+            "user-admin-07-authorization:TASK-001"
           ]
         }
       }

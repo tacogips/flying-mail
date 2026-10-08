@@ -250,6 +250,8 @@ enum MailEventType {
 input MailEventScope {
   domainId: ID        # only events whose message belongs to this domain
   address: String     # only events whose authorized addresses include it
+  types: [MailEventType!]  # only these event types; null/omitted = all
+                           # (added 2026-10-08, see 5.2)
 }
 
 type MailEvent {
@@ -279,6 +281,23 @@ reminders). The names are kept distinct.
   events and no error, so it never reveals whether a domain or address
   exists. The semantics match `MessageFilter.domainId` and
   `MessageFilter.address` (sender or any recipient).
+- **`scope.types`** (added 2026-10-08) narrows delivery to the listed event
+  types. It is applied on the server with the domain and address filter.
+  - `null` or omitted means every type, which is the original behavior.
+  - An empty list, or a list containing `LIVE`, is rejected with
+    `BAD_USER_INPUT` on field `scope.types`. An empty list would deliver
+    nothing. `LIVE` is a control event, always delivered whatever `types`
+    says.
+  - The executor's `coerceScope` deduplicates the list and sorts it into
+    enum declaration order.
+  - The domain `MailEventScope` gains the optional field
+    `types?: readonly MailEventType[] | null`. Absent and `null` both mean
+    all types. The field is optional so that existing scope literals and
+    states persisted before this change stay valid.
+  - The subscription's persisted `scope` carries it. A state persisted
+    before this change has no `types`, and `matchesScope` reads that as
+    `null`.
+  - Like the rest of the scope, `types` is a filter and never a grant.
 - **`addresses`** is the event's stored address set, filtered to the
   addresses for which `authorizesAnyAddress(viewer, MAIL_READ, domainId,
   [address])` holds. User `DENY` rules are therefore honoured per address.
@@ -456,6 +475,14 @@ Filtered and unauthorized rows still advance `lastSeq`. A client's resume
 cursor is the last cursor it received (an event or `LIVE`), so on resume the
 server re-scans, and again filters out, any rows skipped after that point.
 That is correct, merely redundant.
+
+`matchesScope(sub.scope, row)` also checks
+`sub.scope.types === null || sub.scope.types.includes(row.type)`. A row
+excluded by type is handled exactly like a row excluded by domain or
+address. The `sub.lastSeq = row.seq` assignment stays outside the match
+branch, so a type filter cannot create a gap, a duplicate or a stuck
+cursor. `LIVE` is emitted by the head-reached branch, which never consults
+`types`.
 
 ### 6.5 Heartbeat and timeouts
 
@@ -856,8 +883,20 @@ client stays fully supported as a third-party client (README).
 ### 10.4 CLI `flying-mail watch` (`apps/cli/src/commands/watch.ts`)
 
 ```
-flying-mail watch [--domain <name|id>] [--address <addr>] [--json]
+flying-mail watch [--domain <name|id>] [--address <addr>] [--type <list>] [--json]
 ```
+
+- **`--type`** (added 2026-10-08) is repeatable and comma-separated, and
+  matching is case-insensitive.
+  - Short names map to enum values: `received` to `MESSAGE_RECEIVED`,
+    `sent` to `MESSAGE_SENT`, `updated` to `MESSAGE_UPDATED`, `deleted` to
+    `MESSAGE_DELETED`, `draft-saved` to `DRAFT_SAVED`, and `draft-deleted`
+    to `DRAFT_DELETED`. The full enum names are also accepted.
+  - `live`, an unknown name, or an empty value exits 2 before connecting.
+  - The deduplicated values, sorted in enum order, are sent as
+    `scope.types`. Without `--type`, no `types` is sent.
+  - `packages/realtime-client` `MailEventStreamOptions.scope` gains
+    `types?: readonly string[]`.
 
 - **Endpoint.** `wss://` or `ws://` is derived from the configured
   `--endpoint`, with path `/graphql`. The API key is sent only in the
@@ -874,8 +913,11 @@ flying-mail watch [--domain <name|id>] [--address <addr>] [--json]
 - **Cursor persistence.**
   - File: `<config dir>/watch-cursors.json`, the directory of the existing
     config file, written with mode 0600.
-  - Keyed by `endpoint | key prefix | domain | address`. The key secret is
-    never stored there.
+  - Keyed by `endpoint | key prefix | domain | address`. With `--type`, the
+    suffix `|types=<comma-joined sorted enum values>` is appended. Without
+    `--type`, the key is byte-identical to the original format, so stored
+    cursors keep working. A filtered stream never shares a cursor with an
+    unfiltered one. The key secret is never stored there.
   - Written at most once per second and on exit.
   - On resync, the entry is cleared.
 - **Termination.**
@@ -940,6 +982,7 @@ receive only wiring lines.
 | realtime-client (fake timers, fake socket) | Backoff bounds and jitter; reset on LIVE; resume uses the latest cursor; dedupe rule; RESYNC clears and resubscribes without `after`; 4401 calls onAuthFailure; fatal codes stop; pong timeout reconnects; connectionParams re-evaluated per attempt |
 | Web (vitest + jsdom) | Row patch and removal; debounced refresh coalesces; catch-up on LIVE; indicator states; 4401 leads to the viewer re-check |
 | CLI | NDJSON output; cursor file mode 0600 and keying; resume from stored cursor; RESYNC clears; exit codes 0/3/4/1 |
+| Type filter (2026-10-08) | Drain: with `types=[MESSAGE_SENT]` over interleaved RECEIVED/SENT rows, only SENT rows are delivered, in strictly increasing seq, and `lastSeq` equals the last row read, filtered rows included; resume from the last delivered cursor delivers no duplicate and no gap; `LIVE` is still sent once; two subscriptions on one connection with different `types` each get their own subset; a persisted state without `types` behaves as all types. Executor: empty list and `LIVE` give `BAD_USER_INPUT` on `scope.types`; duplicates are collapsed. CLI: `--type` mapping, invalid names exit 2, cursor key unchanged without `--type` and distinct with it |
 
 Repository gates (unchanged commands):
 
@@ -967,6 +1010,7 @@ Repository gates (unchanged commands):
 | D12 | `connect-src 'self'` | Minimal, origin-agnostic, and identical in both CSP strings |
 | D13 | Cookie auth on sockets only with a matching `Origin` header | CSWSH protection without a new token mechanism |
 | D14 | `LIVE` control event | Gives a resumable cursor without traffic and marks the catch-up point |
+| D15 | `MailEventScope.types` is a server-side filter folded into `matchesScope`; `lastSeq` still advances over every read row; `LIVE` is not filterable | Agents that care about one event kind avoid receiving and discarding the rest, while D2's gap-free and duplicate-free argument holds unchanged because filtering never touches cursor advancement (2026-10-08) |
 
 ## 15. References
 

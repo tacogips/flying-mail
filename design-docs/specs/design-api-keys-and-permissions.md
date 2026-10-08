@@ -19,8 +19,10 @@ ybm_<prefix>_<secret>
 - The **entire presented string** is SHA-256 hashed into `api_keys.key_hash`.
   Lookup is a single indexed query on that hash; the plaintext secret is
   returned exactly once, from the `createApiKey` mutation, and never again.
-- Keys optionally carry `expiresAt`. Resolution rejects a key that is revoked,
-  expired, or whose owning user has been deactivated.
+- Keys optionally carry `expiresAt`. Resolution rejects a key that is
+  revoked or expired. The creating user's state does not affect resolution
+  or any capability except `USER_ADMIN`, which also requires that the
+  creator is an active ADMIN (see below).
 
 ## Capabilities
 
@@ -32,6 +34,8 @@ enum Capability {
   FileLink    = "FILE_LINK",     // mint temp file links
   DomainAdmin = "DOMAIN_ADMIN",  // create/verify/disable domains
   KeyAdmin    = "KEY_ADMIN",     // issue and revoke API keys
+  // TEMPLATE_* and CONTACT_* are defined in their own design documents.
+  UserAdmin   = "USER_ADMIN",    // manage users; creator must be an active ADMIN
 }
 ```
 
@@ -60,9 +64,30 @@ Matching rules, in order:
 3. `matchAddressPattern(scope.addressPattern, input.address)` per the
    `AddressPattern` grammar in `design-domain-model.md`.
 
-`DOMAIN_ADMIN` and `KEY_ADMIN` are instance-wide: they are checked with the
-capability alone, ignoring domain/address, and a scope carrying them is stored
-with `domainId: null, addressPattern: "*"`.
+`DOMAIN_ADMIN`, `KEY_ADMIN`, the `TEMPLATE_*` capabilities and `USER_ADMIN`
+are instance-wide. They ignore domain and address, and a scope carrying one
+is stored with `domainId: null, addressPattern: "*"`. All of them except
+`USER_ADMIN` are checked with the capability alone.
+
+### `USER_ADMIN`
+
+`USER_ADMIN` is defined in `design-user-admin-capability.md`. In summary:
+
+- **Allowed operations.** It authorizes `users`, `user(id)`, `setUserRole`,
+  `setUserActive` and adding or removing user mail and template rules.
+- **Refused operations.** `createUser` and `resendInvitation` remain
+  session-only. It grants nothing else.
+- **Liveness.** It works only while the key's `createdByUserId` user still
+  exists, is active, and has role ADMIN. This is checked on every use by
+  `requireUserAdministrator`. `authorizesGlobal` always answers `false` for
+  it, so a scope-only check can never accept it.
+- **Grants.**
+  - Only a signed-in ADMIN user can grant it. No API key can, even one with
+    `KEY_ADMIN` and `USER_ADMIN`.
+  - `addApiKeyScope` adds it only to a key that the same admin created.
+  - The bootstrap key never receives it.
+- **Audit.** Rules created through the key record the creator as
+  `created_by_user_id`.
 
 ### Which address is matched
 
@@ -121,7 +146,9 @@ A `USER` viewer is evaluated by role and current mail-permission rules as
 defined in `design-user-mail-permissions.md`. An `API_KEY` viewer is authorized
 purely by its scope list -- there is no implicit inheritance from the user that
 created it, so changing a user's role or mail permissions does not silently
-widen or narrow an existing key's reach.
+widen or narrow an existing key's reach. The single exception is
+`USER_ADMIN`: it lapses while the key's creator is not an active ADMIN, and
+the key's other scopes are unaffected.
 
 The single policy module `packages/application/src/policies/authorization.ts`
 owns every check; use cases call it rather than inspecting `Viewer` directly.

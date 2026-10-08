@@ -25,6 +25,14 @@ flying-mail
 │   ├── show <id>
 │   ├── send
 │   └── fetch            Poll NOT_FETCHED messages and acknowledge them
+├── user                 User administration (ADMIN session or USER_ADMIN key)
+│   ├── list
+│   ├── show <user>
+│   ├── set-role <user> <ADMIN|MEMBER|VIEWER>
+│   ├── activate <user>
+│   ├── deactivate <user>
+│   ├── rule add|remove
+│   └── template-rule add|remove
 ├── watch                Stream mail events over WebSocket (subscription)
 └── config
     ├── show
@@ -146,7 +154,34 @@ design is in `design-realtime-push.md` section 10.4.
 |------|------|---------|-------------|
 | `--domain <name\|id>` | string | - | Only events for this domain |
 | `--address <addr>` | string | - | Only events whose authorized addresses include this address |
+| `--type <list>` | string[] | - | Repeatable or comma-separated: `received`, `sent`, `updated`, `deleted`, `draft-saved`, `draft-deleted`, or the full enum names. Sent as `scope.types`. The cursor key gains a `|types=...` suffix only when this flag is set |
 | `--json` | boolean | `false` | NDJSON output (global flag) |
+
+### `user`
+
+This group is implemented in `apps/cli/src/commands/user.ts`. The full
+design is in `design-user-admin-capability.md` section 2.8.
+
+- **Credential.** It needs an API key with `USER_ADMIN` whose creator is
+  still an active ADMIN.
+- **`<user>`.** It is a user id or an email, matched case-insensitively.
+- **Operands.** They may come before or after flags.
+- **Errors.** `FORBIDDEN` exits 4 and adds a hint about `USER_ADMIN` and
+  creator liveness. An unknown user, or a rule that does not belong to the
+  user, exits 5. The last-active-admin `CONFLICT` exits 1.
+- **Not provided.** There is no `user create` or `user invite`. Those stay
+  web-only.
+
+| Subcommand | Flags |
+|------------|-------|
+| `list` | `--json` |
+| `show <user>` | `--json` |
+| `set-role <user> <ADMIN\|MEMBER\|VIEWER>` | - |
+| `activate <user>` / `deactivate <user>` | - |
+| `rule add <user>` | `--effect ALLOW\|DENY` (required), `--domain <name\|id>` (optional; omitted = every domain), `--pattern <pattern>` (required; `*` = every address) |
+| `rule remove <user> <rule-id>` | - |
+| `template-rule add <user>` | `--capability TEMPLATE_READ\|TEMPLATE_CREATE\|TEMPLATE_UPDATE\|TEMPLATE_DELETE` (required), `--effect ALLOW\|DENY` (required) |
+| `template-rule remove <user> <rule-id>` | - |
 
 ### `key create`
 

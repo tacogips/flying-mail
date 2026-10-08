@@ -202,3 +202,4 @@ See `design-deployment.md`.
 | `design-deployment.md` | Bindings, env vars, Cloudflare setup steps |
 | `design-webmail-completion.md` | Compose/HTML editor, forward with attachments, drafts lifecycle, multi-recipient inbound, single-call outbound, unified inbox |
 | `design-realtime-push.md` | Mail event log and cursors, GraphQL subscriptions over graphql-transport-ws, Durable Object hibernation fan-out, live web updates, `flying-mail watch` |
+| `design-user-admin-capability.md` | `USER_ADMIN` API-key capability (creator-liveness guard, grant rules, migration 0017, web picker, `flying-mail user`), `MailEventScope.types` and `watch --type` |

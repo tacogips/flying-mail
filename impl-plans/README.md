@@ -312,3 +312,31 @@ The same worker rules as for webmail completion apply.
   workspace package.
 - Plan 11 alone updates statuses in `PROGRESS.json` and this table. It
   edits no source files; gate failures go back to the owning plan.
+
+## USER_ADMIN capability and event-type filter (phases 27-29)
+
+Design reference: `design-docs/specs/design-user-admin-capability.md`
+(accepted 2026-10-08), plus the `MailEventScope.types` sections of
+`design-docs/specs/design-realtime-push.md`. Open user confirmations, with
+defaults applied, are in `design-docs/user-qa/pending-user-admin.md`.
+Plans live in `impl-plans/active/`; plan 08 moves them to `completed/`.
+
+| Wave / Phase | Plan | Depends on |
+|--------------|------|------------|
+| 1 / 27 | [user-admin-01-capability-contract](active/user-admin-01-capability-contract.md) | - |
+| 1 / 27 | [user-admin-02-realtime-type-filter](active/user-admin-02-realtime-type-filter.md) | - |
+| 1 / 27 | [user-admin-03-cli-watch-type](active/user-admin-03-cli-watch-type.md) | - |
+| 1 / 27 | [user-admin-04-web-api-keys](active/user-admin-04-web-api-keys.md) | - |
+| 1 / 27 | [user-admin-05-cli-user-commands](active/user-admin-05-cli-user-commands.md) | - |
+| 1 / 27 | [user-admin-06-readme-docs](active/user-admin-06-readme-docs.md) | - |
+| 2 / 28 | [user-admin-07-authorization](active/user-admin-07-authorization.md) | 01 |
+| 3 / 29 | [user-admin-08-final-verification](active/user-admin-08-final-verification.md) | all of 01-07 (serial) |
+
+The same worker rules as for webmail completion apply.
+
+- Plan 05 alone edits `apps/cli/src/main.ts`, including the `watch
+  --type` HELP line on behalf of plan 03.
+- Plan 06 is documentation-only and declares explicit document checks.
+- Plan 08 alone runs `mise run build-web` (artifact root `apps/web/dist`)
+  and the Worker dry run (artifact root `apps/api/.wrangler`). It is also
+  the only plan that updates statuses in `PROGRESS.json` and this table.

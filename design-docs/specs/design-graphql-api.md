@@ -210,8 +210,8 @@ type Query {
 
   tags: [Tag!]!
   apiKeys: [ApiKey!]!                 # KEY_ADMIN / ADMIN only
-  users: [User!]!                     # ADMIN user only
-  user(id: ID!): User                 # ADMIN user only
+  users: [User!]!                     # ADMIN user, or live USER_ADMIN key
+  user(id: ID!): User                 # ADMIN user, or live USER_ADMIN key
   fileLinks(messageId: ID): [FileLink!]!
 }
 
@@ -542,8 +542,11 @@ deleteMailAddress(id: ID!): Boolean!
 ```graphql
 users: [User!]!
 user(id: ID!): User
-createUser(input: CreateUserInput!): User!          # sends an invitation (2026-10-07)
-resendInvitation(userId: ID!): User!                 # admin user; PENDING only; 3 per 24h
+# Every operation below accepts an ADMIN session. All except createUser and
+# resendInvitation also accept a live USER_ADMIN key
+# (design-user-admin-capability.md).
+createUser(input: CreateUserInput!): User!          # sends an invitation (2026-10-07); session only
+resendInvitation(userId: ID!): User!                 # admin user; PENDING only; 3 per 24h; session only
 setUserRole(id: ID!, role: UserRole!): User!
 setUserActive(id: ID!, active: Boolean!): User!
 addUserMailPermission(userId: ID!, input: UserMailPermissionInput!): UserMailPermission!

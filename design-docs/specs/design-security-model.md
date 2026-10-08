@@ -730,6 +730,45 @@ summary:
   `security-headers.ts` and `_headers`. The section 5.5 rule of no other
   `connect-src` widening still holds.
 
+## 9b. `USER_ADMIN`: user administration by API key (2026-10-08)
+
+Before this change, user administration required a signed-in ADMIN
+session, and every API key was refused. That included the bootstrap key.
+The `USER_ADMIN` capability (`design-user-admin-capability.md`) opens a
+narrow API path. These rules keep a human in the loop:
+
+- **Human grant.** Only a signed-in ADMIN user can grant `USER_ADMIN`.
+  Signing in needs the passwordless email link, which is Turnstile-protected
+  and rate-limited. No key can grant it, not even one holding `KEY_ADMIN`
+  and `USER_ADMIN`. So a stolen key cannot mint a user-admin key. The
+  bootstrap key never holds `USER_ADMIN`, so the deploy-time token never
+  confers user administration.
+- **Liveness tied to a human.** The capability works only while the
+  granting admin (`api_keys.created_by_user_id`) exists, is active, and has
+  role ADMIN. This is checked on every call, with no caching.
+  - Demoting or deactivating that admin disarms every `USER_ADMIN` key they
+    issued at once. Deleting a user sets the column to NULL, which also
+    disarms the keys.
+  - Disarming does not revoke other scopes. This keeps the existing rule
+    that a key does not inherit from its creator.
+- **No invitation path.** `createUser` and `resendInvitation` stay
+  session-only. They mail sign-in links to caller-chosen addresses, which
+  would let a key holder take over a new account. A key can change only
+  users who already exist.
+- **No new escalation.**
+  - `USER_ADMIN` authorizes no key or scope operation.
+  - User changes never alter key scopes.
+  - A key whose creator was demoted is refused before any write, so it
+    cannot restore its own creator.
+  - Promoting another existing user to ADMIN is the ADMIN-level power that
+    was requested. The operator accepts it by granting the capability.
+- **Invariant kept.** The last-active-admin checks apply to both credential
+  kinds. Their read-then-write race was already present on the session path
+  and is not widened in kind. It is recorded in
+  `design-docs/user-qa/pending-user-admin.md` (U4).
+- **Fail closed.** `authorizesGlobal(viewer, USER_ADMIN)` is always
+  `false`, so a future scope-only check cannot bypass the liveness guard.
+
 ## 10. Out of scope
 
 - WAF or zone rules, Turnstile widget creation, DNS, secrets and deploys.

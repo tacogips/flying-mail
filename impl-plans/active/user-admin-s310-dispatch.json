@@ -1,0 +1,495 @@
+{
+  "taskId": "user-admin-s310",
+  "workflowMode": "issue-resolution",
+  "implementationBranch": "main",
+  "baseBranch": "main",
+  "remote": "origin",
+  "originalHead": "f993bab0de0e24a9ecb6180637dedefbc89934f7",
+  "designDocPaths": [
+    "design-docs/specs/design-user-admin-capability.md",
+    "design-docs/user-qa/pending-user-admin.md",
+    "design-docs/user-qa/README.md",
+    "design-docs/specs/design-realtime-push.md",
+    "design-docs/specs/design-api-keys-and-permissions.md",
+    "design-docs/specs/design-security-model.md",
+    "design-docs/specs/command.md",
+    "design-docs/specs/architecture.md",
+    "design-docs/specs/design-graphql-api.md",
+    "design-docs/specs/design-user-mail-permissions.md"
+  ],
+  "evidenceRoot": "tmp/user-admin-s310",
+  "reviewContext": {
+    "issueReference": "workflowInput:opus-luna-design-and-implement-review-loop-session-310/comm-005086 (intake comm-005087; design comm-005088; design review ACCEPT comm-005089; plan comm-005090; plan review ACCEPT comm-005091). No GitHub issue or PR was supplied.",
+    "userProblem": "Every flying-mail user-management operation (users/user queries, setUserRole, setUserActive, user mail and template permission rules, createUser, resendInvitation) requires a signed-in ADMIN web session via requireAdminUser. Every API key is refused, including the full-capability bootstrap key, so user administration cannot be done through the API or the flying-mail CLI. Realtime subscriptions cannot filter by event type.",
+    "requiredOutcomes": [
+      "A USER_ADMIN API-key capability: domain enum, GraphQL enum, global classification and new migration 0017_user_admin_capability.sql widening the api_key_scopes CHECK. Existing migrations are not edited.",
+      "USER_ADMIN authorizes only users, user(id) (including rule listings), setUserRole, setUserActive, add/removeUserMailPermission and add/removeUserTemplatePermission. It never authorizes createUser or resendInvitation, and nothing else.",
+      "Only a signed-in ADMIN user session can grant USER_ADMIN (createApiKey and addApiKeyScope). API-key viewers, including KEY_ADMIN and KEY_ADMIN+USER_ADMIN keys, cannot grant it. The bootstrap key does not receive it.",
+      "Liveness: on every call, USER_ADMIN works only while the key is usable and its creator exists, is ACTIVE and has role ADMIN. Otherwise those operations are FORBIDDEN. The key's other capabilities are unaffected.",
+      "The last-active-admin invariant and no self-escalation hold through the API. Rules created through a key record the key's creator in createdByUserId.",
+      "Settings > API keys can grant USER_ADMIN, with a description and instance-wide scope rendering. Settings > Users keeps working.",
+      "CLI flying-mail user list/show/set-role/activate/deactivate/rule add|remove/template-rule add|remove, in the existing command style and with existing exit codes. FORBIDDEN exits 4 with a USER_ADMIN hint.",
+      "MailEventScope.types: [MailEventType!] filters server-side in matchesScope. Filtered rows still advance lastSeq, so replay stays gap-free and duplicate-free. An empty list or LIVE is BAD_USER_INPUT. flying-mail watch --type maps to it, with a distinct cursor key. The cursor key is unchanged without --type.",
+      "README API/CLI sections are updated. The design docs (security model, API keys and permissions, realtime push, command, new design-user-admin-capability.md) are already updated in this checkpoint.",
+      "mise run lint, bun run test (all workspaces including apps/web), mise run build-web and the Worker dry run pass. Baseline is 2002 package tests and 299 web tests, plus the new tests."
+    ],
+    "nonGoals": [
+      "No deploy, no remote wrangler (dry run only), no secrets and no DNS. The orchestrating session performs deployment and live verification.",
+      "No git commit, push, stash, reset or checkout by workers.",
+      "No API-key path for createUser or resendInvitation. Login stays Turnstile-protected. Auth hardening, rate limiting and realtime authorization are not weakened.",
+      "No edits to migrations 0001-0016.",
+      "No change to the flying-mail-deploy skill: design section 4 decides that no operator step changes, because migration 0017 is applied by the existing remote D1 migration step.",
+      "No web confirmation dialog for granting USER_ADMIN (U2 default). No TEMPLATE_* additions to the web GLOBAL_CAPABILITIES (pre-existing drift, out of scope).",
+      "No atomic rewrite of the last-active-admin check (U4 accepted residual risk).",
+      "No user create or invite CLI commands. The web UI keeps subscribing to all event types."
+    ],
+    "constraints": [
+      "AGENTS.md/CLAUDE.md: English only, no emojis, maximum TypeScript strictness, Biome clean, ts-coding-standards, and no TypeScript file at 1000+ lines. drain.ts and executor.ts stay under 400 lines.",
+      "Workers edit only their plan writePaths and their own plan Progress Log. impl-plans/PROGRESS.json and impl-plans/README.md are edited only by user-admin-08. No worker edits, moves or deletes this dispatch manifest.",
+      "Record sha256 before and after each edit. On drift, re-read and merge only the plan's intent. Never revert others' edits, and never run repository-wide formatters.",
+      "Cross-plan transient failures inside wave 1 are recorded and re-run after the owner reports done. They are never fixed outside the plan's writePaths.",
+      "Evidence for each plan and attempt goes under tmp/user-admin-s310/<planId>/<attempt>/ (gitignored). Plan gate logs go to /tmp/user-admin-<NN>-*.log and /tmp/user-admin-final-<n>.log.",
+      "Never commit secret values. Use README placeholders only."
+    ],
+    "designDecisionsAndRationale": [
+      "USER_ADMIN is a global capability that is inert by default. authorizesGlobal returns false for it for every viewer, so no scope-only check can accept it. Only requireUserAdministrator in auth-guards.ts accepts it, because liveness needs repository access (design 2.1, 2.3).",
+      "Guard order (design 2.3): USER viewer with role ADMIN; API key must hold the USER_ADMIN scope; key loaded and usable (deps.clock); non-null creator; creator exists, is ACTIVE and is ADMIN. The guard returns actorUserId = the creator id, which is used for audit createdByUserId. It runs before any read of the target user, so a refused key cannot probe ids.",
+      "Grant rule (design 2.5): the first branch of assertGrantable refuses USER_ADMIN for non-admin-session viewers. addApiKeyScope(USER_ADMIN) is allowed only for the admin who created the key (U1). The bootstrap key excludes USER_ADMIN.",
+      "Migration 0017 rebuilds api_key_scopes with the 0012 column definitions and USER_ADMIN appended to the CHECK. It has no PRAGMA statements and no backfill.",
+      "D15: MailEventScope.types is an optional field folded into matchesScope. lastSeq = row.seq stays outside the match branch. Filtering is per subscription in memory, never in SQL, so cursors stay global. A persisted state without types means all types.",
+      "CLI watch --type: short names map to enum values, are deduplicated and sorted in declaration order, and are parsed before any network call. The cursor key appends |types=<list> only when a filter is set.",
+      "CLI user commands use only existing GraphQL operations with variables, and resolve users by id or case-insensitive email. A FORBIDDEN error gets USER_ADMIN_HINT appended. CONFLICT and other errors pass through unchanged.",
+      "Plan DAG: wave 1 = 01, 02, 03, 04, 05, 06 (parallel, disjoint writePaths); wave 2 = 07 (depends on 01); wave 3 = 08 (serial reconciliation and final gates)."
+    ],
+    "intentionalTradeoffs": [
+      "U4: the last-active-admin read-then-write race also applies to USER_ADMIN key calls (accepted, design 7).",
+      "Viewer.capabilities lists USER_ADMIN for a dormant key. This is display only; authorization always goes through requireUserAdministrator.",
+      "A USER_ADMIN key's domainId:null scope makes visibleDomains return all domains, for CLI --domain resolution (U5 default).",
+      "Wave-1 plans may see transient test or typecheck failures in each other's files. Plan 08's full re-run is authoritative.",
+      "The user-admin-migration.test.ts cascade assertions rely on libsql.ts setting PRAGMA foreign_keys = ON asynchronously. If they are flaky, the plan 01 worker records it rather than editing libsql.ts."
+    ],
+    "supportedEdgeCases": [
+      "Creator demoted, deactivated or deleted, or the key revoked after the viewer was resolved: the next USER_ADMIN call is FORBIDDEN, with a specific message.",
+      "Key with createdByUserId null: FORBIDDEN, no creating admin.",
+      "A key demotes its own creator: the call succeeds, the key's next call is FORBIDDEN, and it cannot restore the creator.",
+      "Creator is the only active admin: demote or deactivate through the key gives CONFLICT.",
+      "Unseeded keys holding USER_ADMIN (for example the schema-auth-hardening.test.ts root key) fail closed at the guard.",
+      "A USER_ADMIN key with an extra MAIL_READ scope keeps mail reads working regardless of creator liveness.",
+      "scope.types: empty list, LIVE or an unknown value gives BAD_USER_INPUT on scope.types. Duplicates collapse. types combines with domainId/address as AND. Two subscriptions on one connection with different types are independent.",
+      "watch --type: the order and repetition of values do not change the cursor key. --type= and --type live exit 2 with no network call. A legacy cursor entry without --type is still found by its literal key.",
+      "user rule remove with a rule id not owned by the target user exits 5, and no mutation is sent."
+    ],
+    "outOfScopeEdgeCases": [
+      "Concurrent last-admin demotion races (U4).",
+      "Confirmation UI when granting USER_ADMIN.",
+      "Web live-update type filtering (the web always subscribes to all types).",
+      "Pre-existing TEMPLATE_* global-capability drift in the web scope formatter."
+    ],
+    "sourcePaths": [
+      "design-docs/specs/design-user-admin-capability.md",
+      "design-docs/user-qa/pending-user-admin.md",
+      "design-docs/user-qa/README.md",
+      "design-docs/specs/design-realtime-push.md",
+      "design-docs/specs/design-api-keys-and-permissions.md",
+      "design-docs/specs/design-security-model.md",
+      "design-docs/specs/command.md",
+      "design-docs/specs/architecture.md",
+      "design-docs/specs/design-graphql-api.md",
+      "design-docs/specs/design-user-mail-permissions.md",
+      "impl-plans/PROGRESS.json",
+      "impl-plans/README.md",
+      "impl-plans/active/user-admin-01-capability-contract.md",
+      "impl-plans/active/user-admin-02-realtime-type-filter.md",
+      "impl-plans/active/user-admin-03-cli-watch-type.md",
+      "impl-plans/active/user-admin-04-web-api-keys.md",
+      "impl-plans/active/user-admin-05-cli-user-commands.md",
+      "impl-plans/active/user-admin-06-readme-docs.md",
+      "impl-plans/active/user-admin-07-authorization.md",
+      "impl-plans/active/user-admin-08-final-verification.md"
+    ]
+  },
+  "plans": [
+    {
+      "planId": "user-admin-01-capability-contract",
+      "planPath": "impl-plans/active/user-admin-01-capability-contract.md",
+      "dependsOn": [],
+      "writePaths": [
+        "packages/domain/src/entities/api-key.ts",
+        "packages/domain/src/entities/api-key.test.ts",
+        "packages/application/src/policies/authorization.ts",
+        "packages/application/src/policies/authorization.test.ts",
+        "packages/application/src/usecases/email-auth.ts",
+        "packages/application/src/usecases/auth.test.ts",
+        "packages/infrastructure/src/graphql/schema.graphql.ts",
+        "packages/infrastructure/src/graphql/schema.test.ts",
+        "apps/api/migrations/0017_user_admin_capability.sql",
+        "packages/adapter/src/migrations/user-admin-migration.test.ts",
+        "packages/adapter/src/migrations/runner.test.ts",
+        "impl-plans/active/user-admin-01-capability-contract.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/adapter/src/migrations/runner.test.ts",
+          "intendedEdit": "Only append 0017_user_admin_capability.sql to both expected applied lists."
+        },
+        {
+          "path": "impl-plans/active/user-admin-01-capability-contract.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "Capability.UserAdmin = \"USER_ADMIN\" is the last enum member and is in GLOBAL_CAPABILITIES. scopesAuthorizeGlobal is unchanged.",
+        "authorizesGlobal(viewer, UserAdmin) is false for USER and API_KEY viewers (checked first). requireGlobalCapability throws ForbiddenError for it. DOMAIN_ADMIN and KEY_ADMIN behave as before.",
+        "The bootstrap key holds every capability except USER_ADMIN. The auth.test.ts and schema.test.ts counts are Object.values(Capability).length - 1.",
+        "The GraphQL enum Capability has USER_ADMIN with the design 2.1 description.",
+        "Migration 0017 rebuilds api_key_scopes with the 0012 columns plus USER_ADMIN in the CHECK, copies every row and recreates idx_api_key_scopes_key. It has no PRAGMA and no backfill. Migrations 0001-0016 are untouched.",
+        "user-admin-migration.test.ts proves row preservation, CHECK acceptance and rejection, the index, and the cascades. Verification evidence is recorded in the plan Progress Log."
+      ],
+      "verification": [
+        "bunx vitest run packages/domain packages/adapter/src/migrations packages/application/src/policies packages/application/src/usecases/auth.test.ts packages/infrastructure/src/graphql/schema.test.ts packages/infrastructure/src/graphql/schema-auth-hardening.test.ts",
+        "bun run --cwd packages/domain typecheck",
+        "bun run --cwd packages/application typecheck",
+        "bun run --cwd packages/infrastructure typecheck",
+        "bun run --cwd packages/adapter typecheck",
+        "bunx biome check packages/domain/src packages/application/src packages/infrastructure/src/graphql packages/adapter/src/migrations",
+        "git diff --quiet -- apps/api/migrations/0001_init.sql apps/api/migrations/0012_remove_calendar.sql apps/api/migrations/0016_mail_events.sql",
+        "grep -c USER_ADMIN apps/api/migrations/0017_user_admin_capability.sql",
+        "wc -l packages/domain/src/entities/api-key.ts packages/domain/src/entities/api-key.test.ts packages/application/src/policies/authorization.ts packages/application/src/policies/authorization.test.ts packages/application/src/usecases/email-auth.ts packages/application/src/usecases/auth.test.ts packages/infrastructure/src/graphql/schema.graphql.ts packages/infrastructure/src/graphql/schema.test.ts packages/adapter/src/migrations/user-admin-migration.test.ts packages/adapter/src/migrations/runner.test.ts"
+      ]
+    },
+    {
+      "planId": "user-admin-02-realtime-type-filter",
+      "planPath": "impl-plans/active/user-admin-02-realtime-type-filter.md",
+      "dependsOn": [],
+      "writePaths": [
+        "packages/domain/src/entities/mail-event.ts",
+        "packages/infrastructure/src/realtime/drain-helpers.ts",
+        "packages/infrastructure/src/realtime/drain.ts",
+        "packages/infrastructure/src/realtime/executor.ts",
+        "packages/infrastructure/src/realtime/executor.test.ts",
+        "packages/infrastructure/src/realtime/drain.test.ts",
+        "packages/infrastructure/src/graphql/schema-realtime.graphql.ts",
+        "packages/infrastructure/src/graphql/schema-realtime.test.ts",
+        "impl-plans/active/user-admin-02-realtime-type-filter.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/src/realtime/drain.ts",
+          "intendedEdit": "Only the matchesScope call site changes to matchesScope(subscription.scope, row). lastSeq = row.seq and the LIVE branch are untouched."
+        },
+        {
+          "path": "impl-plans/active/user-admin-02-realtime-type-filter.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "MailEventScope gains optional readonly types?: readonly MailEventType[] | null. Absent and null both mean all types. The existing { domainId: null, address: null } literals in apps/api still compile.",
+        "The SDL input MailEventScope gains types: [MailEventType!] with the design description.",
+        "coerceScope returns a discriminated result. Empty list, LIVE, non-array and unknown values give BAD_USER_INPUT on scope.types. Values are deduplicated and sorted in declaration order. The address message is unchanged.",
+        "matchesScope(scope, row) ANDs the type filter with the domain and address filters. lastSeq = row.seq stays a single assignment outside the match branch. LIVE is still sent once.",
+        "drain, executor and schema-realtime tests cover the design 13 Type filter row. drain.ts and executor.ts stay under 400 lines. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/realtime packages/infrastructure/src/graphql/schema-realtime.test.ts packages/domain/src/entities/mail-event.test.ts apps/api/src/mail-event-hub.test.ts apps/api/src/realtime-bun.test.ts",
+        "bun run --cwd packages/domain typecheck",
+        "bun run --cwd packages/infrastructure typecheck",
+        "bun run --cwd apps/api typecheck",
+        "bunx biome check packages/infrastructure/src/realtime packages/infrastructure/src/graphql packages/domain/src/entities",
+        "grep -n \"lastSeq = row.seq\" packages/infrastructure/src/realtime/drain.ts",
+        "wc -l packages/domain/src/entities/mail-event.ts packages/infrastructure/src/realtime/drain-helpers.ts packages/infrastructure/src/realtime/drain.ts packages/infrastructure/src/realtime/executor.ts packages/infrastructure/src/realtime/executor.test.ts packages/infrastructure/src/realtime/drain.test.ts packages/infrastructure/src/graphql/schema-realtime.graphql.ts packages/infrastructure/src/graphql/schema-realtime.test.ts"
+      ]
+    },
+    {
+      "planId": "user-admin-03-cli-watch-type",
+      "planPath": "impl-plans/active/user-admin-03-cli-watch-type.md",
+      "dependsOn": [],
+      "writePaths": [
+        "packages/realtime-client/src/protocol.ts",
+        "packages/realtime-client/src/stream.test.ts",
+        "apps/cli/src/commands/watch.ts",
+        "apps/cli/src/watch-cursors.ts",
+        "apps/cli/src/watch.test.ts",
+        "impl-plans/active/user-admin-03-cli-watch-type.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "impl-plans/active/user-admin-03-cli-watch-type.md",
+          "intendedEdit": "Progress log and completion checkboxes only. The --type HELP line in apps/cli/src/main.ts is added by user-admin-05, not by this plan."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "The realtime-client MailEventStreamOptions scope gains readonly types?: readonly string[]. stream.ts is unchanged and forwards scope.types as-is.",
+        "parseWatchTypes maps short and full names case-insensitively, deduplicates and sorts in declaration order, and runs before any network call. Empty, LIVE and unknown values exit 2.",
+        "Without --type the scope has no types key and cursorKey equals the literal legacy string. With --type the key ends with |types=<sorted list>.",
+        "apps/cli/src/main.ts, apps/cli/package.json and bun.lock are untouched by this plan. Files stay under 1000 lines. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bunx vitest run apps/cli packages/realtime-client",
+        "bun run --cwd apps/cli typecheck",
+        "bun run --cwd packages/realtime-client typecheck",
+        "bunx biome check apps/cli/src packages/realtime-client/src",
+        "wc -l apps/cli/src/commands/watch.ts apps/cli/src/watch-cursors.ts",
+        "git diff --quiet -- apps/cli/package.json bun.lock"
+      ]
+    },
+    {
+      "planId": "user-admin-04-web-api-keys",
+      "planPath": "impl-plans/active/user-admin-04-web-api-keys.md",
+      "dependsOn": [],
+      "writePaths": [
+        "apps/web/src/api/schema-types.ts",
+        "apps/web/src/lib/scope-format.ts",
+        "apps/web/src/lib/helpers.test.ts",
+        "apps/web/src/pages/settings/api-keys-page.tsx",
+        "apps/web/src/pages/settings/api-keys-page.test.tsx",
+        "impl-plans/active/user-admin-04-web-api-keys.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "impl-plans/active/user-admin-04-web-api-keys.md",
+          "intendedEdit": "Progress log and completion checkboxes only. This plan does not run mise run build-web; user-admin-08 owns apps/web/dist."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "The web Capability union, CAPABILITY_LABELS (appended last) and the web GLOBAL_CAPABILITIES include USER_ADMIN. USER_ADMIN_DESCRIPTION is exported with the exact design text.",
+        "The API keys page shows the description only when a row's capability is USER_ADMIN. It hides the domain and address inputs and submits domainId null and addressPattern * through the existing global path.",
+        "helpers.test.ts and the new api-keys-page.test.tsx cover the label, the instance-wide formatting, and showing and hiding the description. users-page.test.tsx still passes.",
+        "Web tests are at least 299 plus the new tests. Files stay under 1000 lines. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bun run --cwd apps/web test",
+        "bun run --cwd apps/web typecheck",
+        "bunx biome check apps/web/src",
+        "wc -l apps/web/src/api/schema-types.ts apps/web/src/lib/scope-format.ts apps/web/src/lib/helpers.test.ts apps/web/src/pages/settings/api-keys-page.tsx apps/web/src/pages/settings/api-keys-page.test.tsx"
+      ]
+    },
+    {
+      "planId": "user-admin-05-cli-user-commands",
+      "planPath": "impl-plans/active/user-admin-05-cli-user-commands.md",
+      "dependsOn": [],
+      "writePaths": [
+        "apps/cli/src/commands/user.ts",
+        "apps/cli/src/user.test.ts",
+        "apps/cli/src/main.ts",
+        "apps/cli/src/cli.test.ts",
+        "impl-plans/active/user-admin-05-cli-user-commands.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "apps/cli/src/main.ts",
+          "intendedEdit": "Only owner in this feature: register [\"user\", userCommands] in COMMAND_GROUPS, add the user HELP lines and user flags block, and add the watch --type HELP line on behalf of user-admin-03."
+        },
+        {
+          "path": "apps/cli/src/cli.test.ts",
+          "intendedEdit": "Conditional: edit only if an existing HELP or dispatch assertion must change. Otherwise leave it untouched."
+        },
+        {
+          "path": "impl-plans/active/user-admin-05-cli-user-commands.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "userCommands exposes list, show, set-role, activate, deactivate, rule add|remove and template-rule add|remove. It has no create or invite.",
+        "All input validation happens before any network call (exit 2). Users and domains resolve by id, then by name or case-insensitive email (exit 5 when not found). Rule removal checks ownership first (exit 5).",
+        "Every value is passed as a GraphQL variable. FORBIDDEN exits 4 with USER_ADMIN_HINT appended. CONFLICT and other errors pass through unchanged.",
+        "commands/index.ts, args.ts and client.ts are unchanged. user.ts and main.ts stay under 1000 lines. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bunx vitest run apps/cli",
+        "bun run --cwd apps/cli typecheck",
+        "bunx biome check apps/cli/src",
+        "wc -l apps/cli/src/commands/user.ts apps/cli/src/main.ts",
+        "git diff --quiet -- apps/cli/src/commands/index.ts apps/cli/src/args.ts apps/cli/src/client.ts",
+        "grep -n '\"user\"' apps/cli/src/main.ts"
+      ]
+    },
+    {
+      "planId": "user-admin-06-readme-docs",
+      "planPath": "impl-plans/active/user-admin-06-readme-docs.md",
+      "dependsOn": [],
+      "writePaths": [
+        "README.md",
+        "impl-plans/active/user-admin-06-readme-docs.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "README.md",
+          "intendedEdit": "Documentation only: User administration by API key subsection, MailEventScope.types SDL and semantics, watch --type example, the flying-mail user CLI block, and documentation-table rows for design-user-admin-capability.md and design-realtime-push.md."
+        },
+        {
+          "path": "impl-plans/active/user-admin-06-readme-docs.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "README describes what USER_ADMIN allows and refuses, that only a signed-in admin can grant it, that the bootstrap key lacks it, the creator-liveness rule and the last-admin CONFLICT, with one curl example using placeholders.",
+        "README Subscriptions SDL shows types: [MailEventType!] with its semantics, plus a flying-mail watch --type example.",
+        "README lists the flying-mail user commands, exit code 4 with the USER_ADMIN hint, and states that create and invite are web-only.",
+        "Documentation-only verification: document checks 1-10 pass with outputs recorded. No emojis, no real key material, and only README.md changed."
+      ],
+      "verification": [
+        "sh -c 'test \"$(grep -c USER_ADMIN README.md)\" -ge 3'",
+        "grep -n \"types: \\[MailEventType!\\]\" README.md",
+        "grep -n \"watch --type\" README.md",
+        "sh -c 'test \"$(grep -c \"flying-mail user \" README.md)\" -ge 5'",
+        "grep -n \"design-user-admin-capability.md\" README.md",
+        "grep -nE \"createUser|resendInvitation\" README.md",
+        "! grep -nE \"ybm_[A-Za-z0-9]{6,}\" README.md",
+        "! grep -nP \"[\\x{1F300}-\\x{1FAFF}\\x{2600}-\\x{27BF}]\" README.md",
+        "bunx biome check README.md",
+        "git diff --stat -- README.md"
+      ]
+    },
+    {
+      "planId": "user-admin-07-authorization",
+      "planPath": "impl-plans/active/user-admin-07-authorization.md",
+      "dependsOn": [
+        "user-admin-01-capability-contract"
+      ],
+      "writePaths": [
+        "packages/application/src/usecases/auth-guards.ts",
+        "packages/application/src/usecases/auth-guards.test.ts",
+        "packages/application/src/usecases/users.ts",
+        "packages/application/src/usecases/user-template-permissions.ts",
+        "packages/application/src/usecases/api-keys.ts",
+        "packages/application/src/usecases/user-admin-capability.test.ts",
+        "packages/application/src/usecases/users.test.ts",
+        "packages/application/src/usecases/user-template-permissions.test.ts",
+        "packages/application/src/usecases/admin.test.ts",
+        "packages/infrastructure/src/graphql/schema-user-admin.test.ts",
+        "packages/infrastructure/src/graphql/schema-users.test.ts",
+        "impl-plans/active/user-admin-07-authorization.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/application/src/usecases/users.test.ts",
+          "intendedEdit": "Conditional: edit only if an existing assertion on a FORBIDDEN message text must change after the guard swap."
+        },
+        {
+          "path": "packages/application/src/usecases/user-template-permissions.test.ts",
+          "intendedEdit": "Conditional: same condition as users.test.ts."
+        },
+        {
+          "path": "packages/application/src/usecases/admin.test.ts",
+          "intendedEdit": "Conditional: same condition as users.test.ts."
+        },
+        {
+          "path": "packages/infrastructure/src/graphql/schema-users.test.ts",
+          "intendedEdit": "Conditional: same condition as users.test.ts."
+        },
+        {
+          "path": "impl-plans/active/user-admin-07-authorization.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "requireUserAdministrator(deps, viewer): Promise<UserAdministrator> runs design 2.3 steps 1-6 with the exact ForbiddenError messages. It uses deps.clock and keeps no cache. requireAdminUser is unchanged.",
+        "The users.ts list/get/setUserRole/setUserActive/add/removeUserMailPermission use cases and the template permission list/add/remove use cases call the guard first. Audit createdByUserId is actorUserId. createUser and invitations.ts stay on requireAdminUser.",
+        "assertGrantable refuses USER_ADMIN for non-admin-session viewers as its first branch. addApiKeyScope(USER_ADMIN) is allowed only for the key's creating admin.",
+        "user-admin-capability.test.ts, auth-guards.test.ts and schema-user-admin.test.ts cover allowed and refused operations, liveness, last-admin CONFLICT, no self-restoration, audit fields and the grant rules.",
+        "All existing application and GraphQL tests pass. Files stay under 1000 lines. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/application packages/infrastructure/src/graphql",
+        "bun run --cwd packages/application typecheck",
+        "bun run --cwd packages/infrastructure typecheck",
+        "bunx biome check packages/application/src packages/infrastructure/src/graphql",
+        "sh -c 'grep -n requireAdminUser packages/application/src/usecases/*.ts | grep -v test'",
+        "wc -l packages/application/src/usecases/auth-guards.ts packages/application/src/usecases/auth-guards.test.ts packages/application/src/usecases/users.ts packages/application/src/usecases/user-template-permissions.ts packages/application/src/usecases/api-keys.ts packages/application/src/usecases/user-admin-capability.test.ts packages/infrastructure/src/graphql/schema-user-admin.test.ts"
+      ]
+    },
+    {
+      "planId": "user-admin-08-final-verification",
+      "planPath": "impl-plans/active/user-admin-08-final-verification.md",
+      "dependsOn": [
+        "user-admin-01-capability-contract",
+        "user-admin-02-realtime-type-filter",
+        "user-admin-03-cli-watch-type",
+        "user-admin-04-web-api-keys",
+        "user-admin-05-cli-user-commands",
+        "user-admin-06-readme-docs",
+        "user-admin-07-authorization"
+      ],
+      "writePaths": [
+        "impl-plans/PROGRESS.json",
+        "impl-plans/README.md",
+        "impl-plans/active",
+        "impl-plans/completed",
+        "design-docs/specs/design-user-admin-capability.md",
+        "apps/web/dist",
+        "apps/api/.wrangler"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "impl-plans/active",
+          "intendedEdit": "Only after every gate passes: move the eight impl-plans/active/user-admin-0*.md plan files to impl-plans/completed with a plain filesystem move. Never edit, move or delete impl-plans/active/user-admin-s310-dispatch.json."
+        },
+        {
+          "path": "impl-plans/completed",
+          "intendedEdit": "Receives only the eight moved user-admin plan files. Existing completed files are untouched."
+        },
+        {
+          "path": "impl-plans/PROGRESS.json",
+          "intendedEdit": "Serial reconciliation: set the user-admin plans and tasks to Completed and phases 27-29 to COMPLETED, update planPath values and lastUpdated, and keep the JSON valid."
+        },
+        {
+          "path": "impl-plans/README.md",
+          "intendedEdit": "Serial reconciliation: point the user-admin table links to completed/."
+        },
+        {
+          "path": "design-docs/specs/design-user-admin-capability.md",
+          "intendedEdit": "Only for a factual mismatch revealed by implementation, recorded in the Progress Log. Design decisions are not changed."
+        },
+        {
+          "path": "apps/web/dist",
+          "intendedEdit": "Artifact root: mise run build-web output (gitignored). Never edited by hand."
+        },
+        {
+          "path": "apps/api/.wrangler",
+          "intendedEdit": "Artifact root: wrangler local state from the dry run (gitignored). Never edited by hand."
+        }
+      ],
+      "artifactRoots": [
+        "apps/web/dist",
+        "apps/api/.wrangler"
+      ],
+      "acceptanceCriteria": [
+        "bun install --frozen-lockfile, mise run lint, bun run test, mise run build-web and the Worker dry run all exit 0, with logs at /tmp/user-admin-final-<n>.log. bun run test reports at least 2002 package tests and 299 web tests plus the new ones, with exact counts recorded. apps/web/dist/index.html exists.",
+        "No changed or new TypeScript file is at 1000 lines or more.",
+        "Security spot checks pass: requireAdminUser is only in the auth-guards definition, users.ts createUser and invitations.ts; the UserAdmin fail-closed, bootstrap-exclusion and grant-only-by-admin branches are present; migrations 0001, 0012, 0015 and 0016 are unchanged; no real secrets.",
+        "Every design-to-test mapping file exists and passes, and the plan 06 document checks are recorded.",
+        "Source files, README.md, bun.lock and git state are read-only for this plan. On any failure, the owning plan, command, exit code and log path are reported as a repair request before reconciliation. On success, PROGRESS.json and README.md are reconciled, the JSON is valid and the plan files are moved to completed/."
+      ],
+      "verification": [
+        "git status --short",
+        "sh -c 'bun install --frozen-lockfile > /tmp/user-admin-final-1.log 2>&1'",
+        "sh -c 'mise run lint > /tmp/user-admin-final-2.log 2>&1'",
+        "sh -c 'bun run test > /tmp/user-admin-final-3.log 2>&1'",
+        "sh -c 'mise run build-web > /tmp/user-admin-final-4.log 2>&1'",
+        "test -f apps/web/dist/index.html",
+        "sh -c 'bun run --cwd apps/api cf:deploy -- --dry-run --outdir /tmp/flying-mail-dryrun > /tmp/user-admin-final-5.log 2>&1'",
+        "sh -c '{ git diff --name-only; git ls-files --others --exclude-standard; } | grep -E \"\\.tsx?$\" | sort -u | xargs wc -l | awk \"\\$2 != \\\"total\\\" && \\$1 >= 1000 { print; bad = 1 } END { exit bad }\"'",
+        "sh -c 'grep -n requireAdminUser packages/application/src/usecases/*.ts | grep -v test'",
+        "grep -n UserAdmin packages/application/src/policies/authorization.ts packages/application/src/usecases/email-auth.ts packages/application/src/usecases/api-keys.ts",
+        "git diff --quiet -- apps/api/migrations/0001_init.sql apps/api/migrations/0012_remove_calendar.sql apps/api/migrations/0015_auth_hardening.sql apps/api/migrations/0016_mail_events.sql",
+        "sh -c 'grep -rnE \"ybm_[A-Za-z0-9]{12}_[A-Za-z0-9_-]{20,}\" README.md apps packages --include=*.md --include=*.ts || true'",
+        "python3 -m json.tool impl-plans/PROGRESS.json"
+      ]
+    }
+  ]
+}

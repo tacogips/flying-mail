@@ -66,9 +66,13 @@ Specific reads outside the effective rule set return `NOT_FOUND`.
 
 ## Administration
 
-Only an authenticated `ADMIN` user can list users, create users, change roles,
-deactivate/reactivate users, and add or remove user mail permissions. API keys
-cannot perform user administration, even if they hold `KEY_ADMIN`.
+An authenticated `ADMIN` user can list users, create users, change roles,
+deactivate or reactivate users, and add or remove user mail and template
+permissions. An API key can perform these operations only if it holds
+`USER_ADMIN` and its creator is still an active ADMIN
+(`design-user-admin-capability.md`). Even then, creating users and resending
+invitations stay session-only. `KEY_ADMIN` alone never authorizes user
+administration.
 
 The system must always retain at least one active admin. A mutation that would
 demote or deactivate the last active admin is rejected. An admin may add a
