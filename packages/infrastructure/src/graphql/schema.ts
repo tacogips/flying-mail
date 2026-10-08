@@ -53,6 +53,11 @@ import {
   templateQueryResolvers,
 } from "./resolvers/templates";
 import { useSelectionLimit } from "./selection-limit";
+import { realtimeTypeDefs } from "./schema-realtime.graphql";
+import {
+  mailEventResolvers,
+  subscriptionResolvers,
+} from "./resolvers/realtime";
 
 /** Merges the SDL with every resolver module into an executable schema.
  *
@@ -65,14 +70,15 @@ import { useSelectionLimit } from "./selection-limit";
  * loader-based, mirroring `ApiKey.scopes`. */
 export function buildGraphQLSchema(): GraphQLSchema {
   return createSchema<GraphQLContext>({
-    // Five SDL documents, merged by `createSchema`: the mail and admin
-    // contract plus contacts, external-mail, templates and compose modules.
+    // Six SDL documents, merged by `createSchema`: the mail and admin
+    // contract plus contacts, external-mail, templates, compose and realtime.
     typeDefs: [
       typeDefs,
       contactTypeDefs,
       externalMailTypeDefs,
       templateTypeDefs,
       composeTypeDefs,
+      realtimeTypeDefs,
     ],
     resolvers: {
       Query: {
@@ -83,6 +89,7 @@ export function buildGraphQLSchema(): GraphQLSchema {
         ...externalMailQueryResolvers,
         ...composeQueryResolvers,
       },
+      Subscription: subscriptionResolvers,
       Mutation: {
         ...mutationResolvers,
         ...mailAddressMutationResolvers,
@@ -108,6 +115,7 @@ export function buildGraphQLSchema(): GraphQLSchema {
       Thread: threadResolvers,
       ClassificationRule: classificationRuleResolvers,
       MessageEvent: messageEventResolvers,
+      MailEvent: mailEventResolvers,
       Viewer: { ...viewerResolvers, ...composeViewerResolvers },
       User: userResolvers,
       UserMailPermission: userMailPermissionResolvers,

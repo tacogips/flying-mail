@@ -293,18 +293,18 @@ Design reference: `design-docs/specs/design-realtime-push.md` (accepted
 
 | Wave / Phase | Plan | Depends on |
 |--------------|------|------------|
-| 1 / 22 | [realtime-push-01-contracts-and-persistence](active/realtime-push-01-contracts-and-persistence.md) | - |
-| 1 / 22 | [realtime-push-02-realtime-client](active/realtime-push-02-realtime-client.md) | - |
-| 1 / 22 | [realtime-push-03-docs](active/realtime-push-03-docs.md) | - |
-| 2 / 23 | [realtime-push-04a-emission-ingest-send-drafts](active/realtime-push-04a-emission-ingest-send-drafts.md) | 01 |
-| 2 / 23 | [realtime-push-04b-emission-message-mutations](active/realtime-push-04b-emission-message-mutations.md) | 01 |
-| 2 / 23 | [realtime-push-05-graphql-surface-and-executor](active/realtime-push-05-graphql-surface-and-executor.md) | 01 |
-| 2 / 23 | [realtime-push-06-web-live-updates](active/realtime-push-06-web-live-updates.md) | 02 |
-| 2 / 23 | [realtime-push-07-cli-watch](active/realtime-push-07-cli-watch.md) | 02 |
-| 3 / 24 | [realtime-push-08-hub-core](active/realtime-push-08-hub-core.md) | 01, 05 |
-| 4 / 25 | [realtime-push-09-worker-durable-object](active/realtime-push-09-worker-durable-object.md) | 01, 05, 08 |
-| 4 / 25 | [realtime-push-10-bun-server](active/realtime-push-10-bun-server.md) | 01, 05, 08 |
-| 5 / 26 | [realtime-push-11-final-verification](active/realtime-push-11-final-verification.md) | all of 01-10 (serial) |
+| 1 / 22 | [realtime-push-01-contracts-and-persistence](completed/realtime-push-01-contracts-and-persistence.md) | - |
+| 1 / 22 | [realtime-push-02-realtime-client](completed/realtime-push-02-realtime-client.md) | - |
+| 1 / 22 | [realtime-push-03-docs](completed/realtime-push-03-docs.md) | - |
+| 2 / 23 | [realtime-push-04a-emission-ingest-send-drafts](completed/realtime-push-04a-emission-ingest-send-drafts.md) | 01 |
+| 2 / 23 | [realtime-push-04b-emission-message-mutations](completed/realtime-push-04b-emission-message-mutations.md) | 01 |
+| 2 / 23 | [realtime-push-05-graphql-surface-and-executor](completed/realtime-push-05-graphql-surface-and-executor.md) | 01 |
+| 2 / 23 | [realtime-push-06-web-live-updates](completed/realtime-push-06-web-live-updates.md) | 02 |
+| 2 / 23 | [realtime-push-07-cli-watch](completed/realtime-push-07-cli-watch.md) | 02 |
+| 3 / 24 | [realtime-push-08-hub-core](completed/realtime-push-08-hub-core.md) | 01, 05 |
+| 4 / 25 | [realtime-push-09-worker-durable-object](completed/realtime-push-09-worker-durable-object.md) | 01, 05, 08 |
+| 4 / 25 | [realtime-push-10-bun-server](completed/realtime-push-10-bun-server.md) | 01, 05, 08 |
+| 5 / 26 | [realtime-push-11-final-verification](completed/realtime-push-11-final-verification.md) | all of 01-10 (serial) |
 
 The same worker rules as for webmail completion apply.
 

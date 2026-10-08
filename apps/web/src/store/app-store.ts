@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import type { ConnectionStatus } from "@flying-mail/realtime-client";
 import {
   graphqlRequest,
   type GraphQLResult,
@@ -59,6 +60,10 @@ import { toSaveDraftOutcome, type SaveDraftOutcome } from "./app-store-compose";
 
 const PAGE_SIZE = 50;
 
+export type LiveMessageEvent =
+  | { readonly type: "MESSAGE_UPDATED"; readonly message: MessageView }
+  | { readonly type: "MESSAGE_DELETED"; readonly messageId: string };
+
 export interface AppStore {
   readonly viewer: () => ViewerView | null;
   readonly domains: () => readonly MailDomainView[];
@@ -73,7 +78,17 @@ export interface AppStore {
   readonly inboxUnreadCount: () => number;
   readonly mailLimits: () => MailLimitsView | null;
   readonly upcomingEvents: () => readonly MessageEventView[];
+  readonly liveStatus: () => ConnectionStatus;
   reloadUpcomingEvents(): Promise<void>;
+  setLiveStatus(status: ConnectionStatus): void;
+  publishLiveMessageEvent(event: LiveMessageEvent): void;
+  subscribeToLiveMessageEvents(
+    listener: (event: LiveMessageEvent) => void,
+  ): () => void;
+  patchMessage(message: MessageView): void;
+  removeMessage(id: string): void;
+  refreshVisible(): Promise<void>;
+  reloadTags(): Promise<void>;
 
   rehydrateSession(): Promise<void>;
   loadReferenceData(): Promise<void>;
@@ -211,6 +226,10 @@ export function createAppStore(): AppStore {
   const [unreadOnly, setUnreadOnlySignal] = createSignal(false);
   const [inboxUnreadCount, setInboxUnreadCount] = createSignal(0);
   const [mailLimits, setMailLimits] = createSignal<MailLimitsView | null>(null);
+  const [liveStatus, setLiveStatus] = createSignal<ConnectionStatus>("offline");
+  const liveMessageListeners = new Set<(event: LiveMessageEvent) => void>();
+  let listGeneration = 0;
+  let loadingRequestGeneration = 0;
   let mailLimitsRequested = false;
 
   function reportFailure(result: GraphQLResult<unknown>): boolean {
@@ -221,19 +240,29 @@ export function createAppStore(): AppStore {
     return true;
   }
 
+  function currentMessageFilter(): Record<string, unknown> {
+    return {
+      ...viewToFilter(view(), tags()),
+      ...(unreadOnly() ? { unreadOnly: true } : {}),
+    };
+  }
+
   async function fetchPage(after: string | null): Promise<void> {
+    const requestGeneration = listGeneration;
+    const loadingRequest = ++loadingRequestGeneration;
     setLoading(true);
     const result = await graphqlRequest<
       { readonly messages: MessagePageView },
       Record<string, unknown>
     >(MESSAGES_QUERY, {
-      filter: {
-        ...viewToFilter(view(), tags()),
-        ...(unreadOnly() ? { unreadOnly: true } : {}),
-      },
+      filter: currentMessageFilter(),
       first: PAGE_SIZE,
       after,
     });
+    if (requestGeneration !== listGeneration) {
+      if (loadingRequest === loadingRequestGeneration) setLoading(false);
+      return;
+    }
     setLoading(false);
     if (reportFailure(result)) {
       return;
@@ -327,6 +356,78 @@ export function createAppStore(): AppStore {
     if (result.ok) {
       setInboxUnreadCount(result.data.messages.totalCount);
     }
+  }
+
+  function patchMessage(message: MessageView): void {
+    setMessages((current) =>
+      current.map((loaded) => (loaded.id === message.id ? message : loaded)),
+    );
+  }
+
+  function removeMessage(id: string): void {
+    setMessages((current) => current.filter((message) => message.id !== id));
+    setSelectedIds((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  async function refreshVisible(): Promise<void> {
+    const requestGeneration = ++listGeneration;
+    const result = await graphqlRequest<
+      { readonly messages: MessagePageView },
+      Record<string, unknown>
+    >(MESSAGES_QUERY, {
+      filter: currentMessageFilter(),
+      first: PAGE_SIZE,
+      after: null,
+    });
+    if (result.ok && requestGeneration === listGeneration) {
+      const firstPage = result.data.messages.nodes;
+      const firstPageIds = new Set(firstPage.map((message) => message.id));
+      const currentMessages = messages();
+      let lastOverlap = -1;
+      for (let index = 0; index < currentMessages.length; index += 1) {
+        const message = currentMessages[index];
+        if (message !== undefined && firstPageIds.has(message.id)) {
+          lastOverlap = index;
+        }
+      }
+      const laterMessages =
+        lastOverlap >= 0
+          ? currentMessages.slice(lastOverlap + 1)
+          : currentMessages.slice(PAGE_SIZE);
+      const next = [
+        ...firstPage,
+        ...laterMessages.filter((message) => !firstPageIds.has(message.id)),
+      ];
+      setMessages(next);
+      const presentIds = new Set(next.map((message) => message.id));
+      setSelectedIds((selected) => {
+        const retained = new Set(
+          [...selected].filter((id) => presentIds.has(id)),
+        );
+        return retained.size === selected.size ? selected : retained;
+      });
+      setTotalCount(result.data.messages.totalCount);
+    }
+    await Promise.all([
+      reloadAddressActivity().catch(() => undefined),
+      reloadInboxUnread().catch(() => undefined),
+    ]);
+  }
+
+  function publishLiveMessageEvent(event: LiveMessageEvent): void {
+    for (const listener of liveMessageListeners) listener(event);
+  }
+
+  function subscribeToLiveMessageEvents(
+    listener: (event: LiveMessageEvent) => void,
+  ): () => void {
+    liveMessageListeners.add(listener);
+    return () => liveMessageListeners.delete(listener);
   }
 
   function findSystemTag(slug: SystemTagSlug): TagView | null {
@@ -434,6 +535,7 @@ export function createAppStore(): AppStore {
     reloadUpcomingEvents,
 
     async setView(next) {
+      listGeneration += 1;
       setViewSignal(() => next);
       setUnreadOnlySignal(false);
       setSelectedIds(new Set<string>());
@@ -442,12 +544,14 @@ export function createAppStore(): AppStore {
     },
 
     async setUnreadOnly(value) {
+      listGeneration += 1;
       setUnreadOnlySignal(value);
       setCursor(null);
       await fetchPage(null);
     },
 
     async reloadMessages() {
+      listGeneration += 1;
       setCursor(null);
       await fetchPage(null);
       await Promise.all([
@@ -595,6 +699,14 @@ export function createAppStore(): AppStore {
     },
 
     upcomingEvents,
+    liveStatus,
+    setLiveStatus,
+    publishLiveMessageEvent,
+    subscribeToLiveMessageEvents,
+    patchMessage,
+    removeMessage,
+    refreshVisible,
+    reloadTags,
 
     async saveDraft(input) {
       const result = await graphqlRequest<

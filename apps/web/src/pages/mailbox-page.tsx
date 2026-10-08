@@ -1,5 +1,12 @@
 import { useNavigate, useSearchParams } from "@solidjs/router";
-import { createEffect, createSignal, type JSX, on, Show } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  type JSX,
+  on,
+  onCleanup,
+  Show,
+} from "solid-js";
 import { MESSAGE_QUERY, UNREAD_COUNT_QUERY } from "../api/documents";
 import { graphqlRequest } from "../api/graphql-client";
 import type {
@@ -7,6 +14,7 @@ import type {
   MessageView,
   TagView,
 } from "../api/schema-types";
+import type { LiveMessageEvent } from "../store/app-store";
 import { AppShell } from "../components/app-shell";
 import { DomainRail, domainForAddress } from "../components/domain-rail";
 import { ComposeHost } from "../components/compose-host";
@@ -30,12 +38,31 @@ import { pushToast } from "../lib/toast";
 import { useStore } from "../store/store-context";
 import "./mailbox-page.css";
 
+export function applyLiveMessageEvent(
+  active: MessageDetailView | null,
+  event: LiveMessageEvent,
+): { readonly active: MessageDetailView | null; readonly deleted: boolean } {
+  if (event.type === "MESSAGE_UPDATED") {
+    return {
+      active:
+        active !== null && active.id === event.message.id
+          ? { ...active, ...event.message }
+          : active,
+      deleted: false,
+    };
+  }
+  return active?.id === event.messageId
+    ? { active: null, deleted: true }
+    : { active, deleted: false };
+}
+
 export default function MailboxPage(): JSX.Element {
   const store = useStore();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [active, setActive] = createSignal<MessageDetailView | null>(null);
+  const [activeDeleted, setActiveDeleted] = createSignal(false);
   const [unreadByDomain, setUnreadByDomain] = createSignal<
     Readonly<Record<string, number>>
   >({});
@@ -47,6 +74,15 @@ export default function MailboxPage(): JSX.Element {
    * mailbox visitor who never sends from a template should not pay for it. */
   const canUseTemplates = (): boolean =>
     store.viewer()?.capabilities.includes("TEMPLATE_READ") ?? false;
+
+  const unsubscribeLiveMessages = store.subscribeToLiveMessageEvents(
+    (event) => {
+      const result = applyLiveMessageEvent(active(), event);
+      setActive(result.active);
+      if (result.deleted) setActiveDeleted(true);
+    },
+  );
+  onCleanup(unsubscribeLiveMessages);
 
   let unreadRequest = 0;
   createEffect(() => {
@@ -104,6 +140,7 @@ export default function MailboxPage(): JSX.Element {
   function selectView(view: MailboxView): void {
     setSidebarOpen(false);
     setActive(null);
+    setActiveDeleted(false);
     setSearchParams(fullSearchParamsForView(view));
   }
 
@@ -122,6 +159,7 @@ export default function MailboxPage(): JSX.Element {
 
   async function openMessage(message: MessageView): Promise<void> {
     setSidebarOpen(false);
+    setActiveDeleted(false);
     if (message.status === "DRAFT") {
       setActive(null);
       setComposeRequest({ kind: "DRAFT", messageId: message.id });
@@ -132,6 +170,7 @@ export default function MailboxPage(): JSX.Element {
 
   async function openMessageById(messageId: string): Promise<void> {
     setSidebarOpen(false);
+    setActiveDeleted(false);
     const result = await graphqlRequest<
       { readonly message: MessageDetailView | null },
       Record<string, unknown>
@@ -337,9 +376,18 @@ export default function MailboxPage(): JSX.Element {
         when={active() !== null}
         fallback={
           <div class="mailbox-empty">
-            <EnvelopeIcon size={48} />
-            <p>Select a message to read</p>
-            <p class="muted">or start a new one with New message</p>
+            <Show
+              when={activeDeleted()}
+              fallback={
+                <>
+                  <EnvelopeIcon size={48} />
+                  <p>Select a message to read</p>
+                  <p class="muted">or start a new one with New message</p>
+                </>
+              }
+            >
+              <p>This message was deleted</p>
+            </Show>
           </div>
         }
       >

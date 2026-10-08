@@ -7,6 +7,7 @@ import {
   type MessageDirection,
 } from "@flying-mail/domain/entities/message";
 import { SystemTagSlug } from "@flying-mail/domain/entities/tag";
+import { MailEventType } from "@flying-mail/domain/entities/mail-event";
 import {
   createEmailAddress,
   type EmailAddress,
@@ -20,6 +21,7 @@ import type {
 import type { AppDependencies } from "../dependencies";
 import { BadUserInputError } from "../errors";
 import { deleteUnreferencedBlobs } from "./attachment-blobs";
+import { collectMailEventAddresses, recordMailEvents } from "./mail-events";
 import {
   authorizesAnyAddress,
   mailPermissionListFilter,
@@ -368,6 +370,13 @@ export function createMarkReadUseCase(
       readAt,
       now,
     );
+    await recordMailEvents(
+      deps,
+      messages.map((message) => ({
+        type: MailEventType.MessageUpdated,
+        message,
+      })),
+    );
     return messages.map((message) => markMessageRead(message, readAt, now));
   };
 }
@@ -410,18 +419,53 @@ export function createDeleteMessagesUseCase(
         );
       }
       if (toPurge.length === 0) {
+        await recordMailEvents(
+          deps,
+          messages
+            .filter((message) => toTrash.includes(message.id))
+            .map((message) => ({
+              type: MailEventType.MessageUpdated,
+              message,
+            })),
+        );
         return toTrash.length;
       }
       // Fall through to permanently delete only the already-trashed set.
-      return (
-        toTrash.length +
-        (await hardDeleteMessages(
-          deps,
-          messages.filter((message) => toPurge.includes(message.id)),
-        ))
+      const trashedMessages = messages.filter((message) =>
+        toTrash.includes(message.id),
       );
+      const purgedMessages = messages.filter((message) =>
+        toPurge.includes(message.id),
+      );
+      const addressesByMessage = await collectMailEventAddresses(
+        deps,
+        purgedMessages,
+      );
+      const removed = await hardDeleteMessages(deps, purgedMessages);
+      await recordMailEvents(deps, [
+        ...trashedMessages.map((message) => ({
+          type: MailEventType.MessageUpdated,
+          message,
+        })),
+        ...purgedMessages.map((message) => ({
+          type: MailEventType.MessageDeleted,
+          message,
+          addresses: addressesByMessage.get(message.id) ?? [],
+        })),
+      ]);
+      return toTrash.length + removed;
     }
-    return hardDeleteMessages(deps, messages);
+    const addressesByMessage = await collectMailEventAddresses(deps, messages);
+    const removed = await hardDeleteMessages(deps, messages);
+    await recordMailEvents(
+      deps,
+      messages.map((message) => ({
+        type: MailEventType.MessageDeleted,
+        message,
+        addresses: addressesByMessage.get(message.id) ?? [],
+      })),
+    );
+    return removed;
   };
 }
 

@@ -10,6 +10,7 @@ import {
   BootstrapTokenConfigurationError,
   CredentialKeyConfigurationError,
   DEFAULT_FILE_LINK_MAX_TTL_SECONDS,
+  DEFAULT_EVENT_RETENTION_SECONDS,
   DEFAULT_INVITE_TTL_SECONDS,
   DEFAULT_INBOUND_MX_SUFFIX,
   DEFAULT_SPAM_THRESHOLD,
@@ -25,6 +26,7 @@ import {
   resolveCredentialKey,
   resolveFileLinkMaxTtl,
   resolveInviteTtlSeconds,
+  resolveEventRetentionSeconds,
   resolveInboundMxSuffix,
   resolveMailFrom,
   resolvePublicOrigin,
@@ -169,6 +171,26 @@ describe("resolveInviteTtlSeconds", () => {
     expect(
       resolveInviteTtlSeconds(
         value === undefined ? {} : { FLYING_MAIL_INVITE_TTL_SECONDS: value },
+      ),
+    ).toBe(expected);
+  });
+});
+
+describe("resolveEventRetentionSeconds", () => {
+  test.each([
+    ["unset", undefined, DEFAULT_EVENT_RETENTION_SECONDS],
+    ["minimum", "3600", 3600],
+    ["maximum", "2592000", 2592000],
+    ["below minimum", "3599", DEFAULT_EVENT_RETENTION_SECONDS],
+    ["above maximum", "2592001", DEFAULT_EVENT_RETENTION_SECONDS],
+    ["non-integer", "abc", DEFAULT_EVENT_RETENTION_SECONDS],
+    ["fractional", "3600.5", DEFAULT_EVENT_RETENTION_SECONDS],
+  ] as const)("resolves %s", (_label, value, expected) => {
+    expect(
+      resolveEventRetentionSeconds(
+        value === undefined
+          ? {}
+          : { FLYING_MAIL_EVENT_RETENTION_SECONDS: value },
       ),
     ).toBe(expected);
   });
@@ -322,17 +344,20 @@ describe("loadConfigFromEnv", () => {
     expect(config.blobBackend).toBe("memory");
     expect(config.inboundMxSuffix).toBe(DEFAULT_INBOUND_MX_SUFFIX);
     expect(config.inviteTtlSeconds).toBe(DEFAULT_INVITE_TTL_SECONDS);
+    expect(config.eventRetentionSeconds).toBe(DEFAULT_EVENT_RETENTION_SECONDS);
   });
 
   test("resolves auth settings for the local server", () => {
     const config = loadConfigFromEnv({
       FLYING_MAIL_INVITE_TTL_SECONDS: "2592000",
+      FLYING_MAIL_EVENT_RETENTION_SECONDS: "3600",
       FLYING_MAIL_BOOTSTRAP_TOKEN: ` ${"t".repeat(32)} `,
       FLYING_MAIL_PUBLIC_ORIGIN: "https://mail.tacoserve.online",
       FLYING_MAIL_TURNSTILE_SECRET_KEY: " private-secret ",
       FLYING_MAIL_TURNSTILE_SITE_KEY: " public-site-key ",
     });
     expect(config.inviteTtlSeconds).toBe(2592000);
+    expect(config.eventRetentionSeconds).toBe(3600);
     expect(config.bootstrapToken).toBe("t".repeat(32));
     expect(config.turnstile).toEqual({
       secret: "private-secret",

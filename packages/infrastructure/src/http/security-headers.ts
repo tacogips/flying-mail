@@ -20,6 +20,7 @@ const BASELINE_HEADERS: readonly (readonly [string, string])[] = [
  * close the two most common bypasses. */
 export const HTML_CSP = [
   "default-src 'self'",
+  "connect-src 'self'",
   "img-src 'self' data: blob:",
   "style-src 'self' 'unsafe-inline'",
   "script-src 'self' https://challenges.cloudflare.com",

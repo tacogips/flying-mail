@@ -12,6 +12,8 @@ import type { MailSender } from "./ports/mail-sender";
 import type { ClassificationRuleRepository } from "./ports/classification-rule-repository";
 import type { DnsResolver } from "./ports/dns-resolver";
 import type { MessageEventRepository } from "./ports/message-event-repository";
+import type { MailEventLog } from "./ports/mail-event-log";
+import type { MailEventNotifier } from "./ports/mail-event-notifier";
 import type { MessageRepository } from "./ports/message-repository";
 import type { MimeBuilder, MimeParser } from "./ports/mime";
 import type { Clock, RandomSource, TokenHasher } from "./ports/runtime-ports";
@@ -65,6 +67,8 @@ export interface InstanceConfig {
   readonly spamPhrases: readonly string[];
   /** Hard cap on a file link's requested `ttlSeconds`. */
   readonly fileLinkMaxTtlSeconds: number;
+  /** Retention window for durable mail events, in seconds. */
+  readonly eventRetentionSeconds: number;
   /** MX suffix that must receive inbound mail, or null to disable the gate. */
   readonly inboundMxSuffix: string | null;
 }
@@ -104,6 +108,8 @@ export interface AppDependencies {
   readonly mailAddressRepository: MailAddressRepository;
   readonly messageRepository: MessageRepository;
   readonly messageEventRepository: MessageEventRepository;
+  readonly mailEventLog: MailEventLog;
+  readonly mailEventNotifier: MailEventNotifier;
   readonly classificationRuleRepository: ClassificationRuleRepository;
   readonly dns: DnsResolver;
   readonly tagRepository: TagRepository;

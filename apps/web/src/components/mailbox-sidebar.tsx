@@ -18,6 +18,7 @@ import {
 } from "../lib/address-activity";
 import type { AddressActivityView } from "../api/schema-types";
 import { useStore } from "../store/store-context";
+import { ConnectionIndicator } from "./connection-indicator";
 import {
   ArchiveIcon,
   FileIcon,
@@ -170,10 +171,24 @@ export function MailboxSidebar(props: {
   return (
     <nav class="mailbox-sidebar">
       <div class="sidebar-brand">flying-mail</div>
-      <h1 class="sidebar-domain-heading">
-        {props.domains.find((domain) => domain.id === currentScope().domainId)
-          ?.name ?? "All mail"}
-      </h1>
+      <div
+        class="sidebar-domain-header"
+        style={{
+          display: "flex",
+          "align-items": "center",
+          gap: "8px",
+          margin: "0 8px 12px",
+        }}
+      >
+        <h1
+          class="sidebar-domain-heading"
+          style={{ flex: 1, "min-width": 0, margin: 0 }}
+        >
+          {props.domains.find((domain) => domain.id === currentScope().domainId)
+            ?.name ?? "All mail"}
+        </h1>
+        <ConnectionIndicator status={store.liveStatus?.() ?? "offline"} />
+      </div>
       <button
         type="button"
         class="primary pill sidebar-compose"

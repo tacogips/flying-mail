@@ -12,6 +12,7 @@
     "./graphql/errors": "./src/graphql/errors.ts",
     "./graphql/loaders": "./src/graphql/loaders.ts",
     "./graphql/resolvers/*": "./src/graphql/resolvers/*.ts",
+    "./realtime/*": "./src/realtime/*.ts",
     "./composition/config": "./src/composition/config.ts",
     "./composition/build-dependencies": "./src/composition/build-dependencies.ts",
     "./http/app": "./src/http/app.ts",

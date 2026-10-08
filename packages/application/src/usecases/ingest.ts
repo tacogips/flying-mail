@@ -47,6 +47,8 @@ import {
   SpamMarkedBy,
 } from "@flying-mail/domain/entities/spam-mark";
 import { isSpam, scoreSpam } from "./spam";
+import { recordMailEvents } from "./mail-events";
+import { MailEventType } from "@flying-mail/domain/entities/mail-event";
 
 /** Caps from `design-docs/specs/design-mail-pipeline.md#limits-summary`.
  * Every one is enforced here rather than only at the transport, so the
@@ -236,6 +238,18 @@ async function hasEnvelopeFor(
           recipient.address === address,
       ) ?? false
   );
+}
+
+async function addEnvelopeRecipientIfNew(
+  deps: AppDependencies,
+  message: Message,
+  address: EmailAddress,
+): Promise<boolean> {
+  if (await hasEnvelopeFor(deps, message.id, address)) {
+    return false;
+  }
+  await deps.messageRepository.addEnvelopeRecipient(message.id, address);
+  return true;
 }
 
 function traceHeaderEnd(bytes: Uint8Array): number {
@@ -564,10 +578,16 @@ export function createReceiveMessageUseCase(
       );
       if (existing !== null) {
         if (await hasSameRawMessage(deps, existing, rawBytes)) {
-          await deps.messageRepository.addEnvelopeRecipient(
-            existing.id,
+          const added = await addEnvelopeRecipientIfNew(
+            deps,
+            existing,
             resolved.address,
           );
+          if (added) {
+            await recordMailEvents(deps, [
+              { type: MailEventType.MessageReceived, message: existing },
+            ]);
+          }
         }
         await deleteBlobsBestEffort(deps, [rawKey]);
         return { kind: "DUPLICATE", message: existing };
@@ -698,14 +718,23 @@ export function createReceiveMessageUseCase(
         throw error;
       }
       if (await hasSameRawMessage(deps, existing, rawBytes)) {
-        await deps.messageRepository.addEnvelopeRecipient(
-          existing.id,
+        const added = await addEnvelopeRecipientIfNew(
+          deps,
+          existing,
           resolved.address,
         );
+        if (added) {
+          await recordMailEvents(deps, [
+            { type: MailEventType.MessageReceived, message: existing },
+          ]);
+        }
       }
       return { kind: "DUPLICATE", message: existing };
     }
 
+    await recordMailEvents(deps, [
+      { type: MailEventType.MessageReceived, message },
+    ]);
     return { kind: "STORED", message };
   };
 }

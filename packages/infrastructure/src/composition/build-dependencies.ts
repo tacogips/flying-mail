@@ -35,6 +35,8 @@ import { createExternalMessageStateRepository } from "@flying-mail/adapter/repos
 import { createFileLinkRepository } from "@flying-mail/adapter/repositories/file-link-repository";
 import { createJmapClient } from "@flying-mail/adapter/jmap/jmap-client";
 import { createMessageEventRepository } from "@flying-mail/adapter/repositories/message-event-repository";
+import { createMailEventLogRepository } from "@flying-mail/adapter/repositories/mail-event-log-repository";
+import { createNoopMailEventNotifier } from "@flying-mail/adapter/realtime/mail-event-notifiers";
 import { createMailAddressRepository } from "@flying-mail/adapter/repositories/mail-address-repository";
 import { createMailDomainRepository } from "@flying-mail/adapter/repositories/mail-domain-repository";
 import { createMessageRepository } from "@flying-mail/adapter/repositories/message-repository";
@@ -55,6 +57,7 @@ import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import {
   type BuildDependenciesConfig,
   DEFAULT_FILE_LINK_MAX_TTL_SECONDS,
+  DEFAULT_EVENT_RETENTION_SECONDS,
   DEFAULT_INVITE_TTL_SECONDS,
   DEFAULT_INBOUND_MX_SUFFIX,
   DEFAULT_SPAM_THRESHOLD,
@@ -215,6 +218,9 @@ export function buildDependencies(
     mailAddressRepository: createMailAddressRepository(db),
     messageRepository: createMessageRepository(db),
     messageEventRepository: createMessageEventRepository(db),
+    mailEventLog: createMailEventLogRepository(db),
+    mailEventNotifier:
+      config.mailEventNotifier ?? createNoopMailEventNotifier(),
     classificationRuleRepository: createClassificationRuleRepository(db),
     dns: config.dns ?? createDohResolver(),
     tagRepository: createTagRepository(db),
@@ -243,6 +249,8 @@ export function buildDependencies(
 
     instanceConfig: {
       inviteTtlSeconds: config.inviteTtlSeconds ?? DEFAULT_INVITE_TTL_SECONDS,
+      eventRetentionSeconds:
+        config.eventRetentionSeconds ?? DEFAULT_EVENT_RETENTION_SECONDS,
       bootstrapToken: config.bootstrapToken ?? null,
       turnstileSiteKey: config.turnstile?.siteKey ?? null,
       publicOrigin: config.publicOrigin ?? null,

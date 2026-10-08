@@ -34,6 +34,19 @@ export function requireViewer(viewer: Viewer | null): Viewer {
   return viewer;
 }
 
+/** Whether a viewer has any grant capable of reading mail. */
+export function hasAnyMailRead(viewer: Viewer): boolean {
+  if (viewer.kind === "API_KEY") {
+    return viewer.scopes.some(
+      (scope) => scope.capability === Capability.MailRead,
+    );
+  }
+  return (
+    viewer.role === UserRole.Admin ||
+    viewer.permissions.some((permission) => permission.effect === "ALLOW")
+  );
+}
+
 /** Non-throwing form of {@link requireGlobalCapability}. */
 export function authorizesGlobal(
   viewer: Viewer,

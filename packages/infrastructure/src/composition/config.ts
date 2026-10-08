@@ -8,6 +8,7 @@ import type { S3Config } from "@flying-mail/adapter/blob/s3";
 import type { D1DatabaseLike } from "@flying-mail/adapter/sql/d1";
 import type { DnsResolver } from "@flying-mail/application/ports/dns-resolver";
 import type { RateLimiter } from "@flying-mail/application/ports/rate-limiter";
+import type { MailEventNotifier } from "@flying-mail/application/ports/mail-event-notifier";
 import type {
   Clock,
   RandomSource,
@@ -25,6 +26,7 @@ export const DEFAULT_SQLITE_URL = "file:./data/mailcal.db";
 export const DEFAULT_SPAM_THRESHOLD = 0.6;
 export const DEFAULT_FILE_LINK_MAX_TTL_SECONDS = 604800;
 export const DEFAULT_INVITE_TTL_SECONDS = 604800;
+export const DEFAULT_EVENT_RETENTION_SECONDS = 604800;
 export const DEFAULT_INBOUND_MX_SUFFIX = "mx.cloudflare.net";
 const DEFAULT_S3_REGION = "us-east-1";
 
@@ -48,6 +50,8 @@ export interface BuildDependenciesConfig {
   readonly spamPhrases?: readonly string[];
   readonly fileLinkMaxTtlSeconds?: number;
   readonly inviteTtlSeconds?: number;
+  readonly eventRetentionSeconds?: number;
+  readonly mailEventNotifier?: MailEventNotifier;
   readonly bootstrapToken?: string;
   readonly turnstile?: {
     readonly secret: string;
@@ -367,6 +371,22 @@ export function resolveInviteTtlSeconds(env: EnvLike): number {
     : DEFAULT_INVITE_TTL_SECONDS;
 }
 
+/** Invalid mail event retention windows fall back to the seven-day default. */
+export function resolveEventRetentionSeconds(env: EnvLike): number {
+  const raw = env["FLYING_MAIL_EVENT_RETENTION_SECONDS"];
+  if (raw === undefined || raw.trim().length === 0) {
+    return DEFAULT_EVENT_RETENTION_SECONDS;
+  }
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return DEFAULT_EVENT_RETENTION_SECONDS;
+  }
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) && parsed >= 3600 && parsed <= 2592000
+    ? parsed
+    : DEFAULT_EVENT_RETENTION_SECONDS;
+}
+
 /** Returns a trimmed bootstrap secret, or disables bootstrap when unset. */
 export function resolveBootstrapToken(env: EnvLike): string | undefined {
   const raw = env["FLYING_MAIL_BOOTSTRAP_TOKEN"];
@@ -487,6 +507,7 @@ export function resolveS3Config(env: EnvLike): S3Config {
 export function loadConfigFromEnv(env: EnvLike): BuildDependenciesConfig {
   const publicOrigin = resolvePublicOrigin(env);
   const inviteTtlSeconds = resolveInviteTtlSeconds(env);
+  const eventRetentionSeconds = resolveEventRetentionSeconds(env);
   const bootstrapToken = resolveBootstrapToken(env);
   const turnstile = resolveTurnstileConfig(env, publicOrigin);
   const mailFrom = resolveMailFrom(env);
@@ -511,6 +532,7 @@ export function loadConfigFromEnv(env: EnvLike): BuildDependenciesConfig {
     spamPhrases: resolveSpamPhrases(env),
     fileLinkMaxTtlSeconds: resolveFileLinkMaxTtl(env),
     inviteTtlSeconds,
+    eventRetentionSeconds,
     inboundMxSuffix: resolveInboundMxSuffix(env),
     ...(credentialKey === undefined ? {} : { credentialKey }),
     ...(bootstrapToken === undefined ? {} : { bootstrapToken }),

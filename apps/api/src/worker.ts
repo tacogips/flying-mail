@@ -3,82 +3,28 @@ import {
   type UseCases,
 } from "@flying-mail/application/usecases";
 import { drainBlobCleanupQueue } from "@flying-mail/adapter/migrations/blob-cleanup";
-import { createWorkersRateLimiter } from "@flying-mail/adapter/rate-limit/workers-binding";
 import type { BlobStore } from "@flying-mail/application/ports/blob-store";
 import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import { buildDependencies } from "@flying-mail/infrastructure/composition/build-dependencies";
+import { normalizeClientIpForRateLimit } from "@flying-mail/infrastructure/composition/config";
 import {
-  assertMailOriginConsistency,
-  type BuildDependenciesConfig,
-  resolveBlobBackend,
-  resolveBootstrapToken,
-  resolveCredentialKey,
-  resolveFileLinkMaxTtl,
-  resolveInviteTtlSeconds,
-  resolveInboundMxSuffix,
-  resolveEmailSendingAccountId,
-  resolveEmailSendingToken,
-  resolveMailFrom,
-  resolvePublicOrigin,
-  resolveS3Config,
-  resolveSpamPhrases,
-  resolveSpamThreshold,
-  resolveTurnstileConfig,
-  normalizeClientIpForRateLimit,
-} from "@flying-mail/infrastructure/composition/config";
+  isRealtimeUpgradeRequest,
+  checkRealtimeUpgrade,
+} from "@flying-mail/infrastructure/realtime/upgrade";
+import { MAIL_EVENT_HUB_NAME } from "@flying-mail/adapter/realtime/mail-event-notifiers";
+import { buildWorkerConfig, buildWorkerNotifier } from "./worker-config";
+
+export { buildWorkerConfig } from "./worker-config";
+export { MailEventHub } from "./mail-event-hub";
 import { createApp } from "@flying-mail/infrastructure/http/app";
 import type { AuthVariables } from "@flying-mail/infrastructure/http/auth-middleware";
 import type { Hono } from "hono";
 import {
   type Env,
-  envToRecord,
   type ExecutionContextLike,
   type ForwardableEmailMessageLike,
   headersToMap,
 } from "./env";
-
-/** Builds the composition config from Workers bindings and vars.
- *
- * Throws `PublicOriginConfigurationError` / `MailConfigurationError` for a
- * set-but-invalid `FLYING_MAIL_PUBLIC_ORIGIN`, or a `FLYING_MAIL_MAIL_FROM` with no
- * resolvable origin -- both deployment mistakes that would otherwise
- * silently disable passwordless login. Exported for unit testing. */
-export function buildWorkerConfig(env: Env): BuildDependenciesConfig {
-  const record = envToRecord(env);
-  const blobBackend = resolveBlobBackend(record);
-  const publicOrigin = resolvePublicOrigin(record);
-  const mailFrom = resolveMailFrom(record);
-  assertMailOriginConsistency({ mailFrom, publicOrigin });
-  const credentialKey = resolveCredentialKey(record);
-  const emailSendingAccountId = resolveEmailSendingAccountId(record);
-  const emailSendingToken = resolveEmailSendingToken(record);
-  const bootstrapToken = resolveBootstrapToken(record);
-  const turnstile = resolveTurnstileConfig(record, publicOrigin);
-
-  return {
-    sqlBackend: "d1",
-    d1: env.DB,
-    blobBackend,
-    spamThreshold: resolveSpamThreshold(record),
-    spamPhrases: resolveSpamPhrases(record),
-    fileLinkMaxTtlSeconds: resolveFileLinkMaxTtl(record),
-    inviteTtlSeconds: resolveInviteTtlSeconds(record),
-    inboundMxSuffix: resolveInboundMxSuffix(record),
-    email: env.EMAIL,
-    ...(publicOrigin === undefined ? {} : { publicOrigin }),
-    ...(mailFrom === undefined ? {} : { mailFrom }),
-    ...(blobBackend === "r2" ? { r2: env.BLOB } : {}),
-    ...(blobBackend === "s3" ? { s3: resolveS3Config(record) } : {}),
-    ...(credentialKey === undefined ? {} : { credentialKey }),
-    ...(emailSendingAccountId === undefined ? {} : { emailSendingAccountId }),
-    ...(emailSendingToken === undefined ? {} : { emailSendingToken }),
-    ...(bootstrapToken === undefined ? {} : { bootstrapToken }),
-    ...(turnstile === undefined ? {} : { turnstile }),
-    ...(env.AUTH_RATE_LIMITER === undefined
-      ? {}
-      : { rateLimiter: createWorkersRateLimiter(env.AUTH_RATE_LIMITER) }),
-  };
-}
 
 type WorkerApp = Hono<{ Variables: AuthVariables }>;
 
@@ -86,6 +32,11 @@ interface BuiltWorker {
   readonly app: WorkerApp;
   readonly usecases: UseCases;
   readonly cleanupBlobs: () => Promise<void>;
+  readonly deps: import("@flying-mail/application/dependencies").AppDependencies;
+  readonly notifier: Exclude<
+    ReturnType<typeof buildWorkerNotifier>,
+    null
+  > | null;
 }
 
 function createBlobCleanupScheduler(
@@ -128,7 +79,10 @@ function getOrBuildWorker(env: Env): BuiltWorker {
   if (cached !== undefined) {
     return cached;
   }
-  const deps = buildDependencies(buildWorkerConfig(env));
+  const notifier = buildWorkerNotifier(env);
+  const deps = buildDependencies(
+    buildWorkerConfig(env, { mailEventNotifier: notifier }),
+  );
   const usecases = createUseCases(deps);
   const app = createApp({
     deps,
@@ -143,6 +97,8 @@ function getOrBuildWorker(env: Env): BuiltWorker {
   const built: BuiltWorker = {
     app,
     usecases,
+    deps,
+    notifier,
     cleanupBlobs: createBlobCleanupScheduler(deps.db, deps.blobs),
   };
   workerCache.set(env, built);
@@ -152,6 +108,11 @@ function getOrBuildWorker(env: Env): BuiltWorker {
 /** Exported for tests, which need each case to start from a clean isolate. */
 export function clearWorkerCacheForTesting(env: Env): void {
   workerCache.delete(env);
+}
+
+/** Exposes the cached composition root to tests for notifier ownership checks. */
+export function getBuiltWorkerForTesting(env: Env): BuiltWorker {
+  return getOrBuildWorker(env);
 }
 
 export default {
@@ -179,10 +140,57 @@ export default {
         );
       }),
     );
-    // Passing `env`/`ctx` through makes them available as hono's `c.env` and
-    // `c.executionCtx`, which the auth middleware's expiry sweep needs so
-    // the runtime does not cancel that cleanup once the response returns.
-    return worker.app.fetch(request, env, ctx);
+    if (isRealtimeUpgradeRequest(request)) {
+      if (env.MAIL_EVENT_HUB === undefined) {
+        return new Response("Realtime subscriptions are unavailable", {
+          status: 503,
+          headers: { "content-type": "text/plain; charset=utf-8" },
+        });
+      }
+      const clientIp = normalizeClientIpForRateLimit(
+        request.headers.get("cf-connecting-ip")?.trim() || null,
+      );
+      const checked = await checkRealtimeUpgrade(request, {
+        publicOrigin: worker.deps.instanceConfig.publicOrigin,
+        clientIp,
+        rateLimiter: worker.deps.rateLimiter,
+        tokenHasher: worker.deps.tokenHasher,
+      });
+      if (!checked.ok) return checked.response;
+      const headers = new Headers({
+        Upgrade: "websocket",
+        "Sec-WebSocket-Protocol": "graphql-transport-ws",
+      });
+      if (checked.info.clientIp !== null) {
+        headers.set("x-flying-mail-client-ip", checked.info.clientIp);
+      }
+      if (checked.info.cookieTokenHash !== null) {
+        headers.set(
+          "x-flying-mail-session-token-hash",
+          checked.info.cookieTokenHash,
+        );
+      }
+      const stub = env.MAIL_EVENT_HUB.get(
+        env.MAIL_EVENT_HUB.idFromName(MAIL_EVENT_HUB_NAME),
+      );
+      try {
+        return await stub.fetch("https://mail-event-hub.internal/connect", {
+          method: "GET",
+          headers,
+        });
+      } catch {
+        console.error("Realtime Durable Object request failed");
+        return new Response("Realtime subscriptions are unavailable", {
+          status: 503,
+          headers: { "content-type": "text/plain; charset=utf-8" },
+        });
+      }
+    }
+    // Passing `env`/`ctx` through makes them available as hono's c.env and
+    // c.executionCtx, which the auth middleware's expiry sweep needs.
+    const response = await worker.app.fetch(request, env, ctx);
+    if (worker.notifier !== null) ctx.waitUntil(worker.notifier.settle());
+    return response;
   },
 
   /** Cloudflare Email Routing delivers inbound mail here.
@@ -219,6 +227,8 @@ export default {
     } catch (error) {
       console.error("Failed to ingest inbound message", error);
       throw error;
+    } finally {
+      if (worker.notifier !== null) ctx.waitUntil(worker.notifier.settle());
     }
   },
 };

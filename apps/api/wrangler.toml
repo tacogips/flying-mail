@@ -10,6 +10,14 @@ preview_urls = false
 # Serve through the custom domain so zone-level DDoS/WAF protection applies.
 routes = [{ pattern = "mail.tacoserve.online", custom_domain = true }]
 
+[[durable_objects.bindings]]
+name = "MAIL_EVENT_HUB"
+class_name = "MailEventHub"
+
+[[migrations]]
+tag = "v1-mail-event-hub"
+new_sqlite_classes = ["MailEventHub"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "mailcal-db"
@@ -61,6 +69,7 @@ FLYING_MAIL_FILE_LINK_MAX_TTL = "604800"
 # The build fails if the secret is set while this value is empty.
 FLYING_MAIL_TURNSTILE_SITE_KEY = "0x4AAAAAAFQRa9wv44nKmL-v"
 # FLYING_MAIL_INVITE_TTL_SECONDS = "604800"
+# FLYING_MAIL_EVENT_RETENTION_SECONDS = "604800"
 # FLYING_MAIL_INBOUND_MX_SUFFIX defaults to "mx.cloudflare.net" when unset.
 # Set it to an empty string only when inbound mail uses another delivery path.
 

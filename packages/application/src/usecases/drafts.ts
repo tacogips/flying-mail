@@ -1,4 +1,5 @@
 import { Capability } from "@flying-mail/domain/entities/api-key";
+import { MailEventType } from "@flying-mail/domain/entities/mail-event";
 import {
   attachToMessage,
   buildRawMessageBlobKey,
@@ -44,6 +45,7 @@ import {
 import { assembleOutbound } from "./outbound-assembly";
 import { deleteAttachmentsAndUnreferencedBlobs } from "./attachment-blobs";
 import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
+import { recordMailEvents } from "./mail-events";
 
 export interface SaveDraftInput {
   /** Updates this draft when present, creates a new one otherwise. */
@@ -236,6 +238,9 @@ export function createSaveDraftUseCase(
           );
           existingBlobKeys.add(attachment.blobKey);
         }
+        await recordMailEvents(deps, [
+          { type: MailEventType.DraftSaved, message: updated },
+        ]);
         return updated;
       }
 
@@ -285,6 +290,9 @@ export function createSaveDraftUseCase(
         tagIds: [],
         taggedAt: now,
       });
+      await recordMailEvents(deps, [
+        { type: MailEventType.DraftSaved, message: draft },
+      ]);
       return draft;
     });
 }
@@ -337,6 +345,10 @@ export function createSendDraftUseCase(
       });
       const ready = { ...submitted, rawSize: outbound.raw.length };
       await deps.messageRepository.save(ready);
-      return deliver(deps, ready, outbound.mail);
+      const delivered = await deliver(deps, ready, outbound.mail);
+      await recordMailEvents(deps, [
+        { type: MailEventType.MessageSent, message: delivered },
+      ]);
+      return delivered;
     });
 }

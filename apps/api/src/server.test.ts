@@ -13,12 +13,20 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
+  createBunFetchHandler,
   createLocalApp,
+  createNodeFetchHandler,
   detectRuntime,
   drainBlobCleanupQueueWithRetry,
 } from "./server";
+import { createBunRealtimeHandlers } from "./realtime-bun";
+import type {
+  BunRealtimeServer,
+  BunRealtimeSocket,
+  BunRealtimeSocketData,
+} from "./realtime-bun";
 
 const ORIGIN = "http://localhost:8787";
 const BOOTSTRAP_TOKEN = "server-test-bootstrap-token-with-32-chars";
@@ -55,6 +63,7 @@ describe("createLocalApp", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     process.env = { ...originalEnv };
     for (const directory of temporaryDirectories.splice(0)) {
       rmSync(directory, { recursive: true, force: true });
@@ -82,7 +91,9 @@ describe("createLocalApp", () => {
   }
 
   test("applies migrations before serving a request", async () => {
-    const { app, deps } = await createLocalApp();
+    const { app, deps, realtime } = await createLocalApp();
+
+    expect(realtime.hub).toBeDefined();
 
     // The schema exists, so a query that depends on it succeeds rather than
     // failing with "no such table".
@@ -97,6 +108,130 @@ describe("createLocalApp", () => {
       }),
     );
     expect(response.status).toBe(200);
+  });
+
+  test("Bun fetch branches explicitly around WebSocket upgrades", async () => {
+    const { app } = await createLocalApp();
+    const fetchSpy = vi.spyOn(app, "fetch");
+    const upgrade = vi.fn().mockResolvedValue(undefined);
+    const handler = createBunFetchHandler({
+      app,
+      handlers: {
+        upgrade,
+        websocket: {
+          open: async () => {},
+          message: async () => {},
+          close: async () => {},
+          maxPayloadLength: 65_536,
+          idleTimeout: 960,
+        },
+      },
+    });
+    const server = {
+      requestIP: vi.fn(() => ({ address: "198.51.100.18" })),
+      upgrade: vi.fn(() => true),
+    };
+    const upgradeRequest = new Request(`${ORIGIN}/graphql`, {
+      method: "GET",
+      headers: {
+        Upgrade: "websocket",
+        "Sec-WebSocket-Protocol": "graphql-transport-ws",
+      },
+    });
+
+    await expect(handler(upgradeRequest, server)).resolves.toBeUndefined();
+    expect(upgrade).toHaveBeenCalledOnce();
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    upgrade.mockResolvedValueOnce(new Response("failed", { status: 400 }));
+    const rejected = await handler(upgradeRequest, server);
+    expect(rejected?.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    await handler(
+      new Request(`${ORIGIN}/graphql`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: "{ viewer { capabilities } }" }),
+      }),
+      server,
+    );
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(fetchSpy.mock.calls[0]?.[1]).toEqual({ clientIp: "198.51.100.18" });
+  });
+
+  test("the Node fetch wrapper returns 501 for upgrades and passes other requests through", async () => {
+    const { app } = await createLocalApp();
+    const fetchSpy = vi.spyOn(app, "fetch");
+    const fetch = createNodeFetchHandler(app);
+    const upgrade = await fetch(
+      new Request(`${ORIGIN}/graphql`, {
+        method: "GET",
+        headers: {
+          Upgrade: "websocket",
+          "Sec-WebSocket-Protocol": "graphql-transport-ws",
+        },
+      }),
+    );
+    expect(upgrade.status).toBe(501);
+    expect(await upgrade.text()).toBe(
+      "WebSocket subscriptions require the Bun or Workers runtime",
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const plain = await fetch(
+      new Request(`${ORIGIN}/graphql`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: "{ viewer { capabilities } }" }),
+      }),
+    );
+    expect(plain.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
+  test("the in-process host wake binding closes an uninitialized socket after ten seconds", async () => {
+    vi.useFakeTimers();
+    const local = await createLocalApp();
+    const handlers = createBunRealtimeHandlers({
+      hub: local.realtime.hub,
+      host: local.realtime.host,
+      deps: local.deps,
+    });
+    const server: BunRealtimeServer = {
+      requestIP: () => ({ address: "192.0.2.72" }),
+      upgrade: (_request, options) => {
+        socketData = options.data;
+        return true;
+      },
+    };
+    let socketData: BunRealtimeSocketData | null = null;
+    const response = await handlers.upgrade(
+      new Request(`${ORIGIN}/graphql`, {
+        method: "GET",
+        headers: {
+          Upgrade: "websocket",
+          "Sec-WebSocket-Protocol": "graphql-transport-ws",
+        },
+      }),
+      server,
+    );
+    expect(response).toBeUndefined();
+    if (socketData === null) throw new Error("Upgrade info was not captured");
+    const socket: BunRealtimeSocket = {
+      data: socketData,
+      send: vi.fn(),
+      close: vi.fn(),
+    };
+    await handlers.websocket.open(socket);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(socket.close).toHaveBeenCalledWith(
+      4408,
+      "Connection initialization timed out",
+    );
+    await handlers.websocket.close(socket);
   });
 
   test("seeds the system tags (SPAM retired to message_spam)", async () => {

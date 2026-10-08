@@ -1,4 +1,5 @@
 import { Capability } from "@flying-mail/domain/entities/api-key";
+import { MailEventType } from "@flying-mail/domain/entities/mail-event";
 import type { Attachment } from "@flying-mail/domain/entities/attachment";
 import {
   attachToMessage,
@@ -55,6 +56,7 @@ import {
 } from "./attachment-binding";
 import { assembleOutbound } from "./outbound-assembly";
 import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
+import { recordMailEvents } from "./mail-events";
 
 /** Provider limits, validated before the binding call so a caller gets a
  * `BAD_USER_INPUT` naming the offending field instead of an opaque
@@ -475,7 +477,11 @@ export function createSendMessageUseCase(
       await deps.blobs.put(rawKey, new TextEncoder().encode(outbound.raw), {
         contentType: "message/rfc822",
       });
-      return deliver(deps, ready, outbound.mail);
+      const delivered = await deliver(deps, ready, outbound.mail);
+      await recordMailEvents(deps, [
+        { type: MailEventType.MessageSent, message: delivered },
+      ]);
+      return delivered;
     });
 }
 
@@ -503,7 +509,11 @@ export function createRetrySendUseCase(
       const requeued = requeueMessage(message, deps.clock.now().toISOString());
       await deps.messageRepository.save(requeued);
       const outbound = await assembleOutbound(deps, requeued);
-      return deliver(deps, requeued, outbound.mail);
+      const delivered = await deliver(deps, requeued, outbound.mail);
+      await recordMailEvents(deps, [
+        { type: MailEventType.MessageUpdated, message: delivered },
+      ]);
+      return delivered;
     });
 }
 

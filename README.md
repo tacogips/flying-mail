@@ -59,7 +59,7 @@ endpoint built for AI agents and programmatic clients as first-class callers
 | `packages/infrastructure` | GraphQL schema/resolvers, hono app, composition root |
 | `apps/api` | Worker (`fetch` + `email`), migrations, local Bun/Node server |
 | `apps/web` | SolidJS mail client |
-| `apps/cli` | The `flying-mail` CLI, including `client serve` |
+| `apps/cli` | The `flying-mail` CLI, including `client serve` and `flying-mail watch` |
 
 The dependency rule points inward: `domain` depends on nothing, and no inner
 layer imports an outer one.
@@ -173,6 +173,150 @@ curl -sX POST https://<worker-host>/graphql \
   -d '{"query":"mutation { createAttachmentLink(attachmentId: \"<attachment-id>\") { url token link { expiresAt } } }"}'
 curl -OJ 'https://<worker-host>/files/<token>'
 ```
+
+### Subscriptions (real-time push)
+
+Connect to `wss://<host>/graphql` using the `graphql-transport-ws`
+subprotocol. A browser authenticates with its `mailcal_session` cookie and
+must connect from the same origin. An API key goes in the
+`connection_init` payload only; never put it in the URL.
+
+```graphql
+enum MailEventType {
+  MESSAGE_RECEIVED MESSAGE_SENT MESSAGE_UPDATED MESSAGE_DELETED
+  DRAFT_SAVED DRAFT_DELETED LIVE
+}
+
+input MailEventScope { domainId: ID, address: String }
+
+type MailEvent {
+  cursor: String!
+  type: MailEventType!
+  messageId: ID
+  domainId: ID
+  addresses: [String!]!
+  occurredAt: DateTime!
+  message: Message
+}
+
+type Subscription {
+  mailEvents(scope: MailEventScope, after: String): MailEvent!
+}
+```
+
+Use `graphql-ws` with `keepAlive` enabled. Set `retryAttempts: 0` so the
+application can resume with its newest cursor. The stock retry resends the
+original `after` value. On `RESYNC_REQUIRED`, run a `fetchStatus` sync, clear
+the cursor and subscribe again; otherwise save each event cursor before
+resubscribing after a disconnect.
+
+The example uses an API key loaded from secure credential storage for each
+connection. Browser clients omit `connectionParams` and use the same-origin
+session cookie. `reauthenticate()` supplies a refreshed credential or asks
+the caller to stop and sign in again.
+
+```ts
+import { createClient } from "graphql-ws";
+
+const client = createClient({
+  url: "wss://<host>/graphql",
+  connectionParams: async () => ({ authorization: "Bearer " + await currentApiKey() }),
+  keepAlive: 25_000,
+  retryAttempts: 0,
+});
+let cursor = storedCursor;
+let retries = 0;
+let active: { unsubscribe(): void } | undefined;
+function subscribe(after?: string) {
+  active = client.subscribe({
+    query: "subscription($scope: MailEventScope, $after: String) { mailEvents(scope: $scope, after: $after) { cursor type messageId } }",
+    variables: { scope: { address: "support@example.com" }, after },
+  }, {
+    next: ({ data }) => {
+      const event = data?.mailEvents;
+      if (event) {
+        cursor = event.cursor;
+        saveCursor(cursor);
+        if (event.type === "LIVE") retries = 0;
+      }
+    },
+    error: (reason) => {
+      if (Array.isArray(reason) && reason.some((error) => error.extensions?.code === "RESYNC_REQUIRED")) {
+        cursor = undefined;
+        saveCursor(cursor);
+        void fetchStatusSync().then(() => subscribe());
+        return;
+      }
+      const code = reason instanceof CloseEvent ? reason.code : 0;
+      if (code === 4401) {
+        void reauthenticate().then((valid) => valid ? subscribe(cursor) : stop());
+        return;
+      }
+      if ([4400, 4403, 4409, 4429, 1009].includes(code)) {
+        showFatal(code);
+        return;
+      }
+      const cap = Math.min(30_000, 1_000 * 2 ** retries++);
+      setTimeout(() => subscribe(cursor), Math.random() * cap);
+    },
+    complete: () => {},
+  });
+}
+subscribe(cursor);
+```
+
+For a curl-free API client, `flying-mail watch` streams newline-delimited
+JSON and persists its cursor:
+
+```bash
+flying-mail watch --address support@example.com --json
+```
+
+```json
+{"type":"LIVE","cursor":"<epoch>.<seq>"}
+{"type":"MESSAGE_RECEIVED","cursor":"<epoch>.<seq>","messageId":"<message-id>"}
+```
+
+The server replays missed events in cursor order, then switches to live
+delivery without gaps or duplicates. Cursors are opaque `<epoch>.<seq>`
+values. Events are retained for 7 days by default; configure
+`FLYING_MAIL_EVENT_RETENTION_SECONDS` from 3600 to 2592000 seconds. If a
+cursor is outside retention, web clients do a full refresh and API clients
+run a `fetchStatus` sync before subscribing without `after`.
+
+Clients must send a ping at least every 25 seconds. The server closes an
+idle connection after 75 seconds with code 4000.
+
+| Code | Name | Sent when | Client action |
+|------|------|-----------|---------------|
+| 1000 | Normal | Server shutdown or client stop | Reconnect unless stopped by the client |
+| 1009 | Message too big | Inbound frame exceeds 16 KiB | Fatal (client bug) |
+| 1013 | Try again later | Per-principal rate or concurrency limit | Reconnect with backoff |
+| 4000 | Heartbeat timeout | Idle more than 75 seconds | Reconnect |
+| 4400 | Bad request | Invalid JSON, message type, init payload, or binary frame | Fatal |
+| 4401 | Unauthorized | Missing, invalid, expired or revoked credential; subscribe before ack | Reauthenticate (web: re-check session, else `/login`; CLI: exit 3) |
+| 4403 | Forbidden | Valid principal has no MAIL_READ grant, at init or after a permission change | Fatal (web: offline with a message; CLI: exit 4) |
+| 4408 | Init timeout | No `connection_init` within 10 seconds | Reconnect |
+| 4409 | Subscriber already exists | Duplicate subscription ID | Fatal |
+| 4429 | Too many init requests | Second `connection_init` | Fatal |
+| 4500 | Internal error | Unexpected server failure (masked and logged without secrets) | Reconnect |
+
+HTTP rejections before upgrade appear to browsers as close 1006 and reconnect
+with backoff.
+
+| Limit | Value | Enforcement |
+|-------|-------|-------------|
+| Inbound frame size | 16 KiB | Hub core; close 1009 |
+| Subscriptions per connection | 4 | Hub core; `RATE_LIMITED` error |
+| Concurrent connections per IP | 20 | Host before accept; HTTP 429 |
+| Concurrent acked connections per principal | 10 | Hub core at init; close 1013 |
+| Connections per hub | 1000 | Host; HTTP 503 |
+| Connection attempts per IP | 10 / 60 seconds | `RateLimiter`; HTTP 429 |
+| `connection_init` per principal | 10 / 60 seconds | `RateLimiter`, key `ws:init:<kind>:<id>`; close 1013 |
+| Replay page | 200 rows | Hub core |
+
+`flying-mail client serve` does not proxy WebSockets, so the web client shows
+Offline there and continues to work with manual refresh.
 
 ## Deploying
 
@@ -289,6 +433,7 @@ Or from the shell:
 
 ```bash
 flying-mail mail fetch --ack --watch --interval 30
+flying-mail watch --address support@example.com --json
 ```
 
 ## Project name compatibility

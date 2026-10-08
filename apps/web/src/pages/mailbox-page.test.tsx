@@ -2,10 +2,16 @@ import { Route, Router } from "@solidjs/router";
 import { createSignal } from "solid-js";
 import { render } from "solid-js/web";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { MailDomainView, ViewerView } from "../api/schema-types";
+import type {
+  MailDomainView,
+  MessageDetailView,
+  MessageView,
+  ViewerView,
+} from "../api/schema-types";
 import type { MailboxView } from "../lib/filter-params";
 import { StoreProvider } from "../store/store-context";
 import type { AppStore } from "../store/app-store";
+import { applyLiveMessageEvent } from "./mailbox-page";
 import MailboxPage from "./mailbox-page";
 
 const domain: MailDomainView = {
@@ -48,6 +54,7 @@ describe("MailboxPage domain unread refresh", () => {
       inboxUnreadCount,
       mailLimits: () => null,
       upcomingEvents: () => [],
+      subscribeToLiveMessageEvents: vi.fn(() => () => undefined),
       setView: vi.fn(async () => undefined),
       clearSelection: vi.fn(),
       toggleSelection: vi.fn(),
@@ -107,5 +114,65 @@ describe("MailboxPage domain unread refresh", () => {
 
     dispose();
     container.remove();
+  });
+});
+
+describe("MailboxPage live message events", () => {
+  const detail: MessageDetailView = {
+    id: "msg-1",
+    threadId: "thread-1",
+    direction: "INBOUND",
+    subject: "Before update",
+    snippet: "Original snippet",
+    from: { address: "sender@example.com", name: null, kind: "ENVELOPE" },
+    recipients: [],
+    tags: [],
+    attachments: [],
+    isSpam: false,
+    spam: null,
+    spamScore: null,
+    status: "RECEIVED",
+    deliveryStatus: "RECEIVED",
+    listId: null,
+    isMailingList: false,
+    deliveryError: null,
+    readAt: null,
+    fetchStatus: "FETCHED",
+    occurredAt: "2026-10-08T00:00:00.000Z",
+    domain: { id: "dom-1", name: "example.com" },
+    events: [],
+    textBody: "Keep the original body",
+    htmlBody: null,
+    bodyTruncated: false,
+    rfcMessageId: null,
+    rawSize: 10,
+    replyTo: null,
+    forwardedFromMessageId: null,
+    inReplyTo: null,
+  };
+
+  test("patches summary fields for the open message and preserves its body", () => {
+    const summary = {
+      ...detail,
+      subject: "After update",
+      readAt: "2026-10-08T01:00:00.000Z",
+    } satisfies MessageView;
+    const result = applyLiveMessageEvent(detail, {
+      type: "MESSAGE_UPDATED",
+      message: summary,
+    });
+    expect(result.active?.subject).toBe("After update");
+    expect(result.active?.readAt).toBe(summary.readAt);
+    expect(result.active?.textBody).toBe("Keep the original body");
+    expect(result.deleted).toBe(false);
+  });
+
+  test("clears the open message and marks it deleted on MESSAGE_DELETED", () => {
+    expect(
+      applyLiveMessageEvent(detail, {
+        type: "MESSAGE_DELETED",
+        messageId: "msg-1",
+      }),
+    ).toEqual({ active: null, deleted: true });
   });
 });

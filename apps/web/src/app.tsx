@@ -1,8 +1,16 @@
 import { Route, Router } from "@solidjs/router";
-import { createSignal, type JSX, lazy, onMount } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  type JSX,
+  lazy,
+  onCleanup,
+  onMount,
+} from "solid-js";
 import { ToastShelf } from "./components/toast-shelf";
 import { AdminGuard, AuthGuard } from "./lib/route-guards";
 import { createAppStore } from "./store/app-store";
+import { createLiveUpdates } from "./store/app-store-live";
 import { StoreProvider } from "./store/store-context";
 
 const MailboxPage = lazy(() => import("./pages/mailbox-page"));
@@ -20,9 +28,20 @@ const ContactsPage = lazy(() => import("./pages/contacts-page"));
 
 export function App(): JSX.Element {
   const store = createAppStore();
+  const liveUpdates = createLiveUpdates(store);
+  onCleanup(() => liveUpdates.stop());
   // Distinguishes "still resolving the session" from "signed out", so a
   // reload does not flash the login screen at an authenticated user.
   const [ready, setReady] = createSignal(false);
+
+  createEffect(() => {
+    if (!ready()) return;
+    if (store.viewer() === null) {
+      liveUpdates.stop();
+      return;
+    }
+    liveUpdates.start();
+  });
 
   onMount(() => {
     void (async () => {

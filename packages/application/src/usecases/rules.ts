@@ -1,4 +1,5 @@
 import { Capability } from "@flying-mail/domain/entities/api-key";
+import { MailEventType } from "@flying-mail/domain/entities/mail-event";
 import {
   type ClassificationRule,
   createClassificationRule,
@@ -24,6 +25,7 @@ import type { AppDependencies } from "../dependencies";
 import { NotFoundError } from "../errors";
 import { requireGlobalCapability } from "../policies/authorization";
 import type { Viewer } from "../policies/viewer";
+import { recordMailEvents } from "./mail-events";
 import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
 
 export interface CreateRuleInput {
@@ -190,6 +192,7 @@ export function createApplyClassificationRuleUseCase(
 
       if (hits.length > 0) {
         const hitIds = hits.map((message) => message.id);
+        let affected: typeof hits = [];
         switch (rule.action) {
           case RuleActionEnum.Spam:
             await deps.messageRepository.setSpamMarks(
@@ -202,8 +205,10 @@ export function createApplyClassificationRuleUseCase(
                 }),
               ),
             );
+            affected = hits;
             break;
           case RuleActionEnum.MailingList:
+            affected = hits.filter((message) => !message.isMailingList);
             for (const message of hits) {
               if (!message.isMailingList) {
                 await deps.messageRepository.save({
@@ -217,9 +222,17 @@ export function createApplyClassificationRuleUseCase(
           case RuleActionEnum.Tag:
             if (rule.tagId !== null) {
               await deps.messageRepository.addTags(hitIds, [rule.tagId], now);
+              affected = hits;
             }
             break;
         }
+        await recordMailEvents(
+          deps,
+          affected.map((message) => ({
+            type: MailEventType.MessageUpdated,
+            message,
+          })),
+        );
       }
 
       if (page.nextCursor === null) {

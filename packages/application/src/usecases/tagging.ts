@@ -1,4 +1,5 @@
 import { Capability } from "@flying-mail/domain/entities/api-key";
+import { MailEventType } from "@flying-mail/domain/entities/mail-event";
 import type { Message } from "@flying-mail/domain/entities/message";
 import {
   createSpamMark,
@@ -9,6 +10,7 @@ import type { MessageId, TagId } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { NotFoundError } from "../errors";
 import type { Viewer } from "../policies/viewer";
+import { recordMailEvents } from "./mail-events";
 import { loadReadableMessages } from "./messages";
 
 async function requireTags(
@@ -51,6 +53,13 @@ async function applyTags(
   } else {
     await deps.messageRepository.removeTags(ids, tagIds);
   }
+  await recordMailEvents(
+    deps,
+    messages.map((message) => ({
+      type: MailEventType.MessageUpdated,
+      message,
+    })),
+  );
   return messages;
 }
 
@@ -106,6 +115,13 @@ export function createMarkSpamUseCase(
         }),
       ),
     );
+    await recordMailEvents(
+      deps,
+      messages.map((message) => ({
+        type: MailEventType.MessageUpdated,
+        message,
+      })),
+    );
     return messages;
   };
 }
@@ -125,6 +141,13 @@ export function createMarkNotSpamUseCase(
     );
     await deps.messageRepository.clearSpamMarks(
       messages.map((message) => message.id),
+    );
+    await recordMailEvents(
+      deps,
+      messages.map((message) => ({
+        type: MailEventType.MessageUpdated,
+        message,
+      })),
     );
     return messages;
   };

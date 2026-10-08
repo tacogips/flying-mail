@@ -102,6 +102,7 @@ import {
 import {
   createGetViewerUserUseCase,
   createLogoutUseCase,
+  createResolveViewerFromTokenHashUseCase,
   createResolveViewerFromTokenUseCase,
 } from "./usecases/auth";
 import {
@@ -219,6 +220,10 @@ import {
 export interface UseCases {
   // --- auth ---
   readonly resolveViewerFromToken: (token: string) => Promise<Viewer | null>;
+  readonly resolveViewerFromTokenHash: (
+    tokenHash: string,
+    options: { readonly recordUsage: boolean },
+  ) => Promise<Viewer | null>;
   readonly logout: (token: string) => Promise<boolean>;
   readonly getViewerUser: (viewer: Viewer) => Promise<User | null>;
   readonly requestEmailAuth: (input: {
@@ -585,6 +590,7 @@ export function createUseCases(deps: AppDependencies): UseCases {
       createRemoveUserTemplatePermissionUseCase(deps),
 
     resolveViewerFromToken: createResolveViewerFromTokenUseCase(deps),
+    resolveViewerFromTokenHash: createResolveViewerFromTokenHashUseCase(deps),
     logout: createLogoutUseCase(deps),
     getViewerUser: createGetViewerUserUseCase(deps),
     requestEmailAuth: createRequestEmailAuthUseCase(deps),

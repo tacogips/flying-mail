@@ -20,7 +20,20 @@ import {
   normalizeClientIpForRateLimit,
 } from "@flying-mail/infrastructure/composition/config";
 import { createApp } from "@flying-mail/infrastructure/http/app";
+import { buildGraphQLSchema } from "@flying-mail/infrastructure/graphql/schema";
 import type { AuthVariables } from "@flying-mail/infrastructure/http/auth-middleware";
+import {
+  createInProcessHost,
+  createLateBoundMailEventNotifier,
+} from "@flying-mail/infrastructure/realtime/in-process-host";
+import { createRealtimeHub } from "@flying-mail/infrastructure/realtime/hub";
+import { createSubscriptionExecutor } from "@flying-mail/infrastructure/realtime/executor";
+import type { SubscriptionExecutor } from "@flying-mail/infrastructure/realtime/executor";
+import type { RealtimeHub } from "@flying-mail/infrastructure/realtime/hub";
+import type { InProcessHost } from "@flying-mail/infrastructure/realtime/in-process-host";
+import { isRealtimeUpgradeRequest } from "@flying-mail/infrastructure/realtime/upgrade";
+import { createBunRealtimeHandlers } from "./realtime-bun";
+import type { BunRealtimeHandlers, BunRealtimeServer } from "./realtime-bun";
 import type { Context, Hono } from "hono";
 
 /** Retry policy for local post-migration blob cleanup. */
@@ -116,6 +129,10 @@ export interface LocalApp {
   readonly usecases: UseCases;
   /** Resolves when the bounded background cleanup finishes. */
   readonly blobCleanup: Promise<void>;
+  readonly realtime: {
+    readonly hub: RealtimeHub;
+    readonly host: InProcessHost;
+  };
 }
 
 const DEFAULT_CLEANUP_MAX_ATTEMPTS = 3;
@@ -192,9 +209,12 @@ export async function drainBlobCleanupQueueWithRetry(
  * without opening a network listener. */
 export async function createLocalApp(
   migrationsDir: string = DEFAULT_MIGRATIONS_DIR,
+  options: { readonly realtimeExecutor?: SubscriptionExecutor } = {},
 ): Promise<LocalApp> {
+  const notifier = createLateBoundMailEventNotifier();
   const config = {
     ...loadConfigFromEnv(process.env),
+    mailEventNotifier: notifier,
     rateLimiter: createInMemoryRateLimiter({
       ...AUTH_RATE_LIMIT,
       clock: { now: () => new Date() },
@@ -226,6 +246,19 @@ export async function createLocalApp(
   // seeded, which keeps a hand-migrated database consistent too.
   await usecases.ensureSystemTags();
 
+  const host = createInProcessHost();
+  const executor =
+    options.realtimeExecutor ??
+    createSubscriptionExecutor({
+      schema: buildGraphQLSchema(),
+      deps,
+      usecases,
+      publicOrigin: deps.instanceConfig.publicOrigin,
+    });
+  const hub = createRealtimeHub({ host, deps, usecases, executor });
+  notifier.bind(hub);
+  host.setWakeHandler(() => hub.wake());
+
   const app = createApp({
     deps,
     usecases,
@@ -233,7 +266,36 @@ export async function createLocalApp(
     devInbound: createDevInboundHandler(usecases),
     resolveClientIp: resolveLocalClientIp,
   });
-  return { app, deps, usecases, blobCleanup };
+  return { app, deps, usecases, blobCleanup, realtime: { hub, host } };
+}
+
+export function createBunFetchHandler(options: {
+  readonly app: LocalApp["app"];
+  readonly handlers: BunRealtimeHandlers;
+}): (
+  request: Request,
+  server: BunRealtimeServer,
+) => Promise<Response | undefined> {
+  return async (request, server) => {
+    if (isRealtimeUpgradeRequest(request)) {
+      return await options.handlers.upgrade(request, server);
+    }
+    return options.app.fetch(request, {
+      clientIp: server.requestIP(request)?.address ?? null,
+    });
+  };
+}
+
+export function createNodeFetchHandler(app: LocalApp["app"]): typeof app.fetch {
+  return async (request, env, executionCtx) => {
+    if (isRealtimeUpgradeRequest(request)) {
+      return new Response(
+        "WebSocket subscriptions require the Bun or Workers runtime",
+        { status: 501 },
+      );
+    }
+    return app.fetch(request, env, executionCtx);
+  };
 }
 
 export async function startServer(
@@ -242,19 +304,23 @@ export async function startServer(
   const port = config?.port ?? Number(process.env["PORT"] ?? DEFAULT_PORT);
   const migrationsDir = config?.migrationsDir ?? DEFAULT_MIGRATIONS_DIR;
 
-  const { app } = await createLocalApp(migrationsDir);
+  const localApp = await createLocalApp(migrationsDir);
+  const { app, realtime } = localApp;
 
   const runtime = detectRuntime();
   if (runtime === "bun") {
+    const handlers = createBunRealtimeHandlers({
+      hub: realtime.hub,
+      host: realtime.host,
+      deps: localApp.deps,
+    });
     Bun.serve({
       port,
-      fetch: (request, server) =>
-        app.fetch(request, {
-          clientIp: server.requestIP(request)?.address ?? null,
-        }),
+      fetch: createBunFetchHandler({ app, handlers }),
+      websocket: handlers.websocket,
     });
   } else {
-    serve({ fetch: app.fetch, port });
+    serve({ fetch: createNodeFetchHandler(app), port });
   }
   console.log(
     `flying-mail-api listening on http://localhost:${port} (${runtime})`,

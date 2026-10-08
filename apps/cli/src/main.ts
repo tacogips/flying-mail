@@ -10,6 +10,7 @@ import {
   resolveClientServeOptions,
   startClientServe,
 } from "./commands/client-serve";
+import { runWatch } from "./commands/watch";
 import {
   type CommandContext,
   type CommandHandler,
@@ -32,6 +33,7 @@ Usage
 Commands
   admin bootstrap             Create the first admin (token from $FLYING_MAIL_BOOTSTRAP_TOKEN)
   client serve                Serve the browser mail client locally
+  watch                       Stream mail events over WebSocket
   domain list|add|verify      Manage mail domains
   key list|create|revoke      Manage API keys
   mail list|show|send|fetch   Read and send mail
@@ -51,6 +53,11 @@ client serve flags
   --allow-remote              Permit a non-loopback host; disables API key
                               injection, since a key-injecting proxy on a
                               reachable address is an open relay for that key
+
+watch flags
+  --domain <name|id>          Filter events by domain
+  --address <addr>            Filter events by mailbox address
+  --json                      Emit newline-delimited JSON events
 
 admin bootstrap flags
   --email <addr>              Admin email
@@ -159,6 +166,10 @@ export async function runCli(
       );
     }
     return runClientServe(args, env);
+  }
+
+  if (group === "watch" && subcommand === undefined) {
+    return runWatch(args, env);
   }
 
   const handlers = group === undefined ? undefined : COMMAND_GROUPS.get(group);

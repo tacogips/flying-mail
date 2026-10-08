@@ -25,6 +25,7 @@ identifiers and are not secret.
 | D1 database | `mailcal-db` (`database_id` in `wrangler.toml`) |
 | R2 bucket | `mailcal-mail` |
 | Rate limit binding | `AUTH_RATE_LIMITER` (10 requests per 60 s) |
+| Durable Object binding | `MAIL_EVENT_HUB` -> `MailEventHub` |
 | Send binding | `EMAIL` (`send_email`) |
 | Turnstile widget | `flying-mail-login` (public site key in `wrangler.toml`) |
 | Managed mail domains | `tacoserve.online`, `mutvar-test.online` |
@@ -83,18 +84,29 @@ printf 'FLYING_MAIL_BOOTSTRAP_TOKEN=%s\n' "$(openssl rand -base64 48 | tr '+/' '
    mise run lint && bun run test && mise run build-web
    ```
 2. Optionally dry-run the bundle. Check that the binding list shows
-   `AUTH_RATE_LIMITER` and `FLYING_MAIL_TURNSTILE_SITE_KEY`:
+   `AUTH_RATE_LIMITER`, `MAIL_EVENT_HUB` and `FLYING_MAIL_TURNSTILE_SITE_KEY`:
    ```bash
    bun run --cwd apps/api cf:deploy -- --dry-run --outdir /tmp/flying-mail-dryrun
    ```
-3. Deploy. This builds the web client, applies pending remote D1
-   migrations, then runs `wrangler deploy`:
+3. Roll out the event log and Durable Object in order. `mise run cf-deploy`
+   applies pending remote D1 migrations, including migration
+   `0016_mail_events.sql`, before deploying the Worker. The subsequent
+   `wrangler deploy` applies the Durable Object migration with
+   `new_sqlite_classes`:
    ```bash
    mise run cf-deploy
    ```
    New migrations go in `apps/api/migrations/NNNN_*.sql`. Never edit or
    squash an applied migration.
+   The binding is `MAIL_EVENT_HUB` and its class is `MailEventHub`. The
+   `v1-mail-event-hub` migration tag and class name are permanent once
+   deployed. Never remove the binding during rollback; only a
+   `deleted_classes` migration removes the class.
 4. Run the post-deploy smoke checks (below).
+
+The optional `FLYING_MAIL_EVENT_RETENTION_SECONDS` variable controls event
+retention. It defaults to `604800` seconds (7 days) and accepts values from
+`3600` through `2592000` seconds.
 
 ## Post-deploy smoke checks
 
@@ -107,6 +119,21 @@ curl -s $B/graphql -H 'content-type: application/json' -d '{"query":"mutation { 
 curl -s -D - -o /dev/null $B/ | grep -i content-security-policy        # only challenges.cloudflare.com added
 (cd apps/api && mise exec -- wrangler deployments list | tail -6)
 ```
+
+Check the WebSocket subscription after deployment with the admin operator
+API key from kinko; the smoke check uses the `FLYING_MAIL_API_KEY` key that
+is also used by the authenticated checks below. A separate read-only key is
+optional. Supply the key through the environment; do not put it in a URL or
+print its value:
+
+```bash
+kinko --path "$PWD" exec --env FLYING_MAIL_API_KEY -- bun run --cwd apps/cli start -- watch --endpoint https://mail.tacoserve.online --json
+```
+
+Expect a `LIVE` line, send a test message to a managed address, then expect
+a `MESSAGE_RECEIVED` line within seconds. Confirm that the browser connection
+indicator shows Live. This is a documented smoke procedure; run it after an
+authorized deployment.
 
 Authenticated checks use the operator key from kinko. For example,
 `viewer { sendableAddresses }`:
@@ -218,6 +245,12 @@ first.
 - **Custom domain propagation.** For about a minute after a deploy that
   attaches the domain, the edge can serve an older schema (for example,
   `publicConfig` missing). Retry before debugging.
+- **WebSocket upgrade origin.** Upgrades are accepted on the custom domain
+  only. A 403 indicates an Origin mismatch; check `FLYING_MAIL_PUBLIC_ORIGIN`.
+- **Deploy disconnects.** A Worker deploy disconnects active WebSockets;
+  clients reconnect with jitter and resume from their last cursor.
+- **Durable Object migration.** Keep the `MAIL_EVENT_HUB` binding and the
+  permanent `v1-mail-event-hub` tag in later deploys and rollbacks.
 - **Catch-all routing to the Worker.** `wrangler email routing rules update
   <zone> catch-all --action-type worker` is rejected. Use the API instead:
   `PUT /zones/<zone-id>/email/routing/rules/catch_all` with

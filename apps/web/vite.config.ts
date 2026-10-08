@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [solid()],
   server: {
     proxy: {
-      "/graphql": API_ORIGIN,
+      "/graphql": { target: API_ORIGIN, ws: true },
       "/api": API_ORIGIN,
       "/files": API_ORIGIN,
     },

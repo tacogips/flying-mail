@@ -22,48 +22,69 @@ export function createResolveViewerFromTokenUseCase(
       return null;
     }
     const tokenHash = await deps.tokenHasher.hash(token);
-    const now = deps.clock.now().toISOString();
+    return resolveViewerFromTokenHash(deps, tokenHash, { recordUsage: true });
+  };
+}
 
-    const session = await deps.sessionRepository.findByTokenHash(tokenHash);
-    if (session !== null) {
-      if (isSessionExpired(session, now)) {
-        return null;
-      }
-      const user = await deps.userRepository.findById(session.userId);
-      if (user === null || !isUserActive(user)) {
-        return null;
-      }
-      // Both rule sets are loaded together: authorization for mail and
-      // templates consults the viewer snapshot, and a
-      // partially-loaded viewer would silently under-authorize.
-      const [permissions, templatePermissions] = await Promise.all([
-        deps.userMailPermissionRepository.listByUserId(user.id),
-        deps.userTemplatePermissionRepository.listByUserId(user.id),
-      ]);
-      return {
-        kind: "USER",
-        userId: user.id,
-        role: user.role,
-        permissions,
-        templatePermissions,
-      };
-    }
+/** Resolves a previously hashed token without ever receiving its secret. */
+export function createResolveViewerFromTokenHashUseCase(
+  deps: AppDependencies,
+): (
+  tokenHash: string,
+  options: { readonly recordUsage: boolean },
+) => Promise<Viewer | null> {
+  return (tokenHash, options) =>
+    resolveViewerFromTokenHash(deps, tokenHash, options);
+}
 
-    const apiKey = await deps.apiKeyRepository.findByKeyHash(tokenHash);
-    if (apiKey === null || !isApiKeyUsable(apiKey, now)) {
+async function resolveViewerFromTokenHash(
+  deps: AppDependencies,
+  tokenHash: string,
+  options: { readonly recordUsage: boolean },
+): Promise<Viewer | null> {
+  const now = deps.clock.now().toISOString();
+
+  const session = await deps.sessionRepository.findByTokenHash(tokenHash);
+  if (session !== null) {
+    if (isSessionExpired(session, now)) {
       return null;
     }
-    const scopesByKey = await deps.apiKeyRepository.listScopes([apiKey.id]);
-    const scopes = scopesByKey.get(apiKey.id) ?? [];
+    const user = await deps.userRepository.findById(session.userId);
+    if (user === null || !isUserActive(user)) {
+      return null;
+    }
+    // Both rule sets are loaded together: authorization for mail and
+    // templates consults the viewer snapshot, and a
+    // partially-loaded viewer would silently under-authorize.
+    const [permissions, templatePermissions] = await Promise.all([
+      deps.userMailPermissionRepository.listByUserId(user.id),
+      deps.userTemplatePermissionRepository.listByUserId(user.id),
+    ]);
+    return {
+      kind: "USER",
+      userId: user.id,
+      role: user.role,
+      permissions,
+      templatePermissions,
+    };
+  }
 
+  const apiKey = await deps.apiKeyRepository.findByKeyHash(tokenHash);
+  if (apiKey === null || !isApiKeyUsable(apiKey, now)) {
+    return null;
+  }
+  const scopesByKey = await deps.apiKeyRepository.listScopes([apiKey.id]);
+  const scopes = scopesByKey.get(apiKey.id) ?? [];
+
+  if (options.recordUsage) {
     // Fire-and-forget: recording usage must never fail or delay a request.
     // A missed update only costs the operator a stale "last used" column.
     void deps.apiKeyRepository
       .save(recordApiKeyUsage(apiKey, now))
       .catch(() => undefined);
+  }
 
-    return { kind: "API_KEY", apiKeyId: apiKey.id, scopes };
-  };
+  return { kind: "API_KEY", apiKeyId: apiKey.id, scopes };
 }
 
 /** Deletes the session behind a presented token. Returns `true` whether or

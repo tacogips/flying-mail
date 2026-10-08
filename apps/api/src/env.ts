@@ -2,6 +2,7 @@ import type { R2BucketLike } from "@flying-mail/adapter/blob/r2";
 import type { CloudflareSendEmailBinding } from "@flying-mail/adapter/mail/cloudflare-email";
 import type { D1DatabaseLike } from "@flying-mail/adapter/sql/d1";
 import type { RateLimitBindingLike } from "@flying-mail/adapter/rate-limit/workers-binding";
+import type { DurableObjectNamespaceLike } from "./durable-object-types";
 
 /** Minimal structural surface of the Workers Static Assets binding, used by
  * `worker.ts`'s SPA fallthrough. Kept local (see `D1DatabaseLike` and
@@ -47,6 +48,8 @@ export interface Env {
   readonly ASSETS: FetcherLike;
   readonly EMAIL: CloudflareSendEmailBinding;
   readonly AUTH_RATE_LIMITER?: RateLimitBindingLike;
+  readonly MAIL_EVENT_HUB?: DurableObjectNamespaceLike;
+  readonly FLYING_MAIL_EVENT_RETENTION_SECONDS?: string;
   readonly FLYING_MAIL_PUBLIC_ORIGIN?: string;
   readonly FLYING_MAIL_MAIL_FROM?: string;
   readonly FLYING_MAIL_BOOTSTRAP_TOKEN?: string;
@@ -76,6 +79,8 @@ export interface Env {
 export function envToRecord(env: Env): Record<string, string | undefined> {
   return {
     FLYING_MAIL_PUBLIC_ORIGIN: env.FLYING_MAIL_PUBLIC_ORIGIN,
+    FLYING_MAIL_EVENT_RETENTION_SECONDS:
+      env.FLYING_MAIL_EVENT_RETENTION_SECONDS,
     FLYING_MAIL_MAIL_FROM: env.FLYING_MAIL_MAIL_FROM,
     FLYING_MAIL_BOOTSTRAP_TOKEN: env.FLYING_MAIL_BOOTSTRAP_TOKEN,
     FLYING_MAIL_TURNSTILE_SECRET_KEY: env.FLYING_MAIL_TURNSTILE_SECRET_KEY,

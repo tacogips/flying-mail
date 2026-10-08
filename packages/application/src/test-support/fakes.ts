@@ -1,4 +1,12 @@
 import type { AppDependencies, InstanceConfig } from "../dependencies";
+import {
+  createFakeMailEventLog,
+  createFakeMailEventNotifier,
+  type FakeMailEventLog,
+  type FakeMailEventNotifier,
+} from "./mail-event-fakes";
+import type { MailEventLog } from "../ports/mail-event-log";
+import type { MailEventNotifier } from "../ports/mail-event-notifier";
 import type { RateLimiter } from "../ports/rate-limiter";
 import type { TurnstileVerifier } from "../ports/turnstile-verifier";
 import {
@@ -93,6 +101,7 @@ export const DEFAULT_INSTANCE_CONFIG: InstanceConfig = {
   spamThreshold: 0.6,
   spamPhrases: [],
   fileLinkMaxTtlSeconds: 604800,
+  eventRetentionSeconds: 604800,
   inboundMxSuffix: "mx.cloudflare.net",
 };
 
@@ -115,6 +124,10 @@ export interface FakeDependencies {
   readonly mailSender: RecordingMailSender;
   readonly mimeParser: StubMimeParser;
   readonly dns: FakeDnsResolver;
+  readonly mailEventLog: MailEventLog;
+  readonly mailEventNotifier: MailEventNotifier;
+  readonly fakeMailEventLog: FakeMailEventLog;
+  readonly fakeMailEventNotifier: FakeMailEventNotifier;
 }
 
 export interface CreateFakeDependenciesOptions {
@@ -135,6 +148,8 @@ export interface CreateFakeDependenciesOptions {
   readonly credentialCipherAvailable?: boolean;
   readonly rateLimiter?: RateLimiter | null;
   readonly turnstileVerifier?: TurnstileVerifier | null;
+  readonly mailEventLog?: MailEventLog;
+  readonly mailEventNotifier?: MailEventNotifier;
 }
 
 /** Builds a fully in-memory `AppDependencies` plus handles on its backing
@@ -159,6 +174,10 @@ export function createFakeDependencies(
   const mailSender = recordingMailSender();
   const dns = fakeDnsResolver();
   const mimeParser = stubMimeParser();
+  const fakeMailEventLog = createFakeMailEventLog();
+  const fakeMailEventNotifier = createFakeMailEventNotifier();
+  const mailEventLog = options.mailEventLog ?? fakeMailEventLog;
+  const mailEventNotifier = options.mailEventNotifier ?? fakeMailEventNotifier;
 
   if (options.seedSystemTags !== false) {
     seedSystemTags(stores, now);
@@ -186,6 +205,8 @@ export function createFakeDependencies(
       eventStores,
       messageStores,
     ),
+    mailEventLog,
+    mailEventNotifier,
     classificationRuleRepository:
       createClassificationRuleRepositoryFake(ruleStores),
     dns,
@@ -239,5 +260,9 @@ export function createFakeDependencies(
     mailSender,
     mimeParser,
     dns,
+    mailEventLog,
+    mailEventNotifier,
+    fakeMailEventLog,
+    fakeMailEventNotifier,
   };
 }

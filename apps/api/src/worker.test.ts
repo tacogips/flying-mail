@@ -18,7 +18,12 @@ import type {
   CloudflareEmailMessage,
   CloudflareSendEmailBinding,
 } from "@flying-mail/adapter/mail/cloudflare-email";
-import { buildWorkerConfig, clearWorkerCacheForTesting } from "./worker";
+import {
+  buildWorkerConfig,
+  clearWorkerCacheForTesting,
+  getBuiltWorkerForTesting,
+} from "./worker";
+import { buildWorkerNotifier } from "./worker-config";
 import worker from "./worker";
 import { type Env, envToRecord, headersToMap } from "./env";
 
@@ -670,6 +675,85 @@ describe("worker email", () => {
     harness = await createWorkerEnv();
   });
 
+  test("email registers notifier settle with the binding", async () => {
+    const release: { current: (() => void) | null } = { current: null };
+    let notifyStarted = false;
+    const pending = new Promise<void>((resolve) => {
+      release.current = resolve;
+    });
+    const env = {
+      ...harness.env,
+      MAIL_EVENT_HUB: {
+        idFromName(name: string) {
+          return name;
+        },
+        get() {
+          return {
+            async fetch() {
+              notifyStarted = true;
+              await pending;
+              return new Response(null, { status: 204 });
+            },
+          };
+        },
+      },
+    } as Env;
+    getBuiltWorkerForTesting(env).deps.mailEventNotifier.notify();
+    const scheduled: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil(promise: Promise<unknown>) {
+        scheduled.push(promise);
+      },
+      passThroughOnException() {},
+      props: {},
+    };
+    const inbound = inboundMessage({
+      from: "sender@other.com",
+      to: "unknown@unmanaged.com",
+      raw: SAMPLE_EML,
+    });
+    await worker.email(inbound.message, env, ctx);
+    expect(notifyStarted).toBe(true);
+    expect(scheduled).toHaveLength(2);
+    let settleFinished = false;
+    void scheduled[1]?.then(() => {
+      settleFinished = true;
+    });
+    await Promise.resolve();
+    expect(settleFinished).toBe(false);
+    release.current?.();
+    await Promise.all(scheduled);
+    expect(settleFinished).toBe(true);
+  });
+
+  test("email does not register notifier settle without the binding", async () => {
+    harness = await createWorkerEnv({
+      FLYING_MAIL_EVENT_RETENTION_SECONDS: "3600",
+    });
+    expect(
+      envToRecord(harness.env)["FLYING_MAIL_EVENT_RETENTION_SECONDS"],
+    ).toBe("3600");
+    expect(buildWorkerConfig(harness.env).eventRetentionSeconds).toBe(3600);
+    expect(buildWorkerNotifier(harness.env)).toBeNull();
+    const scheduled: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil(promise: Promise<unknown>) {
+        scheduled.push(promise);
+      },
+      passThroughOnException() {},
+      props: {},
+    };
+    const inbound = inboundMessage({
+      from: "sender@other.com",
+      to: "unknown@unmanaged.com",
+      raw: SAMPLE_EML,
+    });
+    await worker.email(inbound.message, harness.env, ctx);
+    expect(getBuiltWorkerForTesting(harness.env).notifier).toBeNull();
+    expect(scheduled).toHaveLength(1);
+    await Promise.all(scheduled);
+  });
+
   test("stores mail for a managed domain", async () => {
     await seedActiveDomain(harness.db);
     const inbound = inboundMessage({
@@ -750,5 +834,165 @@ describe("worker email", () => {
     const rawKey = rows[0]?.raw_key ?? "";
     expect(rawKey).toMatch(/^raw\/.+\.eml$/);
     expect(await harness.env.BLOB.get(rawKey)).not.toBeNull();
+  });
+});
+
+describe("Worker realtime upgrades", () => {
+  let harness: WorkerHarness;
+  beforeEach(async () => {
+    harness = await createWorkerEnv();
+  });
+
+  function hubBinding(
+    fetch: (input: string, init?: RequestInit) => Promise<Response>,
+  ) {
+    return {
+      idFromName(name: string) {
+        return name;
+      },
+      get() {
+        return { fetch };
+      },
+    };
+  }
+
+  function upgradeRequest(
+    origin = "https://mail.example.com",
+    cookie = false,
+  ): Request {
+    return new Request("https://mail.example.com/graphql", {
+      headers: {
+        upgrade: "websocket",
+        "sec-websocket-protocol": "graphql-transport-ws",
+        origin,
+        ...(cookie ? { cookie: "mailcal_session=session-secret" } : {}),
+      },
+    });
+  }
+
+  test("returns 503 when the realtime Durable Object binding is absent", async () => {
+    const response = await worker.fetch(
+      upgradeRequest(),
+      harness.env,
+      createExecutionContext(),
+    );
+    expect(response.status).toBe(503);
+  });
+
+  test("rejects cross-origin upgrades before contacting the Durable Object", async () => {
+    let calls = 0;
+    const env = {
+      ...harness.env,
+      MAIL_EVENT_HUB: hubBinding(async () => {
+        calls += 1;
+        return new Response();
+      }),
+    } as Env;
+    const response = await worker.fetch(
+      upgradeRequest("https://evil.example"),
+      env,
+      createExecutionContext(),
+    );
+    expect(response.status).toBe(403);
+    expect(calls).toBe(0);
+  });
+
+  test("forwards only trusted headers and a server-computed cookie hash", async () => {
+    const forwarded: {
+      value: { input: string; init: RequestInit | undefined } | null;
+    } = { value: null };
+    const env = {
+      ...harness.env,
+      MAIL_EVENT_HUB: hubBinding(async (input, init) => {
+        forwarded.value = { input, init };
+        return new Response("upgrade", { status: 200 });
+      }),
+    } as Env;
+    const request = new Request(upgradeRequest(undefined, true), {
+      headers: new Headers(upgradeRequest(undefined, true).headers),
+    });
+    request.headers.set("cf-connecting-ip", "203.0.113.9");
+    request.headers.set("x-flying-mail-session-token-hash", "forged");
+    const response = await worker.fetch(request, env, createExecutionContext());
+    expect(response.status).toBe(200);
+    expect(forwarded.value?.input).toBe(
+      "https://mail-event-hub.internal/connect",
+    );
+    const init = forwarded.value?.init;
+    expect(init?.method).toBe("GET");
+    const headers = new Headers(init?.headers);
+    expect([...headers.keys()].sort()).toEqual([
+      "sec-websocket-protocol",
+      "upgrade",
+      "x-flying-mail-client-ip",
+      "x-flying-mail-session-token-hash",
+    ]);
+    expect(headers.get("x-flying-mail-client-ip")).toBe("203.0.113.9");
+    const built = getBuiltWorkerForTesting(env);
+    const expectedHash = await built.deps.tokenHasher.hash("session-secret");
+    expect(headers.get("x-flying-mail-session-token-hash")).toBe(expectedHash);
+    expect(headers.get("x-flying-mail-session-token-hash")).not.toBe("forged");
+    expect(headers.has("cookie")).toBe(false);
+  });
+});
+
+describe("Worker notifier ownership", () => {
+  test("shares one notifier and keeps an in-flight poke alive with waitUntil", async () => {
+    const harness = await createWorkerEnv();
+    const release: { current: (() => void) | null } = { current: null };
+    let called = false;
+    const pending = new Promise<void>((resolve) => {
+      release.current = resolve;
+    });
+    const env = {
+      ...harness.env,
+      MAIL_EVENT_HUB: {
+        idFromName(name: string) {
+          return name;
+        },
+        get() {
+          return {
+            async fetch() {
+              called = true;
+              await pending;
+              return new Response(null, { status: 204 });
+            },
+          };
+        },
+      },
+    } as Env;
+    const built = getBuiltWorkerForTesting(env);
+    expect(built.deps.mailEventNotifier).toBe(built.notifier);
+    built.deps.mailEventNotifier.notify();
+    const promises: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil(promise: Promise<unknown>) {
+        promises.push(promise);
+      },
+      passThroughOnException() {},
+      props: {},
+    };
+    const response = await worker.fetch(
+      new Request("https://mail.example.com/graphql", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: "{ viewer { capabilities } }" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(response.status).toBe(200);
+    expect(called).toBe(true);
+    const settle = promises.at(-1);
+    expect(settle).toBeDefined();
+    let settled = false;
+    void settle?.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    release.current?.();
+    await settle;
+    expect(settled).toBe(true);
   });
 });
