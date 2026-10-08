@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-10-08T12:00:00Z",
+  "lastUpdated": "2026-10-08T12:13:31Z",
   "phases": {
     "1": {
       "status": "COMPLETED"
@@ -1821,6 +1821,18 @@
       "tasks": {
         "TASK-001": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-04-docs:TASK-002", "mcp-server-11-catalogue-integration:TASK-001"] }
       }
+    },
+    "login-page-clarity": {
+      "phase": 2,
+      "status": "In Progress",
+      "tasks": {
+        "TASK-001": {
+          "status": "In Progress",
+          "parallelizable": false,
+          "deps": []
+        }
+      },
+      "planPath": "impl-plans/active/login-page-clarity.md"
     }
   }
 }

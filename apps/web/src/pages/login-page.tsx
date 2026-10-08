@@ -129,17 +129,32 @@ export default function LoginPage(): JSX.Element {
 
   return (
     <main class="login-page">
-      <h1>flying-mail</h1>
+      <header class="login-header">
+        <p class="login-brand">flying-mail</p>
+        <h1>Log in to flying-mail</h1>
+        <p class="login-intro">Open your mailbox to read and send email.</p>
+      </header>
       <Show
         when={!sent()}
         fallback={
-          <p>
-            If that address belongs to an account, a sign-in link is on its way.
-            The link expires in 15 minutes and can be used once.
-          </p>
+          <section
+            class="login-confirmation"
+            aria-labelledby="login-sent-title"
+          >
+            <h2 id="login-sent-title">Check your email</h2>
+            <p>
+              If that address belongs to an account, a sign-in link is on its
+              way. The link expires in 15 minutes and can be used once.
+            </p>
+            <p class="muted">If you don’t see it, check your spam folder.</p>
+          </section>
         }
       >
         <form onSubmit={(event) => void submit(event)}>
+          <p id="login-email-help" class="login-guidance">
+            Enter the email address associated with your account. We’ll send you
+            a one-time sign-in link. No password needed.
+          </p>
           <div class="field">
             <label for="login-email">Email address</label>
             <input
@@ -147,12 +162,13 @@ export default function LoginPage(): JSX.Element {
               type="email"
               required
               autocomplete="email"
+              aria-describedby="login-email-help"
               value={email()}
               onInput={(event) => setEmail(event.currentTarget.value)}
             />
           </div>
           <Show when={turnstileEnabled()}>
-            <div ref={widgetContainer} />
+            <div class="login-verification" ref={widgetContainer} />
           </Show>
           <Show when={error() !== null}>
             <p class="error-text" role="alert">

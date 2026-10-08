@@ -376,3 +376,5 @@ The same worker rules as for webmail completion apply.
 - Plan 12 alone runs `mise run build-web` (artifact root `apps/web/dist`)
   and the Worker dry run (artifact root `apps/api/.wrangler`). It is the
   only plan that updates statuses in `PROGRESS.json` and this table.
+
+- [Login page clarity](active/login-page-clarity.md): clarify login purpose and passwordless guidance.

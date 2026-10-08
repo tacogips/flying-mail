@@ -41,6 +41,23 @@ keep each under the 1000-line limit.
 | `/settings/users` | admin | "Invite user", invitation status (pending/active), resend invitation, roles, activation, address/domain permissions |
 | `/settings/tags` | auth | User tag management |
 
+## Login page clarity
+
+The public `/login` page must identify itself with a prominent “Log in to
+flying-mail” heading and a short explanation that signing in opens the mail
+inbox to read and send email. Display the product name separately from the
+login heading. Before the email field, explain that users enter the email
+address associated with their account and receive a one-time login link;
+no password is needed. Associate this guidance with the email input for
+assistive technology.
+
+After a successful request, show “Check your email” and explain that, if
+an account exists for that address, a sign-in link is on its way. Keep the
+15-minute expiry and single-use guidance, and suggest checking spam. The
+heading and introductory context remain visible in this state. Preserve
+all existing authentication and Turnstile behavior and account privacy.
+Use the existing visual tokens and keep the card readable on small screens.
+
 ## Key components
 
 | Component | Responsibility |
