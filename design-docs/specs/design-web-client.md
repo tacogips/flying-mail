@@ -98,6 +98,34 @@ searches for it.
   immediately and roll back on error with a toast, because those mutations are
   frequent and individually cheap.
 
+## Live updates (2026-10-08)
+
+The full design is `design-realtime-push.md` section 10.3.
+
+**Subscription**
+- One `mailEvents` subscription per signed-in tab, via
+  `@flying-mail/realtime-client`.
+- The store integration lives in `store/app-store-live.ts`.
+
+**Events**
+- Patch loaded rows and the open message in place, or remove them.
+- Schedule a debounced refetch of the visible first page, the
+  `addressActivity` counts (unread, rail badges, recent addresses) and the
+  inbox unread count.
+
+**Catch-up**
+- Every `LIVE` event triggers the catch-up refresh: on first connect,
+  after a reconnect, and after `RESYNC_REQUIRED`.
+
+**Connection indicator**
+- A connection indicator in the sidebar header shows Live, Reconnecting or
+  Offline.
+- Under `flying-mail client serve` the indicator shows Offline (no
+  WebSocket proxying), and the app behaves as before.
+
+**Local development**
+- `vite.config.ts` proxies `/graphql` with `ws: true`.
+
 ## Webmail completion (updated 2026-10-07)
 
 See `design-webmail-completion.md` section 7.

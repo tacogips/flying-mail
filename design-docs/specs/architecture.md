@@ -102,6 +102,27 @@ updates, domain management and key issuance. Errors always carry
 
 See `design-graphql-api.md`.
 
+## Real-time push (2026-10-08)
+
+`Subscription.mailEvents(scope, after)` runs over WebSocket with the
+`graphql-transport-ws` subprotocol on `/graphql`.
+
+- **Event log.** Mail writers append to an event log in D1
+  (`mail_events`). Its global sequence is the resumable cursor, and rows
+  are pruned after the retention window.
+- **Fan-out.** After the append, writers send a payload-free poke to the
+  fan-out host:
+  - on the Worker, one `MailEventHub` Durable Object using the WebSocket
+    Hibernation API;
+  - on Bun, an in-process host.
+- **Delivery.** The host reads the log from each subscription's last cursor
+  and re-checks MAIL_READ for every event. Replay after a reconnect and live
+  delivery therefore share one gap-free, duplicate-free path.
+- **Clients.** The web client and `flying-mail watch` share a small,
+  dependency-free client package.
+
+See `design-realtime-push.md`.
+
 ## Per-consumer fetch state
 
 Every API key is a *consumer*. `message_fetch_states` records, per
@@ -180,3 +201,4 @@ See `design-deployment.md`.
 | `design-external-mail.md` | External accounts, JMAP/POP3 fetch, SMTP relay |
 | `design-deployment.md` | Bindings, env vars, Cloudflare setup steps |
 | `design-webmail-completion.md` | Compose/HTML editor, forward with attachments, drafts lifecycle, multi-recipient inbound, single-call outbound, unified inbox |
+| `design-realtime-push.md` | Mail event log and cursors, GraphQL subscriptions over graphql-transport-ws, Durable Object hibernation fan-out, live web updates, `flying-mail watch` |

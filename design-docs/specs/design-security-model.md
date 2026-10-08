@@ -708,6 +708,28 @@ Repository gates:
 
 ---
 
+## 9a. WebSocket subscriptions (2026-10-08)
+
+The subscription endpoint adds a long-lived, upgrade-based entry point.
+Its controls are specified in `design-realtime-push.md` section 7. In
+summary:
+
+- **Origin.** The upgrade is rejected when `isCrossOriginRequest` is true
+  (CSWSH). The session cookie is honoured only when a matching `Origin`
+  header is present.
+- **API keys.** Accepted only in the `connection_init` payload; never in the
+  URL.
+- **Credential storage.** Sockets store only token hashes, and credentials
+  resolve through the existing viewer resolution.
+- **Rate limits.** Connection attempts and inits are limited through the
+  existing `RateLimiter` with `ws:` key prefixes. Concurrency, subscription
+  count, frame size, init timeout and idle timeout are capped.
+- **Authorization.** MAIL_READ is re-checked for every event against a
+  principal re-resolved on each delivery pass.
+- **CSP.** Gains exactly `connect-src 'self'` in both
+  `security-headers.ts` and `_headers`. The section 5.5 rule of no other
+  `connect-src` widening still holds.
+
 ## 10. Out of scope
 
 - WAF or zone rules, Turnstile widget creation, DNS, secrets and deploys.

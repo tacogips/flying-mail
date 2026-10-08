@@ -283,3 +283,32 @@ Design reference: `design-docs/specs/design-security-model.md` (accepted
 The same worker rules as for webmail completion apply. Plan 09 alone
 updates statuses in `PROGRESS.json` and this table after the final gates
 pass.
+
+## Real-time push (phases 22-26)
+
+Design reference: `design-docs/specs/design-realtime-push.md` (accepted
+2026-10-08). Open user confirmations, with defaults applied, are in
+`design-docs/user-qa/pending-realtime-push.md`. Plans live in
+`impl-plans/active/`; plan 11 moves them to `completed/`.
+
+| Wave / Phase | Plan | Depends on |
+|--------------|------|------------|
+| 1 / 22 | [realtime-push-01-contracts-and-persistence](active/realtime-push-01-contracts-and-persistence.md) | - |
+| 1 / 22 | [realtime-push-02-realtime-client](active/realtime-push-02-realtime-client.md) | - |
+| 1 / 22 | [realtime-push-03-docs](active/realtime-push-03-docs.md) | - |
+| 2 / 23 | [realtime-push-04a-emission-ingest-send-drafts](active/realtime-push-04a-emission-ingest-send-drafts.md) | 01 |
+| 2 / 23 | [realtime-push-04b-emission-message-mutations](active/realtime-push-04b-emission-message-mutations.md) | 01 |
+| 2 / 23 | [realtime-push-05-graphql-surface-and-executor](active/realtime-push-05-graphql-surface-and-executor.md) | 01 |
+| 2 / 23 | [realtime-push-06-web-live-updates](active/realtime-push-06-web-live-updates.md) | 02 |
+| 2 / 23 | [realtime-push-07-cli-watch](active/realtime-push-07-cli-watch.md) | 02 |
+| 3 / 24 | [realtime-push-08-hub-core](active/realtime-push-08-hub-core.md) | 01, 05 |
+| 4 / 25 | [realtime-push-09-worker-durable-object](active/realtime-push-09-worker-durable-object.md) | 01, 05, 08 |
+| 4 / 25 | [realtime-push-10-bun-server](active/realtime-push-10-bun-server.md) | 01, 05, 08 |
+| 5 / 26 | [realtime-push-11-final-verification](active/realtime-push-11-final-verification.md) | all of 01-10 (serial) |
+
+The same worker rules as for webmail completion apply.
+
+- Plan 02 is the only plan that runs `bun install`, to link the new
+  workspace package.
+- Plan 11 alone updates statuses in `PROGRESS.json` and this table. It
+  edits no source files; gate failures go back to the owning plan.

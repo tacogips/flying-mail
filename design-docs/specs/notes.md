@@ -62,6 +62,12 @@ is sharded per mailbox. A single D1 database keeps every listing a plain
 indexed query. Durable Objects remain the right answer if per-mailbox
 write throughput ever becomes the bottleneck.
 
+Amendment (2026-10-08): `design-realtime-push.md` introduces one Durable
+Object, `MailEventHub`. It is used only to hold hibernating WebSocket
+connections and fan out mail events. It stores no mail. D1 stays the single
+source of truth, including for the event log, so the reasoning above still
+holds for storage.
+
 ## Address matching is a small custom glob, not a regex
 
 Letting operators supply regexes for API key scopes would be a footgun

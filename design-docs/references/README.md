@@ -38,6 +38,11 @@ This directory contains reference materials for system design and implementation
 | Cloudflare TCP sockets | https://developers.cloudflare.com/workers/runtime-apis/tcp-sockets/ | `cloudflare:sockets` `connect()`, `startTls`, outbound port 25 block |
 | TypeScript Documentation | https://www.typescriptlang.org/docs/ | Official TypeScript documentation |
 | Bun Documentation | https://bun.sh/docs | Official Bun runtime documentation |
+| graphql-transport-ws protocol | https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md | Subprotocol messages and close codes implemented by the subscription server and client (design-realtime-push.md) |
+| Durable Objects WebSocket Hibernation | https://developers.cloudflare.com/durable-objects/best-practices/websockets/ | `acceptWebSocket`, `serializeAttachment`, `setWebSocketAutoResponse`, hibernation handlers |
+| Durable Objects migrations | https://developers.cloudflare.com/durable-objects/reference/durable-objects-migrations/ | `[[migrations]]`, `new_sqlite_classes`, renamed/deleted classes |
+| Bun WebSockets | https://bun.sh/docs/api/websockets | `Bun.serve` `websocket` handler and `server.upgrade` used by the local server |
+| CSP Level 3 source matching | https://www.w3.org/TR/CSP3/#match-url-to-source-expression | `'self'` matching same-host `ws:`/`wss:` for `connect-src` |
 
 ## Internal reference
 

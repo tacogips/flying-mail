@@ -25,6 +25,7 @@ flying-mail
 │   ├── show <id>
 │   ├── send
 │   └── fetch            Poll NOT_FETCHED messages and acknowledge them
+├── watch                Stream mail events over WebSocket (subscription)
 └── config
     ├── show
     └── set <key> <value>
@@ -124,6 +125,28 @@ command with `--secret-file <repo>/.private/bootstrap-admin-api-key`. See
 | `--text <s>` / `--text-file <p>` | string | - | Plain-text body (`-` reads stdin) |
 | `--html-file <p>` | string | - | HTML body |
 | `--attach <path>` | string[] | - | Repeatable; uploaded before sending |
+
+### `watch`
+
+This command subscribes to `mailEvents` and keeps reconnecting. The full
+design is in `design-realtime-push.md` section 10.4.
+
+- **Authentication.** The API key is sent only in the `connection_init`
+  payload.
+- **Cursor.** It is saved in `<config dir>/watch-cursors.json` with mode
+  0600. Each entry is keyed by endpoint, key prefix and scope. The secret is
+  never saved there.
+- **Output.** With `--json`, it prints one JSON object per line (NDJSON),
+  including `LIVE` and `RESYNC_REQUIRED` control lines.
+- **Exit codes.** It exits 0 on SIGINT or SIGTERM, 3 on close `4401`, 4 on
+  close `4403`, and 1 on other fatal closes. Network failures are retried
+  with backoff, never turned into an exit.
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--domain <name\|id>` | string | - | Only events for this domain |
+| `--address <addr>` | string | - | Only events whose authorized addresses include this address |
+| `--json` | boolean | `false` | NDJSON output (global flag) |
 
 ### `key create`
 

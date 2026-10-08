@@ -1,0 +1,714 @@
+{
+  "taskId": "realtime-push-s306",
+  "workflowMode": "issue-resolution",
+  "implementationBranch": "main",
+  "baseBranch": "main",
+  "remote": "origin",
+  "originalHead": "ceb298b43786c59203ef9674131a92491b5cf147",
+  "designDocPaths": [
+    "design-docs/specs/design-realtime-push.md",
+    "design-docs/user-qa/pending-realtime-push.md",
+    "design-docs/user-qa/README.md",
+    "design-docs/references/README.md",
+    "design-docs/specs/architecture.md",
+    "design-docs/specs/command.md",
+    "design-docs/specs/design-deployment.md",
+    "design-docs/specs/design-graphql-api.md",
+    "design-docs/specs/design-security-model.md",
+    "design-docs/specs/design-web-client.md",
+    "design-docs/specs/notes.md"
+  ],
+  "evidenceRoot": "tmp/realtime-push-s306",
+  "reviewContext": {
+    "issueReference": "workflowInput:opus-luna-design-and-implement-review-loop-session-306/real-time-push (no GitHub issue URL or number supplied); plan review step5-impl-plan-review comm-005006 accepted (F-RP-A, F-RP-B, F-RP-C verified fixed)",
+    "userProblem": "flying-mail's GraphQL API (graphql-yoga on Hono, Cloudflare Worker mailcal-api plus a Bun server) has only Query and Mutation. Clients poll, and API keys use the fetchStatus pull cursor. There is no low-latency push of mail changes to the web UI or API clients.",
+    "requiredOutcomes": [
+      "Subscription.mailEvents(scope, after) over graphql-transport-ws for session-cookie and API-key principals (Bearer token only in connection_init), with per-event MAIL_READ authorization and scope filtering.",
+      "Durable append-only D1 event log (migration 0016_mail_events.sql) with <epoch>.<seq> cursors, 7-day configurable retention with pruning on append; replay-then-live on resubscribe with after=cursor is gap-free and duplicate-free; RESYNC_REQUIRED when the cursor is outside retention or from another epoch.",
+      "Writers (ingest, send/sendDraft/retrySend, saveDraft/deleteDraft, markRead, deleteMessages, tagging, spam, classification rules) append events after their last state write and notify after the append.",
+      "A single hibernating MailEventHub Durable Object on the Worker and an in-process host on the Bun server, both driven by one runtime-neutral hub core; Node answers upgrades with 501.",
+      "Heartbeat, connection_init timeout, Origin check, per-IP/per-principal/global connection limits, max subscriptions, frame size limit and documented close codes; client reconnect with exponential backoff, jitter, cursor resume, resync and 4401 re-auth handling.",
+      "Web UI live-updates the list, unread counts, rail badges, recent addresses and drafts, shows Live/Reconnecting/Offline, and catches up on every LIVE.",
+      "CLI flying-mail watch [--domain] [--address] [--json] streams events with reconnect and per-endpoint/key-prefix/scope cursor persistence.",
+      "wrangler.toml declares the MAIL_EVENT_HUB binding and [[migrations]] tag v1-mail-event-hub with new_sqlite_classes; dry-run bundle succeeds; CSP gains only connect-src 'self'.",
+      "Design doc, README API section and flying-mail-deploy skill updated.",
+      "mise run lint, bun run test (all workspaces including apps/web) and mise run build-web pass; baseline 1830 package tests and 274 web tests still pass plus new tests."
+    ],
+    "nonGoals": [
+      "No deploy, no remote wrangler (dry run only), no secrets, no DNS; the orchestrating session performs deployment and live verification.",
+      "No git commit, push, stash, reset or checkout by workers.",
+      "No replacement of the fetchStatus pull cursor; no subscriptions over HTTP SSE or multipart.",
+      "No events for fetch-state acknowledgements, tag catalogue changes, or domain/mailbox cascade deletes.",
+      "No WebSocket proxying in flying-mail client serve or on the Node runtime.",
+      "No graphql-ws or other new third-party dependency; no edits to migrations 0001-0015."
+    ],
+    "constraints": [
+      "AGENTS.md/CLAUDE.md: English only, no emojis, maximum TypeScript strictness, Biome clean, ts-coding-standards, no TypeScript file at 1000+ lines; hub files under packages/infrastructure/src/realtime under 400 lines.",
+      "Keep existing Query/Mutation API, fetchStatus cursor, auth hardening (Turnstile, invite-only, rate limiting, bootstrap token) and CSP minimality intact.",
+      "Subscriptions create no new authentication path: sessions via a matching-Origin cookie, API keys via connection_init, both resolved through resolveViewerFromTokenHash; only token hashes stored; no secrets in URLs or logs.",
+      "The Bun server and the full test suite run without Cloudflare (in-process host).",
+      "Workers edit only their plan writePaths and their own plan Progress Log; impl-plans/PROGRESS.json and impl-plans/README.md are edited only by realtime-push-11; no worker edits this dispatch manifest.",
+      "Record sha256 before and after each edit; on drift re-read and reapply only the plan's intent; never revert others' edits; no repository-wide formatters.",
+      "Evidence for each plan and attempt goes under tmp/realtime-push-s306/<planId>/<attempt>/ (gitignored); plan 11 gate logs go to /tmp/realtime-push-final-<step>.log."
+    ],
+    "designDecisionsAndRationale": [
+      "D1: D1 is the only event source and a notify is a payload-free poke, so replay and live share one code path and lost or reordered pokes cannot cause gaps.",
+      "D2: one drain loop with per-subscription lastSeq makes delivery gap-free and duplicate-free by construction (design 6.4).",
+      "D3/D4: global AUTOINCREMENT seq filtered per scope; cursor <epoch>.<seq> with the epoch seeded by the migration detects a database reset.",
+      "D5: the log stores ids, domain and addresses only; content is resolved at delivery through the normal read path (single authorization path).",
+      "D6: append after the state write as its own batch; an append failure is logged and does not fail the mutation.",
+      "D7: a single MailEventHub Durable Object (idFromName mail-events).",
+      "D8/D9: hand-written graphql-transport-ws server (state in DO storage, survives hibernation) and a zero-dependency shared client package @flying-mail/realtime-client.",
+      "D10: connection limits reuse RateLimiter and AUTH_RATE_LIMITER with ws: key prefixes.",
+      "D11: opportunistic pruning on append bounded by pruned_through_seq; no cron.",
+      "D12: CSP connect-src 'self' in both security-headers.ts and apps/web/public/_headers.",
+      "D13: cookie auth on sockets only with a matching Origin header (CSWSH protection).",
+      "D14: LIVE control event gives a resumable cursor without traffic and marks the catch-up point.",
+      "Plan review fixes: F-RP-A in-process scheduleWake timer with setWakeHandler late binding (plans 08, 10); F-RP-B explicit createBunFetchHandler branch with no ?? fallback (plan 10); F-RP-C HubRuntime injection for the 101 response and a single Worker notifier instance via buildWorkerConfig (plan 09).",
+      "Plan DAG: wave 1 (01, 02, 03) -> wave 2 (04a, 04b, 05, 06, 07) -> wave 3 (08) -> wave 4 (09, 10) -> wave 5 (11 serial reconciliation)."
+    ],
+    "intentionalTradeoffs": [
+      "R1: a single hub Durable Object; sharding is documented but not built.",
+      "R2: 7-day retention default, configurable in [3600, 2592000].",
+      "R3: connection limits on the existing AUTH_RATE_LIMITER binding.",
+      "R4/D6: the event append is not atomic with the state write.",
+      "R5: no WebSocket through client serve or the Node runtime.",
+      "R6: hand-written client instead of the graphql-ws npm package.",
+      "R7: no events for fetch-state acknowledgements, tag catalogue changes or cascade deletes.",
+      "The DO migration tag v1-mail-event-hub is permanent once deployed.",
+      "F3: spurious RESYNC for long-idle scoped clients (low).",
+      "hub.admit counts per-IP and global connections from the hub state map rather than getWebSockets tags.",
+      "Concurrent sibling plans (04a/04b, 09/10) may see transient test or typecheck failures in each other's files; each re-runs after the sibling reports done; plan 11's full gates are authoritative."
+    ],
+    "supportedEdgeCases": [
+      "Resume with after=cursor replays missed events in seq order then switches to LIVE without gaps or duplicates; client drops events whose cursor is older or the same.",
+      "Cursor older than retention or with a different epoch -> RESYNC_REQUIRED; web does a full refresh, API clients a fetchStatus sync.",
+      "Two subscriptions with identical query text and different variables stay independent (F1 regression).",
+      "Duplicate inbound delivery to a second managed address emits exactly one MESSAGE_RECEIVED; same address emits none; REJECTED ingest emits none.",
+      "deleteMessages mixed trash/purge emits UPDATED for trashed and DELETED for purged, with addresses captured before delete; deleteDraft captures addresses before delete.",
+      "Event append failure leaves the mutation result unchanged and skips notify.",
+      "4401 -> client stops and re-checks the session; 4403/4400/4409/4429/1009 -> fatal, no retry; other closes -> backoff with jitter capped at 30 s; LIVE resets backoff.",
+      "Cross-origin or malformed Origin -> 403; absent Origin ignores the cookie; limiter deny -> 429; missing subprotocol -> 400.",
+      "Unreadable or deleted message -> message null and addresses filtered to the viewer's readable subset.",
+      "Idle half-open sockets closed by the hub sweep (4000 idle, 4408 init timeout) driven by the DO alarm or the in-process timer."
+    ],
+    "outOfScopeEdgeCases": [
+      "Lost events from a failed append (accepted; clients converge on the next catch-up, API clients keep fetchStatus).",
+      "Scaling beyond one hub Durable Object.",
+      "WebSocket via flying-mail client serve or Node runtime (501).",
+      "Exact global rate-limit accuracy across Cloudflare locations.",
+      "Bun websocket idleTimeout value is confirmed by plan 10 against Bun docs; the hub sweep is authoritative.",
+      "The yoga HTTP/SSE subscription rejection code is recorded by plan 05's test."
+    ],
+    "residualRisks": [
+      "D6 append not atomic with the state write (user-QA R4).",
+      "Single hub Durable Object (R1).",
+      "DO migration tag v1-mail-event-hub is permanent once deployed.",
+      "F3 spurious RESYNC for long-idle scoped clients (low).",
+      "Plan 02's bun install must change only workspace entries in bun.lock; the worker stops and reports if it needs network or touches external versions.",
+      "Plans 06, 09 and 11 run mise run build-web or the Worker dry run, which regenerate gitignored apps/web/dist and apps/api/.wrangler; the accepted plans declare no artifactRoots for them, so none are recorded here.",
+      "realtime-push-11 owns the impl-plans/active directory for moving plan files to completed/; it must not edit, move or delete this dispatch manifest."
+    ],
+    "sourcePaths": [
+      "design-docs/specs/design-realtime-push.md",
+      "design-docs/user-qa/pending-realtime-push.md",
+      "design-docs/user-qa/README.md",
+      "design-docs/references/README.md",
+      "design-docs/specs/architecture.md",
+      "design-docs/specs/command.md",
+      "design-docs/specs/design-deployment.md",
+      "design-docs/specs/design-graphql-api.md",
+      "design-docs/specs/design-security-model.md",
+      "design-docs/specs/design-web-client.md",
+      "design-docs/specs/notes.md",
+      "impl-plans/PROGRESS.json",
+      "impl-plans/README.md",
+      "impl-plans/active/realtime-push-01-contracts-and-persistence.md",
+      "impl-plans/active/realtime-push-02-realtime-client.md",
+      "impl-plans/active/realtime-push-03-docs.md",
+      "impl-plans/active/realtime-push-04a-emission-ingest-send-drafts.md",
+      "impl-plans/active/realtime-push-04b-emission-message-mutations.md",
+      "impl-plans/active/realtime-push-05-graphql-surface-and-executor.md",
+      "impl-plans/active/realtime-push-06-web-live-updates.md",
+      "impl-plans/active/realtime-push-07-cli-watch.md",
+      "impl-plans/active/realtime-push-08-hub-core.md",
+      "impl-plans/active/realtime-push-09-worker-durable-object.md",
+      "impl-plans/active/realtime-push-10-bun-server.md",
+      "impl-plans/active/realtime-push-11-final-verification.md"
+    ]
+  },
+  "plans": [
+    {
+      "planId": "realtime-push-01-contracts-and-persistence",
+      "planPath": "impl-plans/active/realtime-push-01-contracts-and-persistence.md",
+      "dependsOn": [],
+      "writePaths": [
+        "packages/domain/src/entities/mail-event.ts",
+        "packages/domain/src/entities/mail-event.test.ts",
+        "packages/domain/src/value-objects/mail-event-cursor.ts",
+        "packages/domain/src/value-objects/mail-event-cursor.test.ts",
+        "packages/application/src/ports/mail-event-log.ts",
+        "packages/application/src/ports/mail-event-notifier.ts",
+        "packages/application/src/dependencies.ts",
+        "packages/application/src/usecases/mail-events.ts",
+        "packages/application/src/usecases/mail-events.test.ts",
+        "packages/application/src/usecases/auth.ts",
+        "packages/application/src/usecases/auth-token-hash.test.ts",
+        "packages/application/src/usecases.ts",
+        "packages/application/src/policies/authorization.ts",
+        "packages/application/src/policies/authorization-mail-read.test.ts",
+        "packages/application/src/test-support/fakes.ts",
+        "packages/application/src/test-support/mail-event-fakes.ts",
+        "apps/api/migrations/0016_mail_events.sql",
+        "packages/adapter/src/migrations/runner.test.ts",
+        "packages/adapter/src/repositories/mail-event-log-repository.ts",
+        "packages/adapter/src/repositories/mail-event-log-repository.test.ts",
+        "packages/adapter/src/realtime/mail-event-notifiers.ts",
+        "packages/adapter/src/realtime/mail-event-notifiers.test.ts",
+        "packages/adapter/package.json",
+        "packages/infrastructure/src/composition/config.ts",
+        "packages/infrastructure/src/composition/config.test.ts",
+        "packages/infrastructure/src/composition/build-dependencies.ts",
+        "impl-plans/active/realtime-push-01-contracts-and-persistence.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/adapter/src/migrations/runner.test.ts",
+          "intendedEdit": "Only the migration-name list gains 0016_mail_events."
+        },
+        {
+          "path": "packages/adapter/package.json",
+          "intendedEdit": "Add exactly one exports entry ./realtime/mail-event-notifiers; no dependency changes."
+        },
+        {
+          "path": "packages/application/src/usecases.ts",
+          "intendedEdit": "Wiring lines only for resolveViewerFromTokenHash."
+        },
+        {
+          "path": "impl-plans/active/realtime-push-01-contracts-and-persistence.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "MailEventType, NewMailEvent, MailEventRecord, MailEventScope, normalizeEventAddresses, formatMailEventCursor/parseMailEventCursor, MailEventLog, MailEventNotifier, AppDependencies.mailEventLog/mailEventNotifier, InstanceConfig.eventRetentionSeconds, recordMailEvents, collectMailEventAddresses, resolveViewerFromTokenHash, hasAnyMailRead, fakes, MAIL_EVENT_HUB_NAME, MAIL_EVENT_HUB_NOTIFY_URL, DurableObjectNamespaceLike and the notifiers exist exactly as pinned.",
+        "recordMailEvents notifies only after append resolves, never throws and logs no addresses, ids or subjects.",
+        "Migration 0016_mail_events.sql has no semicolons inside statements or comments, seeds a 16-hex epoch and applies after 0001-0015; pruning is bounded by pruned_through_seq.",
+        "resolveViewerFromToken behaviour is unchanged for HTTP; every workspace stays compile-clean.",
+        "All listed tests pass; verification commands pass with exit codes recorded in the plan Progress Log."
+      ],
+      "verification": [
+        "bunx vitest run packages/domain packages/application packages/adapter packages/infrastructure/src/composition",
+        "bun run --cwd packages/domain typecheck",
+        "bun run --cwd packages/application typecheck",
+        "bun run --cwd packages/adapter typecheck",
+        "bun run --cwd packages/infrastructure typecheck",
+        "bun run --cwd apps/api typecheck",
+        "bunx biome check packages/domain/src packages/application/src packages/adapter/src packages/infrastructure/src/composition apps/api/migrations",
+        "wc -l packages/application/src/usecases.ts packages/application/src/policies/authorization.ts packages/application/src/usecases/auth.ts"
+      ]
+    },
+    {
+      "planId": "realtime-push-02-realtime-client",
+      "planPath": "impl-plans/active/realtime-push-02-realtime-client.md",
+      "dependsOn": [],
+      "writePaths": [
+        "packages/realtime-client/package.json",
+        "packages/realtime-client/tsconfig.json",
+        "packages/realtime-client/src",
+        "apps/web/package.json",
+        "apps/cli/package.json",
+        "bun.lock",
+        "packages/realtime-client/node_modules",
+        "apps/web/node_modules/@flying-mail",
+        "apps/cli/node_modules/@flying-mail",
+        "node_modules",
+        "impl-plans/active/realtime-push-02-realtime-client.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "apps/web/package.json",
+          "intendedEdit": "Add only \"@flying-mail/realtime-client\": \"workspace:*\" under dependencies."
+        },
+        {
+          "path": "apps/cli/package.json",
+          "intendedEdit": "Add only \"@flying-mail/realtime-client\": \"workspace:*\" under dependencies."
+        },
+        {
+          "path": "bun.lock",
+          "intendedEdit": "Regenerated once by bun install at the repo root; workspace entries only; stop and report if any external version changes."
+        },
+        {
+          "path": "node_modules",
+          "intendedEdit": "Artifact root: bun install metadata only; never edited by hand."
+        },
+        {
+          "path": "impl-plans/active/realtime-push-02-realtime-client.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [
+        "packages/realtime-client/node_modules",
+        "apps/web/node_modules/@flying-mail",
+        "apps/cli/node_modules/@flying-mail",
+        "node_modules"
+      ],
+      "acceptanceCriteria": [
+        "@flying-mail/realtime-client exports ConnectionStatus, WebSocketLike, MailEventStreamOptions, MailEventStream, createMailEventStream, compareCursors and MAIL_EVENT_CLOSE_CODES exactly as pinned, with no dependencies and no other @flying-mail imports.",
+        "connectionParams is evaluated on every attempt; resubscribe uses the latest processed cursor; duplicates (older or same cursor) are dropped; RESYNC_REQUIRED clears the cursor and resubscribes without after on the same socket.",
+        "Ping frame is exactly {\"type\":\"ping\"} every 25 s with a 10 s pong timeout; 10 s ack timeout; 4401 stops with onAuthFailure; 4403/4400/4409/4429/1009 fatal; other closes back off with jitter capped at 30000 ms; LIVE resets the attempt counter.",
+        "apps/web and apps/cli link the workspace package; bun.lock has no external version changes.",
+        "All listed tests pass with fake timers and a scripted fake socket; every file is under 400 lines; verification evidence recorded."
+      ],
+      "verification": [
+        "bun install",
+        "git diff --stat bun.lock",
+        "bunx vitest run packages/realtime-client",
+        "bun run --cwd packages/realtime-client typecheck",
+        "bunx biome check packages/realtime-client",
+        "ls -la apps/web/node_modules/@flying-mail apps/cli/node_modules/@flying-mail"
+      ]
+    },
+    {
+      "planId": "realtime-push-03-docs",
+      "planPath": "impl-plans/active/realtime-push-03-docs.md",
+      "dependsOn": [],
+      "writePaths": [
+        "README.md",
+        ".agents/skills/flying-mail-deploy/SKILL.md",
+        "impl-plans/active/realtime-push-03-docs.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": ".agents/skills/flying-mail-deploy/SKILL.md",
+          "intendedEdit": "Add the MAIL_EVENT_HUB binding and v1-mail-event-hub migration, optional retention var, rollout order, WebSocket smoke check, pitfalls and dry-run gate inside existing sections; .codex/skills symlinks are not touched."
+        },
+        {
+          "path": "impl-plans/active/realtime-push-03-docs.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "README API section gains Subscriptions (real-time push): endpoint and auth, SDL, a graphql-ws client example with keepAlive and self-managed resubscribe, a flying-mail watch --json example, semantics, heartbeat, close-code and limits tables copied from design 6.6 and 6.7, and the client serve Offline note; CLI listing mentions flying-mail watch.",
+        "flying-mail-deploy skill documents the binding, permanent migration tag, retention var, rollout order, post-deploy WebSocket smoke check and pitfalls.",
+        "No non-ASCII characters, no emojis, no real-looking keys, no claim of a live deployment."
+      ],
+      "verification": [
+        "! sh -c \"git diff README.md .agents/skills/flying-mail-deploy/SKILL.md | LC_ALL=C grep -nP '^\\+.*[^\\x00-\\x7F]'\"",
+        "sh -c 'for t in graphql-transport-ws RESYNC_REQUIRED keepAlive \"flying-mail watch\"; do grep -q -F \"$t\" README.md || exit 1; done'",
+        "sh -c 'for t in MAIL_EVENT_HUB v1-mail-event-hub new_sqlite_classes LIVE; do grep -q -F \"$t\" .agents/skills/flying-mail-deploy/SKILL.md || exit 1; done'",
+        "! grep -nE 'ybm_[A-Za-z0-9]{8,}' README.md .agents/skills/flying-mail-deploy/SKILL.md"
+      ]
+    },
+    {
+      "planId": "realtime-push-04a-emission-ingest-send-drafts",
+      "planPath": "impl-plans/active/realtime-push-04a-emission-ingest-send-drafts.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence"
+      ],
+      "writePaths": [
+        "packages/application/src/usecases/ingest.ts",
+        "packages/application/src/usecases/send.ts",
+        "packages/application/src/usecases/drafts.ts",
+        "packages/application/src/usecases/delete-draft.ts",
+        "packages/application/src/usecases/mail-events-emission-mail.test.ts",
+        "impl-plans/active/realtime-push-04a-emission-ingest-send-drafts.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "impl-plans/active/realtime-push-04a-emission-ingest-send-drafts.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "Every emission-table row is implemented: MESSAGE_RECEIVED on STORED and on a new envelope recipient for a DUPLICATE, MESSAGE_SENT after send/sendDraft deliver (including persisted FAILED), MESSAGE_UPDATED after retrySend, DRAFT_SAVED on create and update, DRAFT_DELETED with addresses collected before delete.",
+        "No events for REJECTED ingest, same-address duplicates, failure paths that throw, or deleteDraft on a non-draft; sendTemplatedMessage does not emit twice.",
+        "Return values, thrown errors and write order are unchanged; failNextAppend leaves results unchanged with notify count 0.",
+        "ingest.ts, send.ts and drafts.ts stay under 1000 lines; verification evidence recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/application",
+        "bun run --cwd packages/application typecheck",
+        "bunx biome check packages/application/src/usecases",
+        "wc -l packages/application/src/usecases/ingest.ts packages/application/src/usecases/send.ts packages/application/src/usecases/drafts.ts"
+      ]
+    },
+    {
+      "planId": "realtime-push-04b-emission-message-mutations",
+      "planPath": "impl-plans/active/realtime-push-04b-emission-message-mutations.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence"
+      ],
+      "writePaths": [
+        "packages/application/src/usecases/messages.ts",
+        "packages/application/src/usecases/tagging.ts",
+        "packages/application/src/usecases/rules.ts",
+        "packages/application/src/usecases/mail-events-emission-mutations.test.ts",
+        "impl-plans/active/realtime-push-04b-emission-message-mutations.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "impl-plans/active/realtime-push-04b-emission-message-mutations.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "markRead, deleteMessages (trash path), tagMessages/untagMessages, markSpam/markNotSpam and applyClassificationRule emit MESSAGE_UPDATED; the purge path emits MESSAGE_DELETED with addresses collected before delete; a mixed batch gives exactly one correctly typed event per message.",
+        "One recordMailEvents call per use-case invocation or rule page; unauthorized ids produce no events; markMessagesFetched and tag catalogue changes emit nothing.",
+        "Return values, errors and write order are unchanged; failNextAppend leaves results unchanged with notify count 0.",
+        "messages.ts, tagging.ts and rules.ts stay under 1000 lines; verification evidence recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/application",
+        "bun run --cwd packages/application typecheck",
+        "bunx biome check packages/application/src/usecases",
+        "wc -l packages/application/src/usecases/messages.ts packages/application/src/usecases/tagging.ts packages/application/src/usecases/rules.ts"
+      ]
+    },
+    {
+      "planId": "realtime-push-05-graphql-surface-and-executor",
+      "planPath": "impl-plans/active/realtime-push-05-graphql-surface-and-executor.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence"
+      ],
+      "writePaths": [
+        "packages/infrastructure/src/graphql/schema-realtime.graphql.ts",
+        "packages/infrastructure/src/graphql/resolvers/realtime.ts",
+        "packages/infrastructure/src/graphql/schema.ts",
+        "packages/infrastructure/src/graphql/schema-realtime.test.ts",
+        "packages/infrastructure/src/realtime/mail-event-payload.ts",
+        "packages/infrastructure/src/realtime/executor.ts",
+        "packages/infrastructure/src/realtime/executor.test.ts",
+        "packages/infrastructure/package.json",
+        "packages/infrastructure/src/http/security-headers.ts",
+        "packages/infrastructure/src/http/security-headers.test.ts",
+        "apps/web/public/_headers",
+        "impl-plans/active/realtime-push-05-graphql-surface-and-executor.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/package.json",
+          "intendedEdit": "Add only the exports entry ./realtime/* -> ./src/realtime/*.ts."
+        },
+        {
+          "path": "apps/web/public/_headers",
+          "intendedEdit": "Add only connect-src 'self' to the Content-Security-Policy line, identical to HTML_CSP."
+        },
+        {
+          "path": "impl-plans/active/realtime-push-05-graphql-surface-and-executor.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "SDL matches design 5.1 (MailEventType with LIVE, MailEventScope, MailEvent, Subscription.mailEvents(scope, after)) in the new schema-realtime file; schema.graphql.ts is not edited; HTTP/SSE subscribe returns an error and never hangs.",
+        "MailEventPayload, SubscribeRequest, PreparedSubscription, PrepareResult, SubscriptionExecutor and createSubscriptionExecutor are exported exactly as pinned; validated args are never cached by query text (F1 regression test passes).",
+        "MailEvent.addresses is filtered per viewer by MAIL_READ; message is null for LIVE, deleted or unreadable messages.",
+        "Both CSP strings contain connect-src 'self' exactly once and no ws: or wss: source.",
+        "All listed tests pass; verification evidence recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/graphql packages/infrastructure/src/realtime packages/infrastructure/src/http",
+        "bun run --cwd packages/infrastructure typecheck",
+        "bunx biome check packages/infrastructure/src",
+        "grep -c \"connect-src 'self'\" packages/infrastructure/src/http/security-headers.ts apps/web/public/_headers"
+      ]
+    },
+    {
+      "planId": "realtime-push-06-web-live-updates",
+      "planPath": "impl-plans/active/realtime-push-06-web-live-updates.md",
+      "dependsOn": [
+        "realtime-push-02-realtime-client"
+      ],
+      "writePaths": [
+        "apps/web/src/api/realtime-documents.ts",
+        "apps/web/src/store/app-store-live.ts",
+        "apps/web/src/store/app-store-live.test.ts",
+        "apps/web/src/store/app-store.ts",
+        "apps/web/src/components/connection-indicator.tsx",
+        "apps/web/src/components/connection-indicator.css",
+        "apps/web/src/components/connection-indicator.test.tsx",
+        "apps/web/src/components/mailbox-sidebar.tsx",
+        "apps/web/src/app.tsx",
+        "apps/web/vite.config.ts",
+        "impl-plans/active/realtime-push-06-web-live-updates.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "apps/web/src/store/app-store.ts",
+          "intendedEdit": "Add patchMessage, removeMessage, refreshVisible and an exposed reloadTags (about 80 lines at most); reuse fetchPage request building."
+        },
+        {
+          "path": "apps/web/vite.config.ts",
+          "intendedEdit": "Only the /graphql proxy gains ws: true."
+        },
+        {
+          "path": "impl-plans/active/realtime-push-06-web-live-updates.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "createLiveUpdates subscribes unscoped with cookie auth to ws(s)://host/graphql, patches or removes rows by event type, debounces refreshVisible at 750 ms, runs refreshVisible and reloadTags on every LIVE, handles 4401 via rehydrateSession, and goes offline without throwing when WebSocket is missing.",
+        "refreshVisible keeps rows loaded beyond the first page and the selection of ids still present.",
+        "Connection indicator renders Live, Reconnecting... and Offline in the MailboxSidebar header.",
+        "apps/web/public/_headers, apps/web/package.json and api/documents.ts are not edited; app-store.ts and mailbox-sidebar.tsx stay under 1000 lines.",
+        "274 baseline web tests plus the new ones pass; build-web succeeds; verification evidence recorded."
+      ],
+      "verification": [
+        "bun run --cwd apps/web test",
+        "bun run --cwd apps/web typecheck",
+        "bunx biome check apps/web/src apps/web/vite.config.ts",
+        "mise run build-web",
+        "wc -l apps/web/src/store/app-store.ts apps/web/src/components/mailbox-sidebar.tsx"
+      ]
+    },
+    {
+      "planId": "realtime-push-07-cli-watch",
+      "planPath": "impl-plans/active/realtime-push-07-cli-watch.md",
+      "dependsOn": [
+        "realtime-push-02-realtime-client"
+      ],
+      "writePaths": [
+        "apps/cli/src/commands/watch.ts",
+        "apps/cli/src/watch-cursors.ts",
+        "apps/cli/src/watch.test.ts",
+        "apps/cli/src/main.ts",
+        "impl-plans/active/realtime-push-07-cli-watch.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "apps/cli/src/main.ts",
+          "intendedEdit": "Route watch before COMMAND_GROUPS like client serve and add the HELP lines only."
+        },
+        {
+          "path": "impl-plans/active/realtime-push-07-cli-watch.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "flying-mail watch [--domain] [--address] [--json] builds wss/ws://host/graphql, sends the API key only in connection_init, and resolves --domain by name (unknown -> exit 5).",
+        "Cursor file watch-cursors.json next to the config file, keyed by endpoint|keyPrefix|domain|address without the secret part, atomic writes with mode 0600, flushed at most once per second and on exit; resync deletes the entry and --json prints {\"type\":\"RESYNC_REQUIRED\"}.",
+        "Exit codes: SIGINT/SIGTERM 0, auth failure 3, fatal 4403 4, other fatal 1, missing API key 2; network errors reconnect forever.",
+        "stdout and stderr never contain the key secret; apps/cli/package.json and commands/index.ts untouched; files under 1000 lines; verification evidence recorded."
+      ],
+      "verification": [
+        "bunx vitest run apps/cli",
+        "bun run --cwd apps/cli typecheck",
+        "bunx biome check apps/cli/src",
+        "wc -l apps/cli/src/main.ts apps/cli/src/commands/watch.ts"
+      ]
+    },
+    {
+      "planId": "realtime-push-08-hub-core",
+      "planPath": "impl-plans/active/realtime-push-08-hub-core.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence",
+        "realtime-push-05-graphql-surface-and-executor"
+      ],
+      "writePaths": [
+        "packages/infrastructure/src/realtime/protocol.ts",
+        "packages/infrastructure/src/realtime/protocol.test.ts",
+        "packages/infrastructure/src/realtime/host.ts",
+        "packages/infrastructure/src/realtime/hub.ts",
+        "packages/infrastructure/src/realtime/drain.ts",
+        "packages/infrastructure/src/realtime/hub.test.ts",
+        "packages/infrastructure/src/realtime/drain.test.ts",
+        "packages/infrastructure/src/realtime/upgrade.ts",
+        "packages/infrastructure/src/realtime/upgrade.test.ts",
+        "packages/infrastructure/src/realtime/in-process-host.ts",
+        "packages/infrastructure/src/realtime/hub-test-support.ts",
+        "impl-plans/active/realtime-push-08-hub-core.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "impl-plans/active/realtime-push-08-hub-core.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "RealtimeHost, HubConnection, UpgradeInfo, SubscriptionState, ConnectionState, RealtimeHub, AdmitResult, createRealtimeHub, isRealtimeUpgradeRequest, checkRealtimeUpgrade, SUBPROTOCOL, createInProcessHost (with attach, detach and setWakeHandler) and createLateBoundMailEventNotifier are exported exactly as pinned, with no Cloudflare or Bun types.",
+        "State machine, single drain loop, sweep/wake, limits, close codes and per-pass principal re-resolution with per-event authorization follow design 6.1-6.7 and 7.1-7.5; stored address strings go through createEmailAddress/createDomainId with no casts.",
+        "In-process scheduleWake keeps one armed timer, null only clears, and timer-driven tests produce 4408 and 4000 closes without calling wake() by hand.",
+        "Upgrade checks: missing subprotocol 400, cross-origin or malformed Origin 403, limiter deny 429, cookie hashed only with matching Origin.",
+        "Every listed test passes; every file under packages/infrastructure/src/realtime is under 400 lines; verification evidence recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/realtime",
+        "bun run --cwd packages/infrastructure typecheck",
+        "bunx biome check packages/infrastructure/src/realtime",
+        "wc -l packages/infrastructure/src/realtime/protocol.ts packages/infrastructure/src/realtime/protocol.test.ts packages/infrastructure/src/realtime/host.ts packages/infrastructure/src/realtime/hub.ts packages/infrastructure/src/realtime/drain.ts packages/infrastructure/src/realtime/hub.test.ts packages/infrastructure/src/realtime/drain.test.ts packages/infrastructure/src/realtime/upgrade.ts packages/infrastructure/src/realtime/upgrade.test.ts packages/infrastructure/src/realtime/in-process-host.ts packages/infrastructure/src/realtime/hub-test-support.ts packages/infrastructure/src/realtime/executor.ts packages/infrastructure/src/realtime/executor.test.ts packages/infrastructure/src/realtime/mail-event-payload.ts"
+      ]
+    },
+    {
+      "planId": "realtime-push-09-worker-durable-object",
+      "planPath": "impl-plans/active/realtime-push-09-worker-durable-object.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence",
+        "realtime-push-05-graphql-surface-and-executor",
+        "realtime-push-08-hub-core"
+      ],
+      "writePaths": [
+        "apps/api/src/durable-object-types.ts",
+        "apps/api/src/mail-event-hub.ts",
+        "apps/api/src/mail-event-hub.test.ts",
+        "apps/api/src/worker-config.ts",
+        "apps/api/src/worker.ts",
+        "apps/api/src/worker.test.ts",
+        "apps/api/src/env.ts",
+        "apps/api/wrangler.toml",
+        "impl-plans/active/realtime-push-09-worker-durable-object.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "apps/api/src/worker-config.ts",
+          "intendedEdit": "New file; buildWorkerConfig moves here from worker.ts and accepts an optional mailEventNotifier."
+        },
+        {
+          "path": "apps/api/wrangler.toml",
+          "intendedEdit": "Add the MAIL_EVENT_HUB durable_objects binding (class MailEventHub), [[migrations]] tag v1-mail-event-hub with new_sqlite_classes and the optional retention var comment; keep every other binding and var; no secret values."
+        },
+        {
+          "path": "impl-plans/active/realtime-push-09-worker-durable-object.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "The Worker routes upgrade requests through checkRealtimeUpgrade and forwards to the hub via stub.fetch('https://mail-event-hub.internal/connect', { method: 'GET', headers }) carrying only the four allowed headers.",
+        "MailEventHub uses WebSocket Hibernation, the ping auto-response and alarm() -> hub.wake(); HubRuntime injects createAutoResponsePair, createSocketPair and createUpgradeResponse, with the 101 Response built only in the default createUpgradeResponse and tests always injecting a fake.",
+        "buildWorkerNotifier(env) is called once in getOrBuildWorker and passed via buildWorkerConfig(env, { mailEventNotifier }); BuiltWorker.notifier is the same object; writers register ctx.waitUntil(settle()); without the binding no notifier is built.",
+        "wrangler.toml contains MAIL_EVENT_HUB, MailEventHub and v1-mail-event-hub; the dry-run bundle succeeds and lists the Durable Object binding.",
+        "All listed tests pass; verification evidence and the dry-run log path recorded."
+      ],
+      "verification": [
+        "bunx vitest run apps/api",
+        "bun run --cwd apps/api typecheck",
+        "bunx biome check apps/api/src",
+        "bun run --cwd apps/api cf:deploy -- --dry-run --outdir /tmp/flying-mail-dryrun",
+        "sh -c 'for t in v1-mail-event-hub MailEventHub MAIL_EVENT_HUB; do grep -q -F \"$t\" apps/api/wrangler.toml || exit 1; done'"
+      ]
+    },
+    {
+      "planId": "realtime-push-10-bun-server",
+      "planPath": "impl-plans/active/realtime-push-10-bun-server.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence",
+        "realtime-push-05-graphql-surface-and-executor",
+        "realtime-push-08-hub-core"
+      ],
+      "writePaths": [
+        "apps/api/src/server.ts",
+        "apps/api/src/realtime-bun.ts",
+        "apps/api/src/realtime-bun.test.ts",
+        "apps/api/src/server.test.ts",
+        "impl-plans/active/realtime-push-10-bun-server.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "impl-plans/active/realtime-push-10-bun-server.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "createLocalApp builds the in-process host, the late-bound notifier and the hub, and wires host.setWakeHandler(() => hub.wake()).",
+        "createBunFetchHandler({ app, handlers }) branches explicitly with no ?? or || fallback: an upgrade request returns await handlers.upgrade(...) and never calls app.fetch; other requests go to app.fetch with clientIp.",
+        "Tests: upgrade() true -> undefined with 0 app.fetch calls; upgrade() false -> 400; POST -> app.fetch once; a timer-driven 4408 close through createLocalApp (or wireRealtime); the Node fetch wrapper returns 501 for upgrades.",
+        "worker.ts, env.ts, wrangler.toml, mail-event-hub.ts and packages/* are untouched; server.ts and realtime-bun.ts under 1000 lines; verification evidence recorded."
+      ],
+      "verification": [
+        "bunx vitest run apps/api",
+        "bun run --cwd apps/api typecheck",
+        "bunx biome check apps/api/src",
+        "wc -l apps/api/src/server.ts apps/api/src/realtime-bun.ts"
+      ]
+    },
+    {
+      "planId": "realtime-push-11-final-verification",
+      "planPath": "impl-plans/active/realtime-push-11-final-verification.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence",
+        "realtime-push-02-realtime-client",
+        "realtime-push-03-docs",
+        "realtime-push-04a-emission-ingest-send-drafts",
+        "realtime-push-04b-emission-message-mutations",
+        "realtime-push-05-graphql-surface-and-executor",
+        "realtime-push-06-web-live-updates",
+        "realtime-push-07-cli-watch",
+        "realtime-push-08-hub-core",
+        "realtime-push-09-worker-durable-object",
+        "realtime-push-10-bun-server"
+      ],
+      "writePaths": [
+        "impl-plans/PROGRESS.json",
+        "impl-plans/README.md",
+        "impl-plans/active",
+        "impl-plans/completed",
+        "design-docs/specs/design-realtime-push.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "impl-plans/active",
+          "intendedEdit": "Only after every gate passes: move the twelve realtime-push plan files to impl-plans/completed with a plain filesystem move. Never edit, move or delete impl-plans/active/realtime-push-s306-dispatch.json."
+        },
+        {
+          "path": "impl-plans/completed",
+          "intendedEdit": "Receives the twelve moved realtime-push plan files only; existing completed files are untouched."
+        },
+        {
+          "path": "impl-plans/PROGRESS.json",
+          "intendedEdit": "Serial reconciliation: set the realtime-push plans and phases 22-26 to Completed, update planPath values and lastUpdated; keep valid JSON."
+        },
+        {
+          "path": "impl-plans/README.md",
+          "intendedEdit": "Serial reconciliation: point the realtime-push table links to completed/."
+        },
+        {
+          "path": "design-docs/specs/design-realtime-push.md",
+          "intendedEdit": "Only if implementation revealed a factual mismatch; record it in the progress log. Design decisions are not changed."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "bun install --frozen-lockfile, mise run lint, bun run test (package count at least 1830 plus new tests, web count at least 274 plus new tests, exact counts recorded), mise run build-web and the Worker dry run exit 0 with logs at /tmp/realtime-push-final-<step>.log; the dry-run log shows MAIL_EVENT_HUB.",
+        "No TypeScript file at 1000 lines or more; hub files under packages/infrastructure/src/realtime under 400 lines.",
+        "Both CSP sources contain connect-src 'self' and no ws: or wss: source; no credential placed in a URL by the realtime client, CLI watch or web live store.",
+        "Every design section 13 verification item has a matching test file.",
+        "Source files, bun.lock and git state are read-only for this plan; on any failure the owning plan, command, exit code and log path are reported as a repair request before reconciliation; on success PROGRESS.json and README.md are reconciled and plan files moved to completed/."
+      ],
+      "verification": [
+        "git status --short",
+        "sh -c 'bun install --frozen-lockfile > /tmp/realtime-push-final-install.log 2>&1'",
+        "sh -c 'mise run lint > /tmp/realtime-push-final-lint.log 2>&1'",
+        "sh -c 'bun run test > /tmp/realtime-push-final-test.log 2>&1'",
+        "sh -c 'mise run build-web > /tmp/realtime-push-final-build-web.log 2>&1'",
+        "sh -c 'bun run --cwd apps/api cf:deploy -- --dry-run --outdir /tmp/flying-mail-dryrun > /tmp/realtime-push-final-dryrun.log 2>&1'",
+        "grep -q MAIL_EVENT_HUB /tmp/realtime-push-final-dryrun.log",
+        "sh -c 'git ls-files -m -o --exclude-standard -- \"*.ts\" \"*.tsx\" | xargs wc -l | awk \"\\$2 != \\\"total\\\" && \\$1 >= 1000 { print; bad = 1 } END { exit bad }\"'",
+        "sh -c 'wc -l packages/infrastructure/src/realtime/*.ts | awk \"\\$2 != \\\"total\\\" && \\$1 >= 400 { print; bad = 1 } END { exit bad }\"'",
+        "sh -c \"grep -q \\\"connect-src 'self'\\\" packages/infrastructure/src/http/security-headers.ts && grep -q \\\"connect-src 'self'\\\" apps/web/public/_headers\"",
+        "! grep -nE 'wss?:' apps/web/public/_headers",
+        "! grep -rn 'access_token\\|apiKey=' packages/realtime-client/src apps/cli/src/commands/watch.ts apps/web/src/store/app-store-live.ts",
+        "bun -e \"JSON.parse(require('fs').readFileSync('impl-plans/PROGRESS.json','utf8'))\""
+      ]
+    }
+  ]
+}

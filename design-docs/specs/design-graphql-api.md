@@ -628,6 +628,27 @@ deleteMailTemplate(id: ID!): Boolean!
 sendTemplatedMessage(input: SendTemplatedMessageInput!): Message!
 ```
 
+### Subscriptions (2026-10-08)
+
+```graphql
+mailEvents(scope: MailEventScope, after: String): MailEvent!
+```
+
+- **Transport.** Served only over WebSocket with the `graphql-transport-ws`
+  subprotocol at `/graphql`. A subscription sent over HTTP or SSE returns
+  `BAD_USER_INPUT`.
+- **Authentication.**
+  - Session cookie: only when the upgrade carries a matching `Origin`.
+  - API key: `connection_init` payload `{ "authorization": "Bearer ybm_..." }`.
+  - Never in the URL.
+- **Error codes.** `RESYNC_REQUIRED` is new: the `after` cursor is outside
+  retention, so do a full refresh or `fetchStatus` sync and subscribe
+  without `after`. `RATE_LIMITED` additionally covers too many
+  subscriptions on one connection.
+- **Schema and protocol details.** `design-realtime-push.md` sections 5 and
+  6 have the event types (including the `LIVE` control event), scope and
+  field semantics, close codes and limits.
+
 ## REST attachment and file routes
 
 | Route | Authentication and request | Response |

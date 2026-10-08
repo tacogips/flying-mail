@@ -63,6 +63,21 @@
     },
     "21": {
       "status": "COMPLETED"
+    },
+    "22": {
+      "status": "READY"
+    },
+    "23": {
+      "status": "READY"
+    },
+    "24": {
+      "status": "READY"
+    },
+    "25": {
+      "status": "READY"
+    },
+    "26": {
+      "status": "READY"
     }
   },
   "plans": {
@@ -1326,6 +1341,220 @@
             "auth-hardening-02-web-client:TASK-001",
             "auth-hardening-03-cli-bootstrap:TASK-001",
             "auth-hardening-04-docs:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-01-contracts-and-persistence": {
+      "phase": 22,
+      "status": "Ready",
+      "planPath": "impl-plans/active/realtime-push-01-contracts-and-persistence.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Ready",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "realtime-push-02-realtime-client": {
+      "phase": 22,
+      "status": "Ready",
+      "planPath": "impl-plans/active/realtime-push-02-realtime-client.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Ready",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "realtime-push-03-docs": {
+      "phase": 22,
+      "status": "Ready",
+      "planPath": "impl-plans/active/realtime-push-03-docs.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Ready",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "realtime-push-04a-emission-ingest-send-drafts": {
+      "phase": 23,
+      "status": "Ready",
+      "planPath": "impl-plans/active/realtime-push-04a-emission-ingest-send-drafts.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Ready",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-01-contracts-and-persistence:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-04b-emission-message-mutations": {
+      "phase": 23,
+      "status": "Ready",
+      "planPath": "impl-plans/active/realtime-push-04b-emission-message-mutations.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Ready",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-01-contracts-and-persistence:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-05-graphql-surface-and-executor": {
+      "phase": 23,
+      "status": "Ready",
+      "planPath": "impl-plans/active/realtime-push-05-graphql-surface-and-executor.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Ready",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-01-contracts-and-persistence:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-06-web-live-updates": {
+      "phase": 23,
+      "status": "Ready",
+      "planPath": "impl-plans/active/realtime-push-06-web-live-updates.md",
+      "dependsOn": [
+        "realtime-push-02-realtime-client"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Ready",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-02-realtime-client:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-07-cli-watch": {
+      "phase": 23,
+      "status": "Ready",
+      "planPath": "impl-plans/active/realtime-push-07-cli-watch.md",
+      "dependsOn": [
+        "realtime-push-02-realtime-client"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Ready",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-02-realtime-client:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-08-hub-core": {
+      "phase": 24,
+      "status": "Ready",
+      "planPath": "impl-plans/active/realtime-push-08-hub-core.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence",
+        "realtime-push-05-graphql-surface-and-executor"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Ready",
+          "parallelizable": false,
+          "deps": [
+            "realtime-push-01-contracts-and-persistence:TASK-001",
+            "realtime-push-05-graphql-surface-and-executor:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-09-worker-durable-object": {
+      "phase": 25,
+      "status": "Ready",
+      "planPath": "impl-plans/active/realtime-push-09-worker-durable-object.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence",
+        "realtime-push-05-graphql-surface-and-executor",
+        "realtime-push-08-hub-core"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Ready",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-08-hub-core:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-10-bun-server": {
+      "phase": 25,
+      "status": "Ready",
+      "planPath": "impl-plans/active/realtime-push-10-bun-server.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence",
+        "realtime-push-05-graphql-surface-and-executor",
+        "realtime-push-08-hub-core"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Ready",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-08-hub-core:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-11-final-verification": {
+      "phase": 26,
+      "status": "Ready",
+      "planPath": "impl-plans/active/realtime-push-11-final-verification.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence",
+        "realtime-push-02-realtime-client",
+        "realtime-push-03-docs",
+        "realtime-push-04a-emission-ingest-send-drafts",
+        "realtime-push-04b-emission-message-mutations",
+        "realtime-push-05-graphql-surface-and-executor",
+        "realtime-push-06-web-live-updates",
+        "realtime-push-07-cli-watch",
+        "realtime-push-08-hub-core",
+        "realtime-push-09-worker-durable-object",
+        "realtime-push-10-bun-server"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Ready",
+          "parallelizable": false,
+          "deps": [
+            "realtime-push-03-docs:TASK-001",
+            "realtime-push-04a-emission-ingest-send-drafts:TASK-001",
+            "realtime-push-04b-emission-message-mutations:TASK-001",
+            "realtime-push-06-web-live-updates:TASK-001",
+            "realtime-push-07-cli-watch:TASK-001",
+            "realtime-push-09-worker-durable-object:TASK-001",
+            "realtime-push-10-bun-server:TASK-001"
           ]
         }
       }

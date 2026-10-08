@@ -81,6 +81,18 @@ FLYING_MAIL_TURNSTILE_SITE_KEY = ""   # public site key; fill before putting the
 | `FLYING_MAIL_S3_*` | if `s3` | - | `ENDPOINT`, `BUCKET`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `REGION`. |
 | `FLYING_MAIL_SQLITE_URL` | local only | `file:./data/mailcal.db` | libsql location for the Bun/Node server. A bare filesystem path is accepted and promoted to a `file:` URL. |
 
+Real-time push (2026-10-08, `design-realtime-push.md` section 9):
+
+| Variable / binding | Required | Default | Purpose |
+|--------------------|----------|---------|---------|
+| `MAIL_EVENT_HUB` | binding | - | Durable Object namespace for class `MailEventHub`. It is declared with `[[durable_objects.bindings]]` and the `[[migrations]]` tag `v1-mail-event-hub` (`new_sqlite_classes`). When it is absent, WebSocket upgrades return 503 and writers skip the notify. |
+| `FLYING_MAIL_EVENT_RETENTION_SECONDS` | no | `604800` | Mail event log retention, an integer in `[3600, 2592000]`. Any other value falls back to the default. |
+
+Migration `0016_mail_events.sql` must be applied before the Worker that
+writes events is deployed; `mise run cf-deploy` already applies migrations
+first. The Durable Object class migration is applied by `wrangler deploy`
+and cannot be cleanly undone, so do not remove the binding in a rollback.
+
 There is no self-signup setting. `FLYING_MAIL_SIGNUP` was removed on
 2026-10-07, and users exist only through `bootstrapAdmin` (once) or an
 admin's `createUser` invitation. See `design-security-model.md`.
