@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-10-08T08:00:00Z",
+  "lastUpdated": "2026-10-08T12:00:00Z",
   "phases": {
     "1": {
       "status": "COMPLETED"
@@ -87,6 +87,18 @@
     },
     "29": {
       "status": "COMPLETED"
+    },
+    "30": {
+      "status": "READY"
+    },
+    "31": {
+      "status": "BLOCKED"
+    },
+    "32": {
+      "status": "BLOCKED"
+    },
+    "33": {
+      "status": "BLOCKED"
     }
   },
   "plans": {
@@ -1690,6 +1702,124 @@
             "user-admin-07-authorization:TASK-001"
           ]
         }
+      }
+    },
+    "mcp-server-01-application-usecases": {
+      "phase": 30,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-01-application-usecases.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": [] },
+        "TASK-002": { "status": "Not Started", "parallelizable": true, "deps": [] },
+        "TASK-003": { "status": "Not Started", "parallelizable": true, "deps": [] },
+        "TASK-004": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-01-application-usecases:TASK-001", "mcp-server-01-application-usecases:TASK-002", "mcp-server-01-application-usecases:TASK-003"] },
+        "TASK-005": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-01-application-usecases:TASK-004"] }
+      }
+    },
+    "mcp-server-02-content-shaping": {
+      "phase": 30,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-02-content-shaping.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": [] },
+        "TASK-002": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-02-content-shaping:TASK-001"] },
+        "TASK-003": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-02-content-shaping:TASK-002"] },
+        "TASK-004": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-02-content-shaping:TASK-002", "mcp-server-02-content-shaping:TASK-003"] }
+      }
+    },
+    "mcp-server-03-protocol-core": {
+      "phase": 30,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-03-protocol-core.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": [] }
+      }
+    },
+    "mcp-server-04-docs": {
+      "phase": 30,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-04-docs.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": [] },
+        "TASK-002": { "status": "Not Started", "parallelizable": true, "deps": [] }
+      }
+    },
+    "mcp-server-05-read-tools": {
+      "phase": 31,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-05-read-tools.md",
+      "dependsOn": ["mcp-server-02-content-shaping", "mcp-server-03-protocol-core"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["mcp-server-02-content-shaping:TASK-004", "mcp-server-03-protocol-core:TASK-001"] }
+      }
+    },
+    "mcp-server-06-compose-tools": {
+      "phase": 31,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-06-compose-tools.md",
+      "dependsOn": ["mcp-server-02-content-shaping", "mcp-server-03-protocol-core"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["mcp-server-02-content-shaping:TASK-004", "mcp-server-03-protocol-core:TASK-001"] }
+      }
+    },
+    "mcp-server-07-attachment-tools": {
+      "phase": 31,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-07-attachment-tools.md",
+      "dependsOn": ["mcp-server-01-application-usecases", "mcp-server-02-content-shaping", "mcp-server-03-protocol-core"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["mcp-server-01-application-usecases:TASK-005", "mcp-server-02-content-shaping:TASK-004", "mcp-server-03-protocol-core:TASK-001"] }
+      }
+    },
+    "mcp-server-08-manage-tools": {
+      "phase": 31,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-08-manage-tools.md",
+      "dependsOn": ["mcp-server-01-application-usecases", "mcp-server-03-protocol-core"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["mcp-server-01-application-usecases:TASK-005", "mcp-server-03-protocol-core:TASK-001"] }
+      }
+    },
+    "mcp-server-09-user-admin-tools": {
+      "phase": 31,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-09-user-admin-tools.md",
+      "dependsOn": ["mcp-server-03-protocol-core"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["mcp-server-03-protocol-core:TASK-001"] }
+      }
+    },
+    "mcp-server-10-transport-wiring": {
+      "phase": 31,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-10-transport-wiring.md",
+      "dependsOn": ["mcp-server-01-application-usecases", "mcp-server-02-content-shaping", "mcp-server-03-protocol-core"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["mcp-server-01-application-usecases:TASK-005", "mcp-server-02-content-shaping:TASK-001", "mcp-server-03-protocol-core:TASK-001"] },
+        "TASK-002": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-10-transport-wiring:TASK-001"] },
+        "TASK-003": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-10-transport-wiring:TASK-002"] }
+      }
+    },
+    "mcp-server-11-catalogue-integration": {
+      "phase": 32,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-11-catalogue-integration.md",
+      "dependsOn": ["mcp-server-05-read-tools", "mcp-server-06-compose-tools", "mcp-server-07-attachment-tools", "mcp-server-08-manage-tools", "mcp-server-09-user-admin-tools", "mcp-server-10-transport-wiring"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-05-read-tools:TASK-001", "mcp-server-06-compose-tools:TASK-001", "mcp-server-07-attachment-tools:TASK-001", "mcp-server-08-manage-tools:TASK-001", "mcp-server-09-user-admin-tools:TASK-001", "mcp-server-10-transport-wiring:TASK-003"] }
+      }
+    },
+    "mcp-server-12-final-verification": {
+      "phase": 33,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-12-final-verification.md",
+      "dependsOn": ["mcp-server-01-application-usecases", "mcp-server-02-content-shaping", "mcp-server-03-protocol-core", "mcp-server-04-docs", "mcp-server-05-read-tools", "mcp-server-06-compose-tools", "mcp-server-07-attachment-tools", "mcp-server-08-manage-tools", "mcp-server-09-user-admin-tools", "mcp-server-10-transport-wiring", "mcp-server-11-catalogue-integration"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-04-docs:TASK-002", "mcp-server-11-catalogue-integration:TASK-001"] }
       }
     }
   }

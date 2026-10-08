@@ -23,6 +23,11 @@ This directory contains reference materials for system design and implementation
 | SolidJS | https://www.solidjs.com/docs | Web mail client framework |
 | Solid Router | https://docs.solidjs.com/solid-router | Routing for the mail client |
 | DOMPurify | https://github.com/cure53/DOMPurify | HTML mail sanitization |
+| MCP versioning | https://modelcontextprotocol.io/specification/versioning | Current revision 2026-07-28; modern vs legacy eras; `-32022` negotiation |
+| MCP Streamable HTTP (2026-07-28) | https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http | POST-only endpoint, Origin 403, `MCP-Protocol-Version`/`Mcp-Method`/`Mcp-Name` headers, `-32020`, legacy GET/DELETE 405 |
+| MCP 2026-07-28 changelog | https://modelcontextprotocol.io/specification/2026-07-28/changelog | Removal of `initialize`, `ping`, sessions; `server/discover`; `resultType`; `ttlMs`/`cacheScope` |
+| MCP Streamable HTTP (2025-11-25) | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports | Legacy `initialize` lifecycle and optional sessions served by the dual-era handler |
+| parse5 | https://github.com/inikulin/parse5 | WHATWG HTML parser used for MCP HTML-to-text and allowlist sanitizing |
 | RFC 5322 | https://www.rfc-editor.org/rfc/rfc5322 | Internet Message Format: headers, `Message-ID`, `In-Reply-To`, `References` |
 | RFC 5987 | https://www.rfc-editor.org/rfc/rfc5987 | `Content-Disposition` `filename*` encoding for downloads |
 | RFC 6350 | https://www.rfc-editor.org/rfc/rfc6350 | vCard 4.0 format (contacts model and codec) |

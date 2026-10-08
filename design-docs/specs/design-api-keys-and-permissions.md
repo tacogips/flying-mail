@@ -153,6 +153,13 @@ the key's other scopes are unaffected.
 The single policy module `packages/application/src/policies/authorization.ts`
 owns every check; use cases call it rather than inspecting `Viewer` directly.
 
+The MCP endpoint (`POST /mcp`, `design-mcp-server.md`) accepts only API keys,
+resolved by `resolveApiKeyViewerFromToken`, which never consults sessions.
+It passes the resulting `API_KEY` viewer to the same use cases, so a key's
+scopes govern MCP tool calls exactly as they govern GraphQL. MCP only hides
+tools whose capability the key holds in no scope at all
+(`viewerHoldsCapability`). That is a listing filter, not a grant.
+
 API-key scopes already support both requested granularities: a specific
 `domainId` with `addressPattern: "*"` grants a whole domain, while an exact
 address pattern grants one mailbox. These allow-only key scopes are separate

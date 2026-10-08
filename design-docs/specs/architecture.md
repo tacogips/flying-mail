@@ -123,6 +123,25 @@ See `design-graphql-api.md`.
 
 See `design-realtime-push.md`.
 
+## Remote MCP server (2026-10-08)
+
+`POST /mcp` serves the Model Context Protocol over Streamable HTTP on the
+same Worker and on the Bun/Node server.
+
+- **Protocol.** It is stateless and dual-era: the 2026-07-28 per-request
+  metadata form, and the legacy `initialize` form of 2025-03-26 through
+  2025-11-25.
+- **Auth.** Only `Authorization: Bearer <API key>` is accepted. Cookies are
+  never read, and a foreign `Origin` is rejected.
+- **Limits.** Requests are rate-limited per key and per IP through a
+  dedicated `MCP_RATE_LIMITER` binding, and bodies are size-capped.
+- **Tools.** About 27 snake_case tools call the existing use cases with the
+  API-key viewer, so scopes apply exactly as in GraphQL.
+- **Mail content.** It is returned only inside `untrusted_content` fields,
+  with HTML converted to text and bodies capped.
+
+See `design-mcp-server.md`.
+
 ## Per-consumer fetch state
 
 Every API key is a *consumer*. `message_fetch_states` records, per
@@ -203,3 +222,4 @@ See `design-deployment.md`.
 | `design-webmail-completion.md` | Compose/HTML editor, forward with attachments, drafts lifecycle, multi-recipient inbound, single-call outbound, unified inbox |
 | `design-realtime-push.md` | Mail event log and cursors, GraphQL subscriptions over graphql-transport-ws, Durable Object hibernation fan-out, live web updates, `flying-mail watch` |
 | `design-user-admin-capability.md` | `USER_ADMIN` API-key capability (creator-liveness guard, grant rules, migration 0017, web picker, `flying-mail user`), `MailEventScope.types` and `watch --type` |
+| `design-mcp-server.md` | Remote MCP server at `POST /mcp`: dual-era Streamable HTTP (2026-07-28 and 2025-03-26 through 2025-11-25), API-key-only auth, capability-scoped tool catalogue, untrusted-content shaping, audit |

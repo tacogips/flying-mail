@@ -340,3 +340,39 @@ The same worker rules as for webmail completion apply.
 - Plan 08 alone runs `mise run build-web` (artifact root `apps/web/dist`)
   and the Worker dry run (artifact root `apps/api/.wrangler`). It is also
   the only plan that updates statuses in `PROGRESS.json` and this table.
+
+## Remote MCP server (phases 30-33)
+
+Design reference: `design-docs/specs/design-mcp-server.md` (accepted
+2026-10-08). Open user confirmations, with defaults applied, are in
+`design-docs/user-qa/pending-mcp-server.md`. Plans live in
+`impl-plans/active/`; plan 12 moves them to `completed/`.
+
+| Wave / Phase | Plan | Depends on |
+|--------------|------|------------|
+| 1 / 30 | [mcp-server-01-application-usecases](active/mcp-server-01-application-usecases.md) | - |
+| 1 / 30 | [mcp-server-02-content-shaping](active/mcp-server-02-content-shaping.md) | - |
+| 1 / 30 | [mcp-server-03-protocol-core](active/mcp-server-03-protocol-core.md) | - |
+| 1 / 30 | [mcp-server-04-docs](active/mcp-server-04-docs.md) | - |
+| 2 / 31 | [mcp-server-05-read-tools](active/mcp-server-05-read-tools.md) | 02, 03 |
+| 2 / 31 | [mcp-server-06-compose-tools](active/mcp-server-06-compose-tools.md) | 02, 03 |
+| 2 / 31 | [mcp-server-07-attachment-tools](active/mcp-server-07-attachment-tools.md) | 01, 02, 03 |
+| 2 / 31 | [mcp-server-08-manage-tools](active/mcp-server-08-manage-tools.md) | 01, 03 |
+| 2 / 31 | [mcp-server-09-user-admin-tools](active/mcp-server-09-user-admin-tools.md) | 03 |
+| 2 / 31 | [mcp-server-10-transport-wiring](active/mcp-server-10-transport-wiring.md) | 01, 02, 03 |
+| 3 / 32 | [mcp-server-11-catalogue-integration](active/mcp-server-11-catalogue-integration.md) | 05-10 |
+| 4 / 33 | [mcp-server-12-final-verification](active/mcp-server-12-final-verification.md) | all of 01-11 (serial) |
+
+The same worker rules as for webmail completion apply.
+
+- Plan 02 alone edits `packages/infrastructure/package.json` and runs
+  `bun install`. Its artifact roots are `node_modules` and
+  `packages/infrastructure/node_modules`.
+- Plan 03 creates the five empty tool-group stubs in
+  `packages/infrastructure/src/mcp/tools/`. In wave 2, each stub is owned
+  by exactly one plan (05-09).
+- Plan 04 is documentation-only and declares explicit document checks.
+- Plan 11 is tests-only. Product defects go back to the owning plan.
+- Plan 12 alone runs `mise run build-web` (artifact root `apps/web/dist`)
+  and the Worker dry run (artifact root `apps/api/.wrangler`). It is the
+  only plan that updates statuses in `PROGRESS.json` and this table.

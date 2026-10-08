@@ -769,6 +769,42 @@ narrow API path. These rules keep a human in the loop:
 - **Fail closed.** `authorizesGlobal(viewer, USER_ADMIN)` is always
   `false`, so a future scope-only check cannot bypass the liveness guard.
 
+## 9c. MCP endpoint `POST /mcp` (2026-10-08)
+
+A new authenticated entry point, specified in `design-mcp-server.md`
+sections 3 to 7. In summary:
+
+- **Credential.** Only a Bearer API key is accepted, resolved by
+  `resolveApiKeyViewerFromToken`, which never reads sessions.
+  - The route is mounted before the global auth middleware, so the session
+    cookie is never read.
+  - Missing, malformed, unknown, revoked and expired keys all get the same
+    `401` with `WWW-Authenticate: Bearer`.
+- **Origin.** `isCrossOriginRequest` is reused. A foreign or malformed
+  `Origin` gets `403` (DNS rebinding and CSRF defence). An absent `Origin`
+  (non-browser clients) is allowed.
+- **Rate limits.** A dedicated `MCP_RATE_LIMITER` binding allows 120 per
+  60 s.
+  - The per-IP check runs before authentication and the per-key check after.
+  - Without the binding the Worker answers `503`, failing closed on
+    misconfiguration.
+  - A binding error still fails open, as in 6.1.
+- **Size.** The request body is capped at 7 MiB and read only after
+  authentication.
+- **Authorization.** Every tool goes through the existing use cases with the
+  `API_KEY` viewer. No tool can create users, send invitations, log in, or
+  touch keys, domains or templates. `USER_ADMIN` tools keep the 9b liveness
+  rule.
+- **Prompt injection.** Mail-derived strings are returned only inside
+  `untrusted_content` fields, alongside a fixed notice.
+  - HTML is converted to text with a spec parser (`parse5`), and sanitized
+    HTML is opt-in and allowlist-only.
+  - Bodies are capped with markers.
+  - Nothing referenced by a message is ever fetched.
+- **Audit.** One structured line per tool call, carrying key id and prefix,
+  tool, outcome, error code and duration, and no content or secrets.
+- **CSP.** Unchanged. `/mcp` serves JSON only.
+
 ## 10. Out of scope
 
 - WAF or zone rules, Turnstile widget creation, DNS, secrets and deploys.

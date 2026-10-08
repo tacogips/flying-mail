@@ -55,6 +55,13 @@ name = "AUTH_RATE_LIMITER"
 namespace_id = "1001"
 simple = { limit = 10, period = 60 }
 
+# Per-key and per-IP limit for POST /mcp (design-mcp-server.md 3.3). Without
+# it the Worker answers 503 on /mcp. No secret is involved.
+[[ratelimits]]
+name = "MCP_RATE_LIMITER"
+namespace_id = "1002"
+simple = { limit = 120, period = 60 }
+
 [vars]
 FLYING_MAIL_PUBLIC_ORIGIN = "https://mail.tacoserve.online"
 # FLYING_MAIL_MAIL_FROM = "postmaster@example.com"
