@@ -150,6 +150,11 @@ function assertGrantable(
     addressPattern: AddressPattern;
   },
 ): void {
+  if (scope.capability === Capability.UserAdmin && !isAdminViewer(viewer)) {
+    throw new ForbiddenError(
+      "USER_ADMIN can only be granted by a signed-in admin",
+    );
+  }
   if (viewer.kind === "USER") {
     if (isAdminViewer(viewer)) {
       return;
@@ -272,6 +277,14 @@ export function createAddApiKeyScopeUseCase(
         domainId: scopeInput.domainId,
         addressPattern,
       });
+      if (
+        scopeInput.capability === Capability.UserAdmin &&
+        (viewer.kind !== "USER" || key.createdByUserId !== viewer.userId)
+      ) {
+        throw new ForbiddenError(
+          "USER_ADMIN can only be added to a key you created",
+        );
+      }
       const scope = createApiKeyScope({
         id: createApiKeyScopeId(deps.random.uuid()),
         apiKeyId,

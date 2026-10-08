@@ -70,6 +70,22 @@ describe("global capabilities", () => {
     expect(authorizesGlobal(viewer, Capability.DomainAdmin)).toBe(false);
   });
 
+  test("USER_ADMIN is inert for both users and API keys", () => {
+    const admin = adminViewer();
+    const key = apiKeyViewer([{ capability: Capability.UserAdmin }]);
+
+    expect(authorizesGlobal(admin, Capability.UserAdmin)).toBe(false);
+    expect(authorizesGlobal(key, Capability.UserAdmin)).toBe(false);
+    expect(() => requireGlobalCapability(admin, Capability.UserAdmin)).toThrow(
+      ForbiddenError,
+    );
+    expect(() => requireGlobalCapability(key, Capability.UserAdmin)).toThrow(
+      ForbiddenError,
+    );
+    expect(authorizesGlobal(admin, Capability.DomainAdmin)).toBe(true);
+    expect(authorizesGlobal(key, Capability.KeyAdmin)).toBe(false);
+  });
+
   test("an unscoped api key holds nothing", () => {
     const viewer = apiKeyViewer([]);
     expect(authorizesGlobal(viewer, Capability.KeyAdmin)).toBe(false);

@@ -1,6 +1,6 @@
 # User Admin 03: `flying-mail watch --type` and realtime-client scope type
 
-**Status**: Ready
+**Status**: Completed
 **Plan ID**: user-admin-03-cli-watch-type
 **Wave**: 1 (phase 27)
 **Depends On**: none (the server half is plan 02; this plan is verified with fakes)
@@ -42,7 +42,7 @@ Current code:
 - apps/cli/src/commands/watch.ts
 - apps/cli/src/watch-cursors.ts
 - apps/cli/src/watch.test.ts
-- impl-plans/active/user-admin-03-cli-watch-type.md (progress log only)
+- impl-plans/completed/user-admin-03-cli-watch-type.md (progress log only)
 
 sharedPaths: none.
 
@@ -142,8 +142,8 @@ sharedPaths: none.
 
 ## Done criteria
 
-- [ ] TASK-001 to TASK-003 and the tests are complete.
-- [ ] Verification steps 1-5 pass, with exit codes and log paths recorded.
+- [x] TASK-001 to TASK-003 and the tests are complete.
+- [x] Verification steps 1-5 pass, with exit codes and log paths recorded.
 
 ## Worker protocol
 
@@ -160,4 +160,28 @@ sharedPaths: none.
 
 ## Progress Log
 
-(empty)
+### Session: 2026-10-08 Step 6 implementation
+
+**Tasks Completed**: TASK-001, TASK-002, TASK-003, and assigned regression tests.
+
+**Notes**:
+- Added readonly `scope.types`, case-insensitive short/full event type parsing, declaration-order deduplication, early usage validation, and a filtered cursor key suffix while preserving the no-filter key.
+- Added stream forwarding and CLI behavior tests. Focused tests passed: `bunx vitest run apps/cli/src/watch.test.ts packages/realtime-client/src/stream.test.ts` (exit 0, 33 passed; `/tmp/user-admin-03-focused-tests.log`).
+- CLI and realtime-client typechecks passed (exit 0; `/tmp/user-admin-03-cli-typecheck.log`, `/tmp/user-admin-03-realtime-typecheck.log`). Scoped Biome passed (exit 0; `/tmp/user-admin-03-biome.log`). Line counts are 315 and 88 (exit 0; `/tmp/user-admin-03-line-count.log`). The package/lock boundary check passed (exit 0; `/tmp/user-admin-03-untouched.log`).
+- Initial aggregate `bunx vitest run apps/cli packages/realtime-client` had 150 passing and 2 failing tests, both in concurrently owned `apps/cli/src/user.test.ts` (plan 05); see `/tmp/user-admin-03-check-agent-vitest.log`. After that owner completed, the aggregate rerun passed 152/152 (exit 0; `/tmp/user-admin-03-aggregate-rerun.log`). No edits were made to the other plan's files.
+- Initial scoped Biome check found formatting in this plan's `watch.ts` and `watch-cursors.ts`; formatted only those files and the final scoped Biome check passed. Format edit hashes are recorded in `tmp/user-admin-s310/user-admin-03-cli-watch-type/attempt-1/format-{before,after}.sha256`.
+- Final assigned gate outcomes: both package typechecks, scoped Biome, line-count, and untouched package/lock checks exited 0 with logs at `/tmp/user-admin-03-cli-typecheck.log`, `/tmp/user-admin-03-realtime-typecheck.log`, `/tmp/user-admin-03-biome.log`, `/tmp/user-admin-03-line-count.log`, and `/tmp/user-admin-03-untouched.log`.
+
+### Session: 2026-10-08 Step 6 verification rerun
+
+**Tasks Completed**: Re-ran assigned behavioral and source checks on the current shared tree after the initial branch process exited with provider status 137.
+
+**Notes**:
+- `bunx vitest run apps/cli packages/realtime-client` exited 0: 7 files and 154 tests passed (`/tmp/user-admin-03-step6-vitest.log`).
+- `bun run --cwd apps/cli typecheck` and `bun run --cwd packages/realtime-client typecheck` exited 0 (`/tmp/user-admin-03-step6-cli-typecheck.log`, `/tmp/user-admin-03-step6-realtime-typecheck.log`). `bunx biome check apps/cli/src packages/realtime-client/src` exited 0 with 24 files checked and no fixes (`/tmp/user-admin-03-step6-biome.log`).
+- `wc -l apps/cli/src/commands/watch.ts apps/cli/src/watch-cursors.ts` exited 0 with 315 and 88 lines (`/tmp/user-admin-03-step6-line-count.log`). `git diff --quiet -- apps/cli/package.json bun.lock` exited 0 (`/tmp/user-admin-03-step6-package-lock-boundary.log`).
+- The broader `git diff --quiet -- apps/cli/src/main.ts apps/cli/package.json bun.lock` returned 1 because plan 05 owns and changed `apps/cli/src/main.ts`; this is expected after plan 05 joined, and the plan's verification instructions explicitly narrow the check to package and lock files. `packages/realtime-client/src/stream.ts` remains unchanged (exit 0).
+- Re-run evidence is recorded under `tmp/user-admin-s310/user-admin-03-cli-watch-type/attempt-1/step6-*`; source checks passed without edits to implementation files.
+
+### Session: 2026-10-08 orchestrator completion
+The riela workflow accepted plans 01, 02, 03, 05 and 07 through its reviews; it stopped with loopNotConverging because its implementation-progress-check gate never accepted plan 04 (web tests 302/302) or the documentation-only plan 06. The orchestrator ran the missing independent Opus review: 04 and 06 APPROVED with minor notes N1-N4 (aria-describedby for the USER_ADMIN description, README optional --domain, creator-only grant on existing keys, domains listing), fixed by GPT-6 Luna. Final gate (plan 08): mise run lint exit 0; bun run test 2055 package + 302 web tests; build-web exit 0; Worker dry run exit 0; largest TypeScript file 998 lines. Deployed to https://mail.tacoserve.online with migration 0017; Capability enum includes USER_ADMIN.

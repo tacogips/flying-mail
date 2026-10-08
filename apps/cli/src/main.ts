@@ -11,6 +11,7 @@ import {
   startClientServe,
 } from "./commands/client-serve";
 import { runWatch } from "./commands/watch";
+import { userCommands } from "./commands/user";
 import {
   type CommandContext,
   type CommandHandler,
@@ -37,6 +38,8 @@ Commands
   domain list|add|verify      Manage mail domains
   key list|create|revoke      Manage API keys
   mail list|show|send|fetch   Read and send mail
+  user list|show|set-role|activate|deactivate|rule|template-rule
+                              Manage users and their permission rules
   config show|set             Manage local CLI configuration
 
 Global flags
@@ -57,7 +60,15 @@ client serve flags
 watch flags
   --domain <name|id>          Filter events by domain
   --address <addr>            Filter events by mailbox address
+  --type <list>               received|sent|updated|deleted|draft-saved|draft-deleted
+                              Event types (comma-separated or repeatable)
   --json                      Emit newline-delimited JSON events
+
+user flags
+  --effect <ALLOW|DENY>       Permission rule effect
+  --domain <name|id>          Mail rule domain (default: all domains)
+  --pattern <pattern>         Mailbox address pattern
+  --capability <TEMPLATE_...> Template capability for template-rule add
 
 admin bootstrap flags
   --email <addr>              Admin email
@@ -109,6 +120,7 @@ const COMMAND_GROUPS: ReadonlyMap<
   ["domain", domainCommands],
   ["key", keyCommands],
   ["mail", mailCommands],
+  ["user", userCommands],
   ["config", configCommands],
 ]);
 

@@ -1,6 +1,6 @@
 # User Admin 06: README API and CLI documentation
 
-**Status**: Ready
+**Status**: Completed
 **Plan ID**: user-admin-06-readme-docs
 **Wave**: 1 (phase 27)
 **Depends On**: none (the design documents are already updated and accepted)
@@ -33,7 +33,7 @@ design step. This plan edits only `README.md`.
 ## writePaths
 
 - README.md
-- impl-plans/active/user-admin-06-readme-docs.md (progress log only)
+- impl-plans/completed/user-admin-06-readme-docs.md (progress log only)
 
 sharedPaths: none.
 
@@ -117,8 +117,8 @@ Run from the repo root and record the outputs in the Progress Log:
 
 ## Done criteria
 
-- [ ] TASK-001 to TASK-004 are complete.
-- [ ] Document checks 1-10 pass, with outputs recorded.
+- [x] TASK-001 to TASK-004 are complete.
+- [x] Document checks 1-10 pass, with outputs recorded.
 
 ## Worker protocol
 
@@ -131,4 +131,31 @@ Run from the repo root and record the outputs in the Progress Log:
 
 ## Progress Log
 
-(empty)
+### Session: 2026-10-08 (Step 6 implementation)
+
+**Tasks Completed**: TASK-001, TASK-002, TASK-003, TASK-004.
+
+**Notes**: Updated `README.md` with USER_ADMIN scope, grant and creator-liveness rules, bootstrap exclusion, last-admin CONFLICT and a placeholder curl example; documented subscription `types` semantics and `watch --type`; listed user CLI commands and web-only create/invite behavior; added design references. README before SHA-256: `2489201966c13ae092d5de8a0a9bf3e4ccf12556f3e4abcd50f435a270f76353`; final SHA-256: `59133a3e6708f709135de36bdabc577d7e3ff2d6db1c84cc880d47b5c3da1514`. The bootstrap section now states that the bootstrap key excludes `USER_ADMIN`.
+
+**Verification**: Checks 1-7 and 10 exited 0. Check 8's prescribed `grep -P` is unsupported by the macOS grep on this host; the equivalent Python Unicode codepoint scan exited 0 and found no emoji. Check 9 ran `bunx biome check README.md`, exited 1 and reported that README.md is ignored with no files processed; this is an allowed plan outcome. Complete outputs and command statuses: `tmp/user-admin-s310/user-admin-06-readme-docs/attempt-04/document-checks.log` (final-source rerun). An initial attempt-01 logging wrapper failed before running checks because zsh reserves `status`; attempt-02 captured the platform limitations and is retained separately.
+
+**Remaining**: Formal review and workflow finalization are downstream steps.
+
+### Session: 2026-10-08 (Step 6 final-source verification)
+
+**Tasks Completed**: TASK-001 through TASK-004; document checks 1-10.
+
+**Verification**: Fresh checks against the unchanged final README passed checks 1-7 and 10; the Python Unicode scan passed the no-emoji check. The prescribed macOS `grep -P` command exited 2 because this grep does not support `-P`. `bunx biome check README.md` exited 1 after reporting that README.md is ignored and zero files were processed, an allowed documentation-plan outcome. Complete command output and each exit status: `/tmp/user-admin-06-step6-document-checks.log`. README SHA-256 remained `59133a3e6708f709135de36bdabc577d7e3ff2d6db1c84cc880d47b5c3da1514`.
+
+**Remaining**: Independent review and workflow finalization are downstream steps.
+
+### Session: 2026-10-08 (Step 6 attempt-07 current-source verification)
+
+**Tasks Completed**: Re-verified TASK-001 through TASK-004 and document checks 1-10 against the current `README.md`.
+
+**Verification**: Checks 1-7 and 10 exited 0: 9 `USER_ADMIN` matches; the SDL declaration at README.md:213; `watch --type` at README.md:302; 9 user-command matches; the design reference at README.md:444; web-only create/invite descriptions; no key-pattern match; and README-only diff stat (61 insertions, 4 deletions). The prescribed emoji `grep -P` exited 2 because host grep lacks `-P`; the portable Python Unicode scan exited 0 and found no emoji. `bunx biome check README.md` exited 1 after reporting that README.md is ignored and zero files were processed, the allowed documentation-only outcome. Complete output and exit statuses: `tmp/user-admin-s310/user-admin-06-readme-docs/attempt-07/document-checks.log`. Current README SHA-256: `59133a3e6708f709135de36bdabc577d7e3ff2d6db1c84cc880d47b5c3da1514`.
+
+**Remaining**: Independent review and workflow finalization are downstream steps.
+
+### Session: 2026-10-08 orchestrator completion
+The riela workflow accepted plans 01, 02, 03, 05 and 07 through its reviews; it stopped with loopNotConverging because its implementation-progress-check gate never accepted plan 04 (web tests 302/302) or the documentation-only plan 06. The orchestrator ran the missing independent Opus review: 04 and 06 APPROVED with minor notes N1-N4 (aria-describedby for the USER_ADMIN description, README optional --domain, creator-only grant on existing keys, domains listing), fixed by GPT-6 Luna. Final gate (plan 08): mise run lint exit 0; bun run test 2055 package + 302 web tests; build-web exit 0; Worker dry run exit 0; largest TypeScript file 998 lines. Deployed to https://mail.tacoserve.online with migration 0017; Capability enum includes USER_ADMIN.

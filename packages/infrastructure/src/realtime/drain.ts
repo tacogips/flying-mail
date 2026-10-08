@@ -231,13 +231,7 @@ export function createDrain(options: DrainOptions): DrainController {
       for (const row of rows) {
         if (!hasSubscription(state, subscription)) break;
         if (row.seq <= subscription.lastSeq) continue;
-        if (
-          matchesScope(
-            subscription.scope.domainId,
-            subscription.scope.address,
-            row,
-          )
-        ) {
+        if (matchesScope(subscription.scope, row)) {
           const addresses = readableAddresses(
             viewer,
             row.domainId,

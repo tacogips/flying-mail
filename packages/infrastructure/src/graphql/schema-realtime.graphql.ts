@@ -14,6 +14,8 @@ export const realtimeTypeDefs = /* GraphQL */ `
   input MailEventScope {
     domainId: ID
     address: String
+    """Only these event types; omitted or null means all. LIVE is not allowed here and is always delivered."""
+    types: [MailEventType!]
   }
 
   type MailEvent {

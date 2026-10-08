@@ -148,6 +148,13 @@ describe("graphql schema", () => {
     const capabilityNames = capability?.getValues().map((value) => value.name);
     expect(capabilityNames).not.toContain("CALENDAR_READ");
     expect(capabilityNames).not.toContain("CALENDAR_WRITE");
+    expect(capabilityNames).toContain("USER_ADMIN");
+    expect(
+      capability?.getValues().find((value) => value.name === "USER_ADMIN")
+        ?.description,
+    ).toBe(
+      "Manage users (list, roles, activation, mail and template rules) while the key's creator is an active ADMIN. Never creates or invites users.",
+    );
   });
 
   test("viewer is null when unauthenticated", async () => {
@@ -637,10 +644,13 @@ describe("graphql schema", () => {
       // Without this credential a deployed instance would be unreachable:
       // login needs a verified sending domain that only an admin can add.
       expect(payload.secret.startsWith(payload.apiKey.keyPrefix)).toBe(true);
-      // One scope per capability across the retained feature set.
+      // The bootstrap key intentionally omits USER_ADMIN.
       expect(payload.apiKey.scopes).toHaveLength(
-        Object.values(Capability).length,
+        Object.values(Capability).length - 1,
       );
+      expect(
+        payload.apiKey.scopes.map((scope) => scope.capability),
+      ).not.toContain(Capability.UserAdmin);
     });
 
     test("the door closes permanently after the first admin exists", async () => {

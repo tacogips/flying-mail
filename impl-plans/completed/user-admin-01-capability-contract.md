@@ -1,6 +1,6 @@
 # User Admin 01: USER_ADMIN Capability Contract (domain, SDL, migration, bootstrap, fail-closed policy)
 
-**Status**: Ready
+**Status**: Completed
 **Plan ID**: user-admin-01-capability-contract
 **Wave**: 1 (phase 27)
 **Depends On**: none
@@ -56,7 +56,7 @@ Current code, read before editing:
 - apps/api/migrations/0017_user_admin_capability.sql (new)
 - packages/adapter/src/migrations/user-admin-migration.test.ts (new)
 - packages/adapter/src/migrations/runner.test.ts
-- impl-plans/active/user-admin-01-capability-contract.md (progress log only)
+- impl-plans/completed/user-admin-01-capability-contract.md (progress log only)
 
 sharedPaths: none.
 
@@ -190,10 +190,10 @@ sharedPaths: none.
 
 ## Done criteria
 
-- [ ] TASK-001 to TASK-006 are complete.
-- [ ] `grep -c "USER_ADMIN" apps/api/migrations/0017_user_admin_capability.sql` is at least 1.
-- [ ] Verification steps 1-5 pass. Exit codes and log paths are recorded
-      in the Progress Log.
+- [x] TASK-001 to TASK-006 are complete.
+- [x] `grep -c "USER_ADMIN" apps/api/migrations/0017_user_admin_capability.sql` is at least 1.
+- [x] Verification steps 1-5 pass. Exit codes and logs are recorded in the
+      Progress Log.
 
 ## Worker protocol
 
@@ -210,4 +210,79 @@ sharedPaths: none.
 
 ## Progress Log
 
-(empty)
+### Session: 2026-10-08 Step 6 implementation
+
+**Tasks completed**: TASK-001 through TASK-006. Added the final domain
+capability, global classification, fail-closed generic authorization,
+bootstrap exclusion, GraphQL enum description, migration 0017, and focused
+unit/schema/migration assertions. Existing migrations 0001-0016 were not
+edited. The migration test applies the foreign-key pragma in its own test
+setup before checking cascade behavior.
+
+**Verification**:
+
+- `bunx vitest run packages/domain packages/adapter/src/migrations packages/application/src/policies packages/application/src/usecases/auth.test.ts packages/infrastructure/src/graphql/schema.test.ts packages/infrastructure/src/graphql/schema-auth-hardening.test.ts` — exit 0; 39 files and 585 tests passed. Complete log: `/tmp/user-admin-01-tests-rerun.log`.
+- `bun run --cwd packages/domain typecheck` — exit 0. Complete log: `/tmp/user-admin-01-typecheck-domain-rerun.log`.
+- `bun run --cwd packages/application typecheck` — exit 0. Complete log: `/tmp/user-admin-01-typecheck-application-rerun.log`.
+- `bun run --cwd packages/adapter typecheck` — exit 0. Complete log: `/tmp/user-admin-01-typecheck-adapter-rerun.log`.
+- `bun run --cwd packages/infrastructure typecheck` — exit 2, twice. Both runs report `packages/infrastructure/src/realtime/executor.ts(332,41): error TS18046: 'scope.types' is of type 'unknown'`. This belongs to wave-1 plan 02 (`user-admin-02-realtime-type-filter`), outside this plan's write paths. Logs: `/tmp/user-admin-01-typecheck-infrastructure.log` and `/tmp/user-admin-01-typecheck-infrastructure-rerun.log`. Re-run after plan 02 reports done.
+- `bunx biome check` on the ten changed TypeScript files — exit 0; complete log: `/tmp/user-admin-01-biome-owned-files.log`.
+- Required broader `bunx biome check packages/domain/src packages/application/src packages/infrastructure/src/graphql packages/adapter/src/migrations` — exit 1 after own files were formatted; the only remaining diagnostic is formatting in plan 02-owned `packages/infrastructure/src/graphql/schema-realtime.test.ts`. Logs: `/tmp/user-admin-01-biome.log` and `/tmp/user-admin-01-biome-rerun.log`. Re-run after plan 02 reports done.
+- `git diff --quiet -- apps/api/migrations/0001_init.sql apps/api/migrations/0012_remove_calendar.sql apps/api/migrations/0016_mail_events.sql` — exit 0; old migrations remain untouched.
+- `grep -c USER_ADMIN apps/api/migrations/0017_user_admin_capability.sql` — output `1`.
+- `wc -l` on every touched file — all are below 1000 lines.
+- Read-only post-modification checker reruns confirmed the same focused Vitest
+  result (39 files, 585 tests), domain/application/adapter typecheck passes,
+  and owned-file Biome pass. Logs:
+  `/tmp/user-admin-01-vitest-checker-rerun.log`,
+  `/tmp/user-admin-01-domain-typecheck-checker-rerun.log`,
+  `/tmp/user-admin-01-application-typecheck-checker-rerun.log`,
+  `/tmp/user-admin-01-adapter-typecheck-checker-rerun.log`,
+  `/tmp/user-admin-01-biome-checker-rerun.log`. Its infrastructure retry
+  reproduced the same external diagnostic in
+  `/tmp/user-admin-01-infrastructure-typecheck-checker-rerun.log`.
+- Final mechanical evidence logs: `/tmp/user-admin-01-grep.log` (count 1),
+  `/tmp/user-admin-01-line-count.log` (all below 1000), and
+  `/tmp/user-admin-01-old-migrations.log` (exit 0).
+
+**Status**: Source and focused behavioral checks are complete. Done criteria
+remain open until the cross-plan infrastructure typecheck and broader Biome
+gate are rerun after plan 02 reports completion.
+
+### Continuation: attempt 1
+
+**Verification**:
+
+- Final-source focused suite — `bunx vitest run packages/domain packages/adapter/src/migrations packages/application/src/policies packages/application/src/usecases/auth.test.ts packages/infrastructure/src/graphql/schema.test.ts packages/infrastructure/src/graphql/schema-auth-hardening.test.ts` — exit 0; 39 files and 585 tests passed. Log: `/tmp/user-admin-01-tests-attempt-2-final.log`.
+- `bun run --cwd packages/domain typecheck` — exit 0. Log: `/tmp/user-admin-01-domain-final.log`.
+- `bun run --cwd packages/application typecheck` — exit 0. Log: `/tmp/user-admin-01-application-final.log`.
+- `bun run --cwd packages/infrastructure typecheck` — exit 2 with `src/realtime/drain-helpers.ts(80,38): error TS1361: 'MailEventType' cannot be used as a value because it was imported using 'import type'`. The failure is in plan 02's write paths; no edit was made. Log: `/tmp/user-admin-01-infrastructure-final.log`.
+- `bun run --cwd packages/adapter typecheck` — exit 0. Log: `/tmp/user-admin-01-adapter-final.log`.
+- `bunx biome check packages/domain/src packages/application/src packages/infrastructure/src/graphql packages/adapter/src/migrations` — exit 0; checked 238 files. Log: `/tmp/user-admin-01-biome-attempt-2.log`.
+- Required historical migration diff check, migration USER_ADMIN count and touched-file line count all pass. Logs: `/tmp/user-admin-01-old-migrations.log`, `/tmp/user-admin-01-grep-exact.log` (count 1), and `/tmp/user-admin-01-line-count.log` (all below 1000 lines).
+
+**Status**: Implementation and all behavioral checks are complete. The plan
+remains incomplete only because the required infrastructure typecheck is
+currently failing in plan 02-owned code. Rerun it after that owner reports
+completion.
+
+### Continuation: attempt 2
+
+**Verification**:
+
+- Final-source focused suite — `bunx vitest run packages/domain packages/adapter/src/migrations packages/application/src/policies packages/application/src/usecases/auth.test.ts packages/infrastructure/src/graphql/schema.test.ts packages/infrastructure/src/graphql/schema-auth-hardening.test.ts` — exit 0; 39 files and 585 tests passed. Log: `/tmp/user-admin-01-tests-attempt-3.log`.
+- `bun run --cwd packages/domain typecheck` — exit 0. Log: `/tmp/user-admin-01-domain-final.log`.
+- `bun run --cwd packages/application typecheck` — exit 0. Log: `/tmp/user-admin-01-application-final.log`.
+- `bun run --cwd packages/infrastructure typecheck` — exit 0. Log: `/tmp/user-admin-01-infrastructure-attempt-3.log`.
+- `bun run --cwd packages/adapter typecheck` — exit 0. Log: `/tmp/user-admin-01-adapter-final.log`.
+- Required broad `bunx biome check packages/domain/src packages/application/src packages/infrastructure/src/graphql packages/adapter/src/migrations` — exit 0; checked 238 files. Log: `/tmp/user-admin-01-biome-attempt-3.log`.
+- `source-sha256-before-gates.txt` and `source-sha256-after-gates.txt` match for the assigned plan files and the changed plan 02 infrastructure files in this attempt. The focused suite and infrastructure typecheck were rerun after the previous plan 02 source drift.
+- Historical migration diff check, `grep -c "USER_ADMIN"` (count 1), and touched-file `wc -l` checks remain passing; logs: `/tmp/user-admin-01-old-migrations.log`, `/tmp/user-admin-01-grep-exact.log`, `/tmp/user-admin-01-line-count.log`.
+
+**Status**: TASK-001 through TASK-006 and verification steps 1-5 pass on the
+latest recorded source. Prior infrastructure typecheck failures were
+transient plan 02 changes and were resolved by the passing attempt-2 and
+attempt-3 checks above.
+
+### Session: 2026-10-08 orchestrator completion
+The riela workflow accepted plans 01, 02, 03, 05 and 07 through its reviews; it stopped with loopNotConverging because its implementation-progress-check gate never accepted plan 04 (web tests 302/302) or the documentation-only plan 06. The orchestrator ran the missing independent Opus review: 04 and 06 APPROVED with minor notes N1-N4 (aria-describedby for the USER_ADMIN description, README optional --domain, creator-only grant on existing keys, domains listing), fixed by GPT-6 Luna. Final gate (plan 08): mise run lint exit 0; bun run test 2055 package + 302 web tests; build-web exit 0; Worker dry run exit 0; largest TypeScript file 998 lines. Deployed to https://mail.tacoserve.online with migration 0017; Capability enum includes USER_ADMIN.

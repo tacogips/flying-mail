@@ -282,9 +282,24 @@ describe("scope formatting", () => {
     );
   });
 
+  test("describes USER_ADMIN as an instance-wide user administration scope", () => {
+    expect(
+      formatScope(
+        scope({
+          capability: "USER_ADMIN",
+          domain: null,
+          addressPattern: "*",
+        }),
+      ),
+    ).toBe(
+      "Administer users (roles, activation, permission rules) (instance-wide)",
+    );
+  });
+
   test("identifies global capabilities", () => {
     expect(isGlobalCapability("KEY_ADMIN")).toBe(true);
     expect(isGlobalCapability("DOMAIN_ADMIN")).toBe(true);
+    expect(isGlobalCapability("USER_ADMIN")).toBe(true);
     expect(isGlobalCapability("MAIL_READ")).toBe(false);
   });
 });

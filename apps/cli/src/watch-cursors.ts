@@ -15,6 +15,7 @@ export interface WatchCursorKeyInput {
   readonly apiKey: string;
   readonly domainId: string | null;
   readonly address: string | null;
+  readonly types?: readonly string[] | null;
 }
 
 export function watchCursorsPath(
@@ -24,7 +25,12 @@ export function watchCursorsPath(
 }
 
 export function cursorKey(input: WatchCursorKeyInput): string {
-  return `${input.endpoint}|${maskApiKey(input.apiKey)}|${input.domainId ?? "*"}|${input.address ?? "*"}`;
+  const key = `${input.endpoint}|${maskApiKey(input.apiKey)}|${input.domainId ?? "*"}|${input.address ?? "*"}`;
+  return input.types === undefined ||
+    input.types === null ||
+    input.types.length === 0
+    ? key
+    : `${key}|types=${input.types.join(",")}`;
 }
 
 async function readCursorMap(path: string): Promise<Record<string, string>> {

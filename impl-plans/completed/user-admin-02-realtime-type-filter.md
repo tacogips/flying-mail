@@ -1,6 +1,6 @@
 # User Admin 02: Server-side `MailEventScope.types` Filter
 
-**Status**: Ready
+**Status**: Completed
 **Plan ID**: user-admin-02-realtime-type-filter
 **Wave**: 1 (phase 27)
 **Depends On**: none
@@ -43,7 +43,7 @@ Current code:
 - packages/infrastructure/src/realtime/drain.test.ts
 - packages/infrastructure/src/graphql/schema-realtime.graphql.ts
 - packages/infrastructure/src/graphql/schema-realtime.test.ts
-- impl-plans/active/user-admin-02-realtime-type-filter.md (progress log only)
+- impl-plans/completed/user-admin-02-realtime-type-filter.md (progress log only)
 
 sharedPaths: none.
 
@@ -155,11 +155,11 @@ sharedPaths: none.
 
 ## Done criteria
 
-- [ ] TASK-001 to TASK-003 and the tests are complete.
-- [ ] `grep -n "lastSeq = row.seq" packages/infrastructure/src/realtime/drain.ts`
+- [x] TASK-001 to TASK-003 and the tests are complete.
+- [x] `grep -n "lastSeq = row.seq" packages/infrastructure/src/realtime/drain.ts`
       still shows exactly one assignment, outside the `matchesScope`
       block.
-- [ ] Verification steps 1-4 pass, with exit codes and logs recorded.
+- [x] Verification steps 1-4 pass, with exit codes and logs recorded.
 
 ## Worker protocol
 
@@ -176,4 +176,36 @@ sharedPaths: none.
 
 ## Progress Log
 
-(empty)
+### Session: 2026-10-08
+**Tasks Completed**: TASK-001, TASK-002, TASK-003 and planned tests
+**Blockers**: None
+**Notes**:
+- Added optional nullable `MailEventScope.types`, SDL input documentation,
+  defensive scope coercion, declaration-order deduplication, and per-row
+  filtering while preserving the single cursor assignment outside the
+  match branch and the existing LIVE path.
+- Kept `executor.ts` below 400 lines by locating `coerceScope` in the
+  existing approved `drain-helpers.ts` module; the executor retains the
+  discriminated-result error mapping. `executor.ts` is 354 lines and
+  `drain.ts` is 381 lines.
+- Drain tests seed persisted filter scope and rehydrate the hub because the
+  shared harness SDL is outside this plan's write paths. They cover filtered
+  cursor advancement, replay, independent filters, legacy scope, domain AND,
+  and LIVE at the head. Executor tests also cover empty, LIVE, non-array and
+  unknown values on `scope.types`.
+- Final behavioral run: 11 files, 80 tests passed; see
+  `/tmp/user-admin-02-vitest-source-final-3.log` (exit 0).
+- Final typechecks passed: domain at
+  `/tmp/user-admin-02-domain-typecheck-source-final.log`, infrastructure at
+  `/tmp/user-admin-02-infrastructure-typecheck-source-final-3.log`, and API
+  at `/tmp/user-admin-02-api-typecheck-source-final.log` (each exit 0).
+- Final Biome check passed at `/tmp/user-admin-02-biome-source-final-2.log`
+  (exit 0). Cursor assignment check passed once at drain.ts:288 in
+  `/tmp/user-admin-02-lastseq-source-final.log`; line counts are recorded in
+  `/tmp/user-admin-02-line-counts-source-final.log` (exit 0).
+- Earlier test fixture, type narrowing, formatting, and line-count failures
+  were corrected and re-run on the final source. Formal review and serial
+  reconciliation remain owned by later workflow steps.
+
+### Session: 2026-10-08 orchestrator completion
+The riela workflow accepted plans 01, 02, 03, 05 and 07 through its reviews; it stopped with loopNotConverging because its implementation-progress-check gate never accepted plan 04 (web tests 302/302) or the documentation-only plan 06. The orchestrator ran the missing independent Opus review: 04 and 06 APPROVED with minor notes N1-N4 (aria-describedby for the USER_ADMIN description, README optional --domain, creator-only grant on existing keys, domains listing), fixed by GPT-6 Luna. Final gate (plan 08): mise run lint exit 0; bun run test 2055 package + 302 web tests; build-web exit 0; Worker dry run exit 0; largest TypeScript file 998 lines. Deployed to https://mail.tacoserve.online with migration 0017; Capability enum includes USER_ADMIN.

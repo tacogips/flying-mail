@@ -3,7 +3,7 @@ import {
   type MailEventStream,
   type MailEventStreamOptions,
 } from "@flying-mail/realtime-client";
-import { flagBoolean, flagString, type ParsedArgs } from "../args";
+import { flagBoolean, flagString, hasFlag, type ParsedArgs } from "../args";
 import { createCliClient, requireEndpoint } from "../client";
 import type { CliConfig } from "../config";
 import { resolveConfig } from "../config";
@@ -22,10 +22,71 @@ const MAIL_EVENTS_QUERY = `subscription WatchMailEvents($scope: MailEventScope, 
   }
 }`;
 const DOMAINS_QUERY = `{ domains { id name } }`;
+const WATCH_EVENT_TYPES = [
+  "MESSAGE_RECEIVED",
+  "MESSAGE_SENT",
+  "MESSAGE_UPDATED",
+  "MESSAGE_DELETED",
+  "DRAFT_SAVED",
+  "DRAFT_DELETED",
+] as const;
+const WATCH_EVENT_TYPE_SHORT_NAMES: Readonly<Record<string, string>> = {
+  received: "MESSAGE_RECEIVED",
+  sent: "MESSAGE_SENT",
+  updated: "MESSAGE_UPDATED",
+  deleted: "MESSAGE_DELETED",
+  "draft-saved": "DRAFT_SAVED",
+  "draft-deleted": "DRAFT_DELETED",
+};
+const ACCEPTED_WATCH_TYPE_NAMES = Object.keys(
+  WATCH_EVENT_TYPE_SHORT_NAMES,
+).join(", ");
 
 interface DomainRow {
   readonly id: string;
   readonly name: string;
+}
+
+export function parseWatchTypes(args: ParsedArgs): readonly string[] | null {
+  if (!hasFlag(args, "type")) return null;
+
+  const values = (args.flags.get("type") ?? [])
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  if (values.length === 0) {
+    throw new CliError(
+      "At least one event type is required.",
+      ExitCode.UsageError,
+    );
+  }
+
+  const selectedTypes = new Set<string>();
+  for (const value of values) {
+    const normalized = value.toLowerCase();
+    if (normalized === "live") {
+      throw new CliError(
+        "LIVE is always delivered and cannot be filtered",
+        ExitCode.UsageError,
+      );
+    }
+    const shortName = Object.hasOwn(WATCH_EVENT_TYPE_SHORT_NAMES, normalized)
+      ? WATCH_EVENT_TYPE_SHORT_NAMES[normalized]
+      : undefined;
+    const fullName = WATCH_EVENT_TYPES.find(
+      (eventType) => eventType.toLowerCase() === normalized,
+    );
+    const eventType = shortName ?? fullName;
+    if (eventType === undefined) {
+      throw new CliError(
+        `Unknown event type "${value}". Accepted names: ${ACCEPTED_WATCH_TYPE_NAMES}.`,
+        ExitCode.UsageError,
+      );
+    }
+    selectedTypes.add(eventType);
+  }
+
+  return WATCH_EVENT_TYPES.filter((eventType) => selectedTypes.has(eventType));
 }
 
 interface SignalPort {
@@ -124,15 +185,17 @@ export async function runWatch(
     );
   }
 
+  const types = parseWatchTypes(args);
   const domainId = await resolveDomainId(flagString(args, "domain"), config);
   const rawAddress = flagString(args, "address");
   const address = rawAddress === undefined ? null : rawAddress.toLowerCase();
   const scope = {
     ...(domainId === null ? {} : { domainId }),
     ...(address === null ? {} : { address }),
+    ...(types === null ? {} : { types }),
   };
   const path = watchCursorsPath(env);
-  const key = cursorKey({ endpoint, apiKey, domainId, address });
+  const key = cursorKey({ endpoint, apiKey, domainId, address, types });
   const initialCursor = await readCursor(path, key);
   const json = flagBoolean(args, "json");
   const streamFactory = deps.streamFactory ?? createMailEventStream;

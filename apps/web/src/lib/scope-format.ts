@@ -15,6 +15,7 @@ export const CAPABILITY_LABELS: Readonly<Record<Capability, string>> = {
   CONTACT_READ: "Read contacts",
   CONTACT_WRITE: "Write contacts",
   KEY_ADMIN: "Issue and revoke API keys",
+  USER_ADMIN: "Administer users (roles, activation, permission rules)",
 };
 
 /** Capabilities that are instance-wide, so the scope builder can hide the
@@ -23,7 +24,11 @@ export const CAPABILITY_LABELS: Readonly<Record<Capability, string>> = {
 export const GLOBAL_CAPABILITIES: readonly Capability[] = [
   "DOMAIN_ADMIN",
   "KEY_ADMIN",
+  "USER_ADMIN",
 ];
+
+export const USER_ADMIN_DESCRIPTION =
+  "Lets this key list users, change roles, activate or deactivate users and edit their mail and template rules. It cannot create or invite users. It works only while you remain an active admin.";
 
 export function isGlobalCapability(capability: Capability): boolean {
   return GLOBAL_CAPABILITIES.includes(capability);

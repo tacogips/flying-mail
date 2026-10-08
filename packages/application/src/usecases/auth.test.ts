@@ -505,11 +505,13 @@ describe("bootstrapAdmin", () => {
     const scopes = await fake.deps.apiKeyRepository.listScopes([
       result.apiKey.id,
     ]);
-    // One scope per capability, so a fresh deployment's root key can reach
-    // every supported capability.
+    // The bootstrap key intentionally omits USER_ADMIN.
     expect(scopes.get(result.apiKey.id)?.length).toBe(
-      Object.values(Capability).length,
+      Object.values(Capability).length - 1,
     );
+    expect(
+      scopes.get(result.apiKey.id)?.map((scope) => scope.capability),
+    ).not.toContain(Capability.UserAdmin);
     await expect(
       bootstrap({
         email: "second@example.com",

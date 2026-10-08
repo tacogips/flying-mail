@@ -11,6 +11,7 @@ import {
   formatScope,
   isGlobalCapability,
   isValidAddressPattern,
+  USER_ADMIN_DESCRIPTION,
 } from "../../lib/scope-format";
 import { describeErrors } from "../../lib/mutation-error";
 import { pushToast } from "../../lib/toast";
@@ -180,6 +181,11 @@ export default function ApiKeysPage(): JSX.Element {
             <div class="scope-row">
               <select
                 aria-label="Capability"
+                aria-describedby={
+                  row.capability === "USER_ADMIN"
+                    ? `user-admin-desc-${index()}`
+                    : undefined
+                }
                 value={row.capability}
                 onChange={(event) =>
                   updateRow(index(), {
@@ -195,6 +201,12 @@ export default function ApiKeysPage(): JSX.Element {
                   )}
                 </For>
               </select>
+
+              <Show when={row.capability === "USER_ADMIN"}>
+                <p id={`user-admin-desc-${index()}`} class="muted">
+                  {USER_ADMIN_DESCRIPTION}
+                </p>
+              </Show>
 
               <Show when={!isGlobalCapability(row.capability)}>
                 <select

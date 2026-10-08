@@ -94,6 +94,8 @@ export const typeDefs = /* GraphQL */ `
     TEMPLATE_DELETE
     CONTACT_READ
     CONTACT_WRITE
+    """Manage users (list, roles, activation, mail and template rules) while the key's creator is an active ADMIN. Never creates or invites users."""
+    USER_ADMIN
   }
 
   "The mail-template capabilities, narrowed the same way."

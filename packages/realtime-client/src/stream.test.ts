@@ -134,6 +134,26 @@ describe("createMailEventStream", () => {
     stream.stop();
   });
 
+  it("forwards scope event types unchanged in the subscribe variables", async () => {
+    const { sockets, factory } = socketHarness();
+    const types = ["MESSAGE_SENT"] as const;
+    const stream = createMailEventStream({
+      url: "wss://mail.test/graphql",
+      query: "subscription { mailEvents { cursor type } }",
+      scope: { types },
+      onEvent: vi.fn(),
+      webSocketFactory: factory,
+    });
+
+    stream.start();
+    await ready(socketAt(sockets, 0));
+    expect(subscribeMessage(socketAt(sockets, 0))["payload"]).toEqual({
+      query: "subscription { mailEvents { cursor type } }",
+      variables: { scope: { types: ["MESSAGE_SENT"] }, after: null },
+    });
+    stream.stop();
+  });
+
   it("backs off exponentially with jitter and caps the delay at 30 seconds", async () => {
     const { sockets, factory } = socketHarness();
     const stream = createMailEventStream({

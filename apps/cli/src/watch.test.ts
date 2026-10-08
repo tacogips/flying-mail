@@ -109,6 +109,7 @@ describe("flying-mail watch", () => {
       domainId: DOMAIN_ID,
       address: "team@example.test",
     });
+    expect(harness.options.scope).not.toHaveProperty("types");
     expect(harness.options.connectionParams?.()).toEqual({
       authorization: `Bearer ${API_KEY}`,
     });
@@ -125,6 +126,7 @@ describe("flying-mail watch", () => {
       domainId: null,
       address: null,
     });
+    expect(key).toBe(`${ENDPOINT}|ybm_watchprefix_***|*|*`);
     await writeCursor(path, key, "epoch.0");
     const harness = await launch();
     expect(harness.options.initialCursor).toBe("epoch.0");
@@ -173,6 +175,111 @@ describe("flying-mail watch", () => {
     expect(harness.options.initialCursor).toBeNull();
     harness.signal("SIGINT");
     expect(await harness.done).toBe(ExitCode.Success);
+  });
+
+  it("maps, deduplicates, and sorts short and full event type names", async () => {
+    const harness = await launch([
+      "--type",
+      "sent,received",
+      "--type",
+      "MESSAGE_RECEIVED",
+    ]);
+    expect(harness.options.scope).toEqual({
+      types: ["MESSAGE_RECEIVED", "MESSAGE_SENT"],
+    });
+    harness.signal("SIGINT");
+    expect(await harness.done).toBe(ExitCode.Success);
+
+    const fullAndShortNames = await launch([
+      "--type",
+      "SENT",
+      "--type",
+      "message_received",
+    ]);
+    expect(fullAndShortNames.options.scope).toEqual({
+      types: ["MESSAGE_RECEIVED", "MESSAGE_SENT"],
+    });
+    fullAndShortNames.signal("SIGINT");
+    expect(await fullAndShortNames.done).toBe(ExitCode.Success);
+
+    const draft = await launch(["--type", "draft-saved"]);
+    expect(draft.options.scope).toEqual({ types: ["DRAFT_SAVED"] });
+    draft.signal("SIGINT");
+    expect(await draft.done).toBe(ExitCode.Success);
+  });
+
+  it.each(["live", "bogus", "", "constructor"])(
+    "rejects invalid type filter %j before making a network call",
+    async (type) => {
+      const fetch = vi.fn();
+      vi.stubGlobal("fetch", fetch);
+      const streamFactory = vi.fn(() => ({ start: () => {}, stop: () => {} }));
+      await expect(
+        runWatch(args("--domain", "mail.example.test", "--type", type), env, {
+          streamFactory,
+        }),
+      ).rejects.toMatchObject({ exitCode: ExitCode.UsageError });
+      expect(fetch).not.toHaveBeenCalled();
+      expect(streamFactory).not.toHaveBeenCalled();
+    },
+  );
+
+  it("lists accepted short names for an unknown event type", async () => {
+    await expect(
+      runWatch(args("--type", "bogus"), env, {
+        streamFactory: () => ({ start: () => {}, stop: () => {} }),
+      }),
+    ).rejects.toThrow(
+      "Accepted names: received, sent, updated, deleted, draft-saved, draft-deleted",
+    );
+  });
+
+  it("rejects an explicitly empty --type= value", async () => {
+    await expect(
+      runWatch(args("--type="), env, {
+        streamFactory: () => ({ start: () => {}, stop: () => {} }),
+      }),
+    ).rejects.toMatchObject({ exitCode: ExitCode.UsageError });
+  });
+
+  it("uses a distinct order-independent cursor key for filtered watches", async () => {
+    const path = watchCursorsPath(env);
+    const legacyKey = `${ENDPOINT}|ybm_watchprefix_***|*|*`;
+    await writeCursor(path, legacyKey, "epoch.legacy");
+    const first = await launch(["--type", "sent,received"]);
+    expect(first.options.initialCursor).toBeNull();
+    const reordered = await launch(["--type", "received,sent"]);
+    expect(reordered.options.scope).toEqual(first.options.scope);
+
+    const firstKey = cursorKey({
+      endpoint: ENDPOINT,
+      apiKey: API_KEY,
+      domainId: null,
+      address: null,
+      types: first.options.scope?.types ?? [],
+    });
+    const reorderedKey = cursorKey({
+      endpoint: ENDPOINT,
+      apiKey: API_KEY,
+      domainId: null,
+      address: null,
+      types: reordered.options.scope?.types ?? [],
+    });
+    expect(firstKey).toBe(reorderedKey);
+    expect(firstKey).toBe(`${legacyKey}|types=MESSAGE_RECEIVED,MESSAGE_SENT`);
+    expect(
+      cursorKey({
+        endpoint: ENDPOINT,
+        apiKey: API_KEY,
+        domainId: null,
+        address: null,
+        types: ["MESSAGE_SENT"],
+      }),
+    ).toBe(`${legacyKey}|types=MESSAGE_SENT`);
+    first.signal("SIGINT");
+    reordered.signal("SIGINT");
+    expect(await first.done).toBe(ExitCode.Success);
+    expect(await reordered.done).toBe(ExitCode.Success);
   });
 
   it("prints JSON events and human event lines without exposing the key", async () => {

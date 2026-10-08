@@ -37,12 +37,13 @@ async function appendEvents(
     readonly domainId?: ReturnType<typeof createDomainId>;
     readonly address?: string;
     readonly occurredAt?: string;
+    readonly type?: MailEventType;
   } = {},
 ): Promise<void> {
   const domainId = options.domainId ?? DOMAIN_A;
   await bundle.deps.mailEventLog.append(
     Array.from({ length: count }, (_, index) => ({
-      type: MailEventType.MessageReceived,
+      type: options.type ?? MailEventType.MessageReceived,
       messageId: createMessageId(`msg-${Date.now()}-${index}-${Math.random()}`),
       domainId,
       addresses: [options.address ?? "inbox@example.test"],
@@ -52,6 +53,47 @@ async function appendEvents(
       retentionCutoff: "2026-08-16T00:00:00.000Z",
     },
   );
+}
+
+async function setSubscriptionTypes(
+  bundle: ReturnType<typeof createRealtimeTestBundle>,
+  connection: { readonly id: string },
+  id: string,
+  types: readonly MailEventType[] | null,
+  lastSeq = 0,
+): Promise<ReturnType<typeof createRealtimeHub>> {
+  const state = await bundle.host.loadState(connection);
+  if (state === null) throw new Error("Subscription state was not found");
+  const subscription = state.subscriptions.find((item) => item.id === id);
+  if (subscription === undefined)
+    throw new Error(`Subscription ${id} was not found`);
+  await bundle.host.saveState(connection, {
+    ...state,
+    subscriptions: state.subscriptions.map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            scope: { ...item.scope, types },
+            lastSeq,
+            live: false,
+          }
+        : item,
+    ),
+  });
+  return createRehydratedHub(bundle);
+}
+
+async function createRehydratedHub(
+  bundle: ReturnType<typeof createRealtimeTestBundle>,
+): Promise<ReturnType<typeof createRealtimeHub>> {
+  const hub = createRealtimeHub({
+    host: bundle.host,
+    deps: bundle.deps,
+    usecases: bundle.usecases,
+    executor: bundle.executor,
+  });
+  await hub.rehydrate();
+  return hub;
 }
 
 async function connect(bundle: ReturnType<typeof createRealtimeTestBundle>) {
@@ -104,6 +146,158 @@ function nextCursors(socket: RecordingSocket, id: string): string[] {
 }
 
 describe("mail event drain", () => {
+  test("filters types per subscription, advances filtered cursors, and emits LIVE at the head", async () => {
+    const bundle = createRealtimeTestBundle();
+    const pair = await connect(bundle);
+    await subscribe(bundle, pair.connection, "sent", {
+      after: `${EPOCH}.0`,
+    });
+    const hub = await setSubscriptionTypes(bundle, pair.connection, "sent", [
+      MailEventType.MessageSent,
+    ]);
+    pair.socket.sent.length = 0;
+
+    for (const type of [
+      MailEventType.MessageReceived,
+      MailEventType.MessageSent,
+      MailEventType.MessageReceived,
+      MailEventType.MessageSent,
+      MailEventType.MessageReceived,
+      MailEventType.MessageSent,
+      MailEventType.MessageReceived,
+    ]) {
+      await appendEvents(bundle, 1, { type });
+    }
+    await hub.requestDrain();
+
+    expect(nextCursors(pair.socket, "sent")).toEqual([
+      `${EPOCH}.2`,
+      `${EPOCH}.4`,
+      `${EPOCH}.6`,
+      `${EPOCH}.7`,
+    ]);
+    expect(
+      messagesOfType(pair.socket, "next").filter(
+        (message) =>
+          (message["payload"] as { data?: { mailEvents?: { type?: string } } })
+            .data?.mailEvents?.type === "LIVE",
+      ),
+    ).toHaveLength(1);
+    expect(
+      (await bundle.host.loadState(pair.connection))?.subscriptions[0]?.lastSeq,
+    ).toBe(7);
+  });
+
+  test("replays filtered types after a cursor without duplicates and keeps subscriptions independent", async () => {
+    const bundle = createRealtimeTestBundle();
+    for (const type of [
+      MailEventType.MessageReceived,
+      MailEventType.MessageSent,
+      MailEventType.MessageReceived,
+      MailEventType.MessageSent,
+    ]) {
+      await appendEvents(bundle, 1, { type });
+    }
+    const pair = await connect(bundle);
+    await subscribe(bundle, pair.connection, "sent-after-four", {
+      after: `${EPOCH}.4`,
+    });
+    await subscribe(bundle, pair.connection, "received-after-four", {
+      after: `${EPOCH}.4`,
+    });
+    const state = await bundle.host.loadState(pair.connection);
+    if (state === null) throw new Error("Connection state was not found");
+    await bundle.host.saveState(pair.connection, {
+      ...state,
+      subscriptions: state.subscriptions.map((item) => ({
+        ...item,
+        scope: {
+          ...item.scope,
+          types:
+            item.id === "sent-after-four"
+              ? [MailEventType.MessageSent]
+              : [MailEventType.MessageReceived],
+        },
+        lastSeq: 4,
+        live: false,
+      })),
+    });
+    const hub = await createRehydratedHub(bundle);
+    pair.socket.sent.length = 0;
+    await appendEvents(bundle, 1, { type: MailEventType.MessageReceived });
+    await appendEvents(bundle, 1, { type: MailEventType.MessageSent });
+    await appendEvents(bundle, 1, { type: MailEventType.MessageReceived });
+    await hub.requestDrain();
+
+    expect(nextCursors(pair.socket, "sent-after-four")).toEqual([
+      `${EPOCH}.6`,
+      `${EPOCH}.7`,
+    ]);
+    expect(nextCursors(pair.socket, "received-after-four")).toEqual([
+      `${EPOCH}.5`,
+      `${EPOCH}.7`,
+      `${EPOCH}.7`,
+    ]);
+    expect(
+      (await bundle.host.loadState(pair.connection))?.subscriptions[0]?.lastSeq,
+    ).toBe(7);
+  });
+
+  test("combines type and domain filters with legacy scopes matching all types", async () => {
+    const bundle = createRealtimeTestBundle();
+    const pair = await connect(bundle);
+    await subscribe(bundle, pair.connection, "legacy", { after: `${EPOCH}.0` });
+    await subscribe(bundle, pair.connection, "scoped", { after: `${EPOCH}.0` });
+    const state = await bundle.host.loadState(pair.connection);
+    if (state === null) throw new Error("Connection state was not found");
+    await bundle.host.saveState(pair.connection, {
+      ...state,
+      subscriptions: state.subscriptions.map((item) =>
+        item.id === "scoped"
+          ? {
+              ...item,
+              scope: {
+                domainId: DOMAIN_A,
+                address: null,
+                types: [MailEventType.MessageSent],
+              },
+              live: false,
+            }
+          : { ...item, scope: { domainId: null, address: null }, live: false },
+      ),
+    });
+    const hub = await createRehydratedHub(bundle);
+    pair.socket.sent.length = 0;
+    await appendEvents(bundle, 1, {
+      domainId: DOMAIN_B,
+      type: MailEventType.MessageSent,
+    });
+    await appendEvents(bundle, 1, {
+      domainId: DOMAIN_A,
+      type: MailEventType.MessageReceived,
+    });
+    await appendEvents(bundle, 1, {
+      domainId: DOMAIN_A,
+      type: MailEventType.MessageSent,
+    });
+    await hub.requestDrain();
+
+    expect(nextCursors(pair.socket, "legacy")).toEqual([
+      `${EPOCH}.1`,
+      `${EPOCH}.2`,
+      `${EPOCH}.3`,
+      `${EPOCH}.3`,
+    ]);
+    expect(nextCursors(pair.socket, "scoped")).toEqual([
+      `${EPOCH}.3`,
+      `${EPOCH}.3`,
+    ]);
+    const finalState = await bundle.host.loadState(pair.connection);
+    expect(finalState?.subscriptions.map(({ lastSeq }) => lastSeq)).toEqual([
+      3, 3,
+    ]);
+  });
+
   test("replays after the supplied cursor in order, then emits LIVE at the head", async () => {
     const bundle = createRealtimeTestBundle();
     await appendEvents(bundle, 5);

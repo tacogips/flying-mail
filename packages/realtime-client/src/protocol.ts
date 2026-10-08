@@ -22,6 +22,7 @@ export interface MailEventStreamOptions {
   readonly scope?: {
     readonly domainId?: string;
     readonly address?: string;
+    readonly types?: readonly string[];
   } | null;
   readonly initialCursor?: string | null;
   readonly connectionParams?: () =>

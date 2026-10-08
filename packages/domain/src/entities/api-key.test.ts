@@ -116,6 +116,13 @@ describe("createApiKeyScope", () => {
   test("normalizes a global capability to an unrestricted scope", () => {
     const created = scope("s1", Capability.KeyAdmin, domainA, "a@example.com");
     expect(created.domainId).toBeNull();
+    const userAdmin = scope(
+      "s-user-admin",
+      Capability.UserAdmin,
+      domainA,
+      "a@example.com",
+    );
+    expect(userAdmin.domainId).toBeNull();
   });
 
   test("keeps the domain for a per-address capability", () => {
@@ -126,6 +133,7 @@ describe("createApiKeyScope", () => {
   test("identifies global capabilities", () => {
     expect(isGlobalCapability(Capability.DomainAdmin)).toBe(true);
     expect(isGlobalCapability(Capability.KeyAdmin)).toBe(true);
+    expect(isGlobalCapability(Capability.UserAdmin)).toBe(true);
     expect(isGlobalCapability(Capability.MailRead)).toBe(false);
   });
 });
@@ -266,6 +274,7 @@ describe("template capabilities", () => {
         "TEMPLATE_DELETE",
         "CONTACT_READ",
         "CONTACT_WRITE",
+        "USER_ADMIN",
       ]),
     );
   });
@@ -286,8 +295,8 @@ describe("template capabilities", () => {
 });
 
 describe("contact capabilities", () => {
-  test("the enum has exactly 12 members", () => {
-    expect(Object.values(Capability)).toHaveLength(12);
+  test("the enum has exactly 13 members", () => {
+    expect(Object.values(Capability)).toHaveLength(13);
   });
 
   test("narrows the contact capabilities and nothing else", () => {

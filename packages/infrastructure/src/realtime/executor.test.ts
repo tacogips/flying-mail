@@ -25,6 +25,7 @@ import { buildSchema, GraphQLObjectType } from "graphql";
 import { describe, expect, test } from "vitest";
 import type { GraphQLContext } from "../graphql/context";
 import { mailEventResolvers } from "../graphql/resolvers/realtime";
+import { coerceScope } from "./drain-helpers";
 import type { MailEventPayload } from "./mail-event-payload";
 import { createSubscriptionExecutor } from "./executor";
 
@@ -68,7 +69,7 @@ function createExecutor() {
       DRAFT_DELETED
       LIVE
     }
-    input MailEventScope { domainId: ID, address: String }
+    input MailEventScope { domainId: ID, address: String, types: [MailEventType!] }
     type Message { id: ID! }
     type MailEvent {
       cursor: String!
@@ -160,6 +161,63 @@ async function seedReadableMessage(
 }
 
 describe("createSubscriptionExecutor", () => {
+  test("normalizes optional event types and rejects invalid type filters", () => {
+    const { executor } = createExecutor();
+    const omitted = executor.prepare(
+      { query: "subscription { mailEvents { cursor } }" },
+      memberViewer(),
+    );
+    const explicitNull = executor.prepare(
+      {
+        query: "subscription { mailEvents(scope: { types: null }) { cursor } }",
+      },
+      memberViewer(),
+    );
+    expect(omitted.ok && omitted.prepared.scope.types).toBeNull();
+    expect(explicitNull.ok && explicitNull.prepared.scope.types).toBeNull();
+
+    const normalized = executor.prepare(
+      {
+        query:
+          "subscription { mailEvents(scope: { types: [MESSAGE_SENT, MESSAGE_RECEIVED, MESSAGE_SENT] }) { cursor } }",
+      },
+      memberViewer(),
+    );
+    expect(normalized.ok).toBe(true);
+    if (normalized.ok) {
+      expect(normalized.prepared.scope.types).toEqual([
+        MailEventType.MessageReceived,
+        MailEventType.MessageSent,
+      ]);
+    }
+
+    for (const types of ["MESSAGE_SENT", ["NOT_AN_EVENT"]]) {
+      const invalid = coerceScope({ types });
+      expect(invalid.ok).toBe(false);
+      if (!invalid.ok) {
+        expect(invalid.field).toBe("scope.types");
+      }
+    }
+
+    for (const [types, message] of [
+      ["[]", "scope.types must list at least one event type"],
+      ["[LIVE]", "scope.types cannot include LIVE; it is always delivered"],
+    ] as const) {
+      const invalid = executor.prepare(
+        {
+          query: `subscription { mailEvents(scope: { types: ${types} }) { cursor } }`,
+        },
+        memberViewer(),
+      );
+      expect(invalid.ok).toBe(false);
+      if (!invalid.ok) {
+        expect(invalid.errors[0]?.extensions?.["code"]).toBe("BAD_USER_INPUT");
+        expect(invalid.errors[0]?.extensions?.["field"]).toBe("scope.types");
+        expect(invalid.errors[0]?.message).toBe(message);
+      }
+    }
+  });
+
   test("normalizes scope address and rejects over-depth or invalid addresses", () => {
     const { executor } = createExecutor();
     const valid = executor.prepare(
@@ -196,6 +254,9 @@ describe("createSubscriptionExecutor", () => {
       );
       expect(invalidAddress.errors[0]?.extensions?.["field"]).toBe(
         "scope.address",
+      );
+      expect(invalidAddress.errors[0]?.message).toBe(
+        "scope.address is not a valid email address",
       );
     }
   });

@@ -49,6 +49,38 @@ describe("mail event GraphQL surface", () => {
     });
   });
 
+  test("exposes MailEventScope.types as a non-null enum list", async () => {
+    const result = await harness.run(
+      `query {
+        __type(name: "MailEventScope") {
+          inputFields {
+            name
+            type { kind name ofType { kind name ofType { kind name } } }
+          }
+        }
+      }`,
+      null,
+    );
+
+    expect(result.errors).toBeUndefined();
+    expect(result.data?.["__type"]).toMatchObject({
+      inputFields: [
+        { name: "domainId" },
+        { name: "address" },
+        {
+          name: "types",
+          type: {
+            kind: "LIST",
+            ofType: {
+              kind: "NON_NULL",
+              ofType: { kind: "ENUM", name: "MailEventType" },
+            },
+          },
+        },
+      ],
+    });
+  });
+
   test("keeps the existing messages query available", async () => {
     const result = await harness.run(
       "query { messages { nodes { id } } }",

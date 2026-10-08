@@ -2,7 +2,6 @@ import {
   isTemplateCapability,
   type TemplateCapability,
 } from "@flying-mail/domain/entities/api-key";
-import { UserRole } from "@flying-mail/domain/entities/user";
 import type { UserPermissionEffect } from "@flying-mail/domain/entities/user-mail-permission";
 import {
   createUserTemplatePermission,
@@ -14,27 +13,14 @@ import {
   type UserTemplatePermissionId,
 } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
-import { BadUserInputError, ForbiddenError, NotFoundError } from "../errors";
+import { BadUserInputError, NotFoundError } from "../errors";
 import type { Viewer } from "../policies/viewer";
+import { requireUserAdministrator } from "./auth-guards";
 import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
 
 export interface UserTemplatePermissionInput {
   readonly capability: TemplateCapability;
   readonly effect: UserPermissionEffect;
-}
-
-/** Template rules are user administration, so they follow the same rule as
- * roles and mailbox permissions: an `ADMIN` *user* only, never an API key.
- * A key holding `TEMPLATE_CREATE` can create templates; it can never widen
- * somebody else's account. */
-function requireAdminUser(
-  viewer: Viewer,
-): asserts viewer is Extract<Viewer, { kind: "USER" }> {
-  if (viewer.kind !== "USER" || viewer.role !== UserRole.Admin) {
-    throw new ForbiddenError(
-      "Only an administrator can manage template permissions",
-    );
-  }
 }
 
 export function createListUserTemplatePermissionsUseCase(
@@ -44,7 +30,7 @@ export function createListUserTemplatePermissionsUseCase(
   userIds: readonly UserId[],
 ) => Promise<ReadonlyMap<string, readonly UserTemplatePermission[]>> {
   return async (viewer, userIds) => {
-    requireAdminUser(viewer);
+    await requireUserAdministrator(deps, viewer);
     return deps.userTemplatePermissionRepository.listByUserIds(userIds);
   };
 }
@@ -58,7 +44,7 @@ export function createAddUserTemplatePermissionUseCase(
 ) => Promise<UserTemplatePermission> {
   return async (viewer, userId, input) =>
     withAsyncDomainErrorTranslation(async () => {
-      requireAdminUser(viewer);
+      const { actorUserId } = await requireUserAdministrator(deps, viewer);
       if (!isTemplateCapability(input.capability)) {
         throw new BadUserInputError(
           `${input.capability} is not a template capability`,
@@ -82,7 +68,7 @@ export function createAddUserTemplatePermissionUseCase(
         userId,
         capability: input.capability,
         effect: input.effect,
-        createdByUserId: viewer.userId,
+        createdByUserId: actorUserId,
         createdAt: existing?.createdAt ?? deps.clock.now().toISOString(),
       });
       await deps.userTemplatePermissionRepository.save(permission);
@@ -95,7 +81,7 @@ export function createRemoveUserTemplatePermissionUseCase(
 ): (viewer: Viewer, id: UserTemplatePermissionId) => Promise<boolean> {
   return async (viewer, id) =>
     withAsyncDomainErrorTranslation(async () => {
-      requireAdminUser(viewer);
+      await requireUserAdministrator(deps, viewer);
       const existing = await deps.userTemplatePermissionRepository.findById(id);
       if (existing === null) {
         throw new NotFoundError("UserTemplatePermission", id);

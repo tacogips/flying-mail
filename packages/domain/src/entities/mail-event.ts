@@ -25,6 +25,8 @@ export interface MailEventRecord extends NewMailEvent {
 export interface MailEventScope {
   readonly domainId: DomainId | null;
   readonly address: string | null;
+  /** Filter only; never a grant. LIVE is never listed here. */
+  readonly types?: readonly MailEventType[] | null;
 }
 
 /** Normalize event addresses into a stable, deduplicated persistence order. */

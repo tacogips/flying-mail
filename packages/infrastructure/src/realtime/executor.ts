@@ -2,7 +2,6 @@ import type { AppDependencies } from "@flying-mail/application/dependencies";
 import type { Viewer } from "@flying-mail/application/policies";
 import type { UseCases } from "@flying-mail/application/usecases";
 import type { MailEventScope } from "@flying-mail/domain/entities/mail-event";
-import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   executeSubscriptionEvent,
   getArgumentValues,
@@ -27,6 +26,7 @@ import {
   documentSelectionCount,
 } from "../graphql/selection-limit";
 import type { MailEventPayload } from "./mail-event-payload";
+import { coerceScope } from "./drain-helpers";
 
 const PARSED_DOCUMENT_CACHE_LIMIT = 64;
 const parsedDocumentCache = new Map<string, DocumentNode>();
@@ -233,44 +233,6 @@ function rootMailEventField(
     : null;
 }
 
-function coerceScope(value: unknown): MailEventScope | null {
-  if (value === null || value === undefined) {
-    return { domainId: null, address: null };
-  }
-  if (typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-  const scope = value as {
-    readonly domainId?: unknown;
-    readonly address?: unknown;
-  };
-  let address: string | null = null;
-  if (scope.address !== undefined && scope.address !== null) {
-    if (typeof scope.address !== "string") {
-      return null;
-    }
-    try {
-      address = createEmailAddress(
-        scope.address.trim().toLowerCase(),
-        "scope.address",
-      );
-    } catch {
-      return null;
-    }
-  }
-  if (
-    scope.domainId !== undefined &&
-    scope.domainId !== null &&
-    typeof scope.domainId !== "string"
-  ) {
-    return null;
-  }
-  return {
-    domainId: (scope.domainId ?? null) as MailEventScope["domainId"],
-    address,
-  };
-}
-
 export function createSubscriptionExecutor(
   options: SubscriptionExecutorOptions,
 ): SubscriptionExecutor {
@@ -340,12 +302,9 @@ export function createSubscriptionExecutor(
       } catch (error) {
         return { ok: false, errors: formattedErrors([toGraphQLError(error)]) };
       }
-      const scope = coerceScope(args["scope"]);
-      if (scope === null) {
-        return badInput(
-          "scope.address is not a valid email address",
-          "scope.address",
-        );
+      const scopeResult = coerceScope(args["scope"]);
+      if (!scopeResult.ok) {
+        return badInput(scopeResult.message, scopeResult.field);
       }
       const afterValue = args["after"];
       if (
@@ -356,7 +315,7 @@ export function createSubscriptionExecutor(
         return badInput("after must be a string or null", "after");
       }
       const prepared: PreparedSubscriptionInternal = {
-        scope,
+        scope: scopeResult.scope,
         after: (afterValue ?? null) as string | null,
         [validatedArgsKey]: validatedArgs,
       };

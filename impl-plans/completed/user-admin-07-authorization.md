@@ -1,6 +1,6 @@
 # User Admin 07: USER_ADMIN Authorization (guard, use cases, grant rules)
 
-**Status**: Ready
+**Status**: Completed
 **Plan ID**: user-admin-07-authorization
 **Wave**: 2 (phase 28)
 **Depends On**: user-admin-01-capability-contract
@@ -64,7 +64,7 @@ Current code:
 - packages/application/src/usecases/admin.test.ts (same condition)
 - packages/infrastructure/src/graphql/schema-user-admin.test.ts (new)
 - packages/infrastructure/src/graphql/schema-users.test.ts (same condition)
-- impl-plans/active/user-admin-07-authorization.md (progress log only)
+- impl-plans/completed/user-admin-07-authorization.md (progress log only)
 
 sharedPaths: none.
 
@@ -234,8 +234,8 @@ Seed helpers live inside the new test files:
 
 ## Done criteria
 
-- [ ] TASK-001 to TASK-003 and all listed tests are complete.
-- [ ] Verification steps 1-5 pass, with exit codes and log paths recorded.
+- [x] TASK-001 to TASK-003 and all listed tests are complete.
+- [x] Verification steps 1-5 pass, with exit codes and log paths recorded.
 
 ## Worker protocol
 
@@ -250,4 +250,52 @@ Seed helpers live inside the new test files:
 
 ## Progress Log
 
-(empty)
+### Session: 2026-10-08 plan-07 implementation
+
+**Tasks Completed**: TASK-001, TASK-002, TASK-003.
+
+**Implementation**:
+
+- Added `requireUserAdministrator(deps, viewer)` with the design 2.3
+  check order and exact `ForbiddenError` messages. It loads the key and
+  creator on every call, checks usability against `deps.clock`, and returns
+  the creator's `actorUserId`. `requireAdminUser` remains unchanged.
+- Wired users list/get/role/activation/mail-rule operations and template
+  permission list/add/remove operations to the async guard before target or
+  permission reads. Mail and template rule creation now records
+  `actorUserId` in `createdByUserId`. `createUser` and `resendInvitation`
+  remain on `requireAdminUser`.
+- Made USER_ADMIN grant refusal the first `assertGrantable` branch for
+  non-admin-session viewers. Adding USER_ADMIN to an existing key now also
+  requires the signed-in ADMIN to be that key's creator.
+- Added guard, use-case and GraphQL tests for allowed/refused operations,
+  liveness and expiry, last-admin conflicts, no self-restoration, unrelated
+  MAIL_READ behavior, grant rules and audit actor IDs.
+
+**Verification** (final source):
+
+- `bunx vitest run packages/application packages/infrastructure/src/graphql`:
+  exit 0, 57 files and 733 tests passed;
+  `/tmp/user-admin-07-final-vitest.log`.
+- `bun run --cwd packages/application typecheck`: exit 0;
+  `/tmp/user-admin-07-final-application-typecheck.log`.
+- `bun run --cwd packages/infrastructure typecheck`: exit 0;
+  `/tmp/user-admin-07-final-infrastructure-typecheck.log`.
+- `bunx biome check packages/application/src packages/infrastructure/src/graphql`:
+  exit 0, 172 files checked;
+  `/tmp/user-admin-07-final-biome.log`.
+- `sh -c 'grep -n requireAdminUser packages/application/src/usecases/*.ts | grep -v test'`:
+  exit 0; only the guard definition, `users.ts` createUser and
+  `invitations.ts` remain;
+  `/tmp/user-admin-07-final-guard-scan.log`.
+- Assigned TypeScript line-count command: exit 0; all seven files are below
+  1000 lines;
+  `/tmp/user-admin-07-final-line-count.log`.
+- Earlier Biome formatting diagnostics were fixed by formatting only the
+  four reported changed files; the final Biome gate above passed.
+
+**Downstream**: plan 08 owns the combined-tree gates, plan status and progress
+index reconciliation, and final plan archival.
+
+### Session: 2026-10-08 orchestrator completion
+The riela workflow accepted plans 01, 02, 03, 05 and 07 through its reviews; it stopped with loopNotConverging because its implementation-progress-check gate never accepted plan 04 (web tests 302/302) or the documentation-only plan 06. The orchestrator ran the missing independent Opus review: 04 and 06 APPROVED with minor notes N1-N4 (aria-describedby for the USER_ADMIN description, README optional --domain, creator-only grant on existing keys, domains listing), fixed by GPT-6 Luna. Final gate (plan 08): mise run lint exit 0; bun run test 2055 package + 302 web tests; build-web exit 0; Worker dry run exit 0; largest TypeScript file 998 lines. Deployed to https://mail.tacoserve.online with migration 0017; Capability enum includes USER_ADMIN.

@@ -27,6 +27,7 @@ export enum Capability {
   TemplateDelete = "TEMPLATE_DELETE",
   ContactRead = "CONTACT_READ",
   ContactWrite = "CONTACT_WRITE",
+  UserAdmin = "USER_ADMIN",
 }
 
 /** The two contact capabilities, narrowed as a dedicated type. Like mail
@@ -78,6 +79,8 @@ export const GLOBAL_CAPABILITIES: ReadonlySet<Capability> = new Set([
   Capability.TemplateCreate,
   Capability.TemplateUpdate,
   Capability.TemplateDelete,
+  // instance-wide; accepted only by the user-administration guard, never by scope membership alone
+  Capability.UserAdmin,
 ]);
 
 export function isGlobalCapability(capability: Capability): boolean {

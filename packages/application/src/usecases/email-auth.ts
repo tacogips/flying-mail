@@ -296,10 +296,11 @@ export function createBootstrapAdminUseCase(
       });
       await deps.apiKeyRepository.save(apiKey);
 
-      // Every capability, unrestricted: this is the operator's root
-      // credential, and narrowing it here would just block the setup it
-      // exists to perform. It can be revoked once scoped keys are issued.
-      for (const capability of Object.values(Capability)) {
+      // The bootstrap key holds every capability except USER_ADMIN, because
+      // user administration by key must be granted by a signed-in admin.
+      for (const capability of Object.values(Capability).filter(
+        (candidate) => candidate !== Capability.UserAdmin,
+      )) {
         await deps.apiKeyRepository.saveScope(
           createApiKeyScope({
             id: createApiKeyScopeId(deps.random.uuid()),

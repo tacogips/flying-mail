@@ -323,14 +323,14 @@ Plans live in `impl-plans/active/`; plan 08 moves them to `completed/`.
 
 | Wave / Phase | Plan | Depends on |
 |--------------|------|------------|
-| 1 / 27 | [user-admin-01-capability-contract](active/user-admin-01-capability-contract.md) | - |
-| 1 / 27 | [user-admin-02-realtime-type-filter](active/user-admin-02-realtime-type-filter.md) | - |
-| 1 / 27 | [user-admin-03-cli-watch-type](active/user-admin-03-cli-watch-type.md) | - |
-| 1 / 27 | [user-admin-04-web-api-keys](active/user-admin-04-web-api-keys.md) | - |
-| 1 / 27 | [user-admin-05-cli-user-commands](active/user-admin-05-cli-user-commands.md) | - |
-| 1 / 27 | [user-admin-06-readme-docs](active/user-admin-06-readme-docs.md) | - |
-| 2 / 28 | [user-admin-07-authorization](active/user-admin-07-authorization.md) | 01 |
-| 3 / 29 | [user-admin-08-final-verification](active/user-admin-08-final-verification.md) | all of 01-07 (serial) |
+| 1 / 27 | [user-admin-01-capability-contract](completed/user-admin-01-capability-contract.md) | - |
+| 1 / 27 | [user-admin-02-realtime-type-filter](completed/user-admin-02-realtime-type-filter.md) | - |
+| 1 / 27 | [user-admin-03-cli-watch-type](completed/user-admin-03-cli-watch-type.md) | - |
+| 1 / 27 | [user-admin-04-web-api-keys](completed/user-admin-04-web-api-keys.md) | - |
+| 1 / 27 | [user-admin-05-cli-user-commands](completed/user-admin-05-cli-user-commands.md) | - |
+| 1 / 27 | [user-admin-06-readme-docs](completed/user-admin-06-readme-docs.md) | - |
+| 2 / 28 | [user-admin-07-authorization](completed/user-admin-07-authorization.md) | 01 |
+| 3 / 29 | [user-admin-08-final-verification](completed/user-admin-08-final-verification.md) | all of 01-07 (serial) |
 
 The same worker rules as for webmail completion apply.
 

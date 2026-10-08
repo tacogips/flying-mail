@@ -114,6 +114,7 @@ describe("createMigrationRunner", () => {
       "0014_address_activity_index.sql",
       "0015_auth_hardening.sql",
       "0016_mail_events.sql",
+      "0017_user_admin_capability.sql",
     ]);
 
     const names = await tableNames(db);
@@ -169,6 +170,7 @@ describe("createMigrationRunner", () => {
     expect((await runner.apply(migrations)).applied).toEqual([
       "0015_auth_hardening.sql",
       "0016_mail_events.sql",
+      "0017_user_admin_capability.sql",
     ]);
     expect(
       (

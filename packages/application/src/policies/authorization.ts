@@ -47,11 +47,16 @@ export function hasAnyMailRead(viewer: Viewer): boolean {
   );
 }
 
-/** Non-throwing form of {@link requireGlobalCapability}. */
+/** Non-throwing form of {@link requireGlobalCapability}. USER_ADMIN is
+ * excluded because liveness needs repository access; only
+ * `requireUserAdministrator` may accept it. */
 export function authorizesGlobal(
   viewer: Viewer,
   capability: Capability,
 ): boolean {
+  if (capability === Capability.UserAdmin) {
+    return false;
+  }
   if (viewer.kind === "USER") {
     // Instance administration is an ADMIN-only user power; a MEMBER never
     // has it, and a deactivated user never resolves to a viewer at all.

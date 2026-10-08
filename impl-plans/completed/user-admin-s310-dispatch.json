@@ -98,20 +98,20 @@
       "design-docs/specs/design-user-mail-permissions.md",
       "impl-plans/PROGRESS.json",
       "impl-plans/README.md",
-      "impl-plans/active/user-admin-01-capability-contract.md",
-      "impl-plans/active/user-admin-02-realtime-type-filter.md",
-      "impl-plans/active/user-admin-03-cli-watch-type.md",
-      "impl-plans/active/user-admin-04-web-api-keys.md",
-      "impl-plans/active/user-admin-05-cli-user-commands.md",
-      "impl-plans/active/user-admin-06-readme-docs.md",
-      "impl-plans/active/user-admin-07-authorization.md",
-      "impl-plans/active/user-admin-08-final-verification.md"
+      "impl-plans/completed/user-admin-01-capability-contract.md",
+      "impl-plans/completed/user-admin-02-realtime-type-filter.md",
+      "impl-plans/completed/user-admin-03-cli-watch-type.md",
+      "impl-plans/completed/user-admin-04-web-api-keys.md",
+      "impl-plans/completed/user-admin-05-cli-user-commands.md",
+      "impl-plans/completed/user-admin-06-readme-docs.md",
+      "impl-plans/completed/user-admin-07-authorization.md",
+      "impl-plans/completed/user-admin-08-final-verification.md"
     ]
   },
   "plans": [
     {
       "planId": "user-admin-01-capability-contract",
-      "planPath": "impl-plans/active/user-admin-01-capability-contract.md",
+      "planPath": "impl-plans/completed/user-admin-01-capability-contract.md",
       "dependsOn": [],
       "writePaths": [
         "packages/domain/src/entities/api-key.ts",
@@ -125,7 +125,7 @@
         "apps/api/migrations/0017_user_admin_capability.sql",
         "packages/adapter/src/migrations/user-admin-migration.test.ts",
         "packages/adapter/src/migrations/runner.test.ts",
-        "impl-plans/active/user-admin-01-capability-contract.md"
+        "impl-plans/completed/user-admin-01-capability-contract.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
@@ -134,7 +134,7 @@
           "intendedEdit": "Only append 0017_user_admin_capability.sql to both expected applied lists."
         },
         {
-          "path": "impl-plans/active/user-admin-01-capability-contract.md",
+          "path": "impl-plans/completed/user-admin-01-capability-contract.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -161,7 +161,7 @@
     },
     {
       "planId": "user-admin-02-realtime-type-filter",
-      "planPath": "impl-plans/active/user-admin-02-realtime-type-filter.md",
+      "planPath": "impl-plans/completed/user-admin-02-realtime-type-filter.md",
       "dependsOn": [],
       "writePaths": [
         "packages/domain/src/entities/mail-event.ts",
@@ -172,7 +172,7 @@
         "packages/infrastructure/src/realtime/drain.test.ts",
         "packages/infrastructure/src/graphql/schema-realtime.graphql.ts",
         "packages/infrastructure/src/graphql/schema-realtime.test.ts",
-        "impl-plans/active/user-admin-02-realtime-type-filter.md"
+        "impl-plans/completed/user-admin-02-realtime-type-filter.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
@@ -181,7 +181,7 @@
           "intendedEdit": "Only the matchesScope call site changes to matchesScope(subscription.scope, row). lastSeq = row.seq and the LIVE branch are untouched."
         },
         {
-          "path": "impl-plans/active/user-admin-02-realtime-type-filter.md",
+          "path": "impl-plans/completed/user-admin-02-realtime-type-filter.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -205,7 +205,7 @@
     },
     {
       "planId": "user-admin-03-cli-watch-type",
-      "planPath": "impl-plans/active/user-admin-03-cli-watch-type.md",
+      "planPath": "impl-plans/completed/user-admin-03-cli-watch-type.md",
       "dependsOn": [],
       "writePaths": [
         "packages/realtime-client/src/protocol.ts",
@@ -213,12 +213,12 @@
         "apps/cli/src/commands/watch.ts",
         "apps/cli/src/watch-cursors.ts",
         "apps/cli/src/watch.test.ts",
-        "impl-plans/active/user-admin-03-cli-watch-type.md"
+        "impl-plans/completed/user-admin-03-cli-watch-type.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
         {
-          "path": "impl-plans/active/user-admin-03-cli-watch-type.md",
+          "path": "impl-plans/completed/user-admin-03-cli-watch-type.md",
           "intendedEdit": "Progress log and completion checkboxes only. The --type HELP line in apps/cli/src/main.ts is added by user-admin-05, not by this plan."
         }
       ],
@@ -240,7 +240,7 @@
     },
     {
       "planId": "user-admin-04-web-api-keys",
-      "planPath": "impl-plans/active/user-admin-04-web-api-keys.md",
+      "planPath": "impl-plans/completed/user-admin-04-web-api-keys.md",
       "dependsOn": [],
       "writePaths": [
         "apps/web/src/api/schema-types.ts",
@@ -248,12 +248,12 @@
         "apps/web/src/lib/helpers.test.ts",
         "apps/web/src/pages/settings/api-keys-page.tsx",
         "apps/web/src/pages/settings/api-keys-page.test.tsx",
-        "impl-plans/active/user-admin-04-web-api-keys.md"
+        "impl-plans/completed/user-admin-04-web-api-keys.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
         {
-          "path": "impl-plans/active/user-admin-04-web-api-keys.md",
+          "path": "impl-plans/completed/user-admin-04-web-api-keys.md",
           "intendedEdit": "Progress log and completion checkboxes only. This plan does not run mise run build-web; user-admin-08 owns apps/web/dist."
         }
       ],
@@ -273,14 +273,14 @@
     },
     {
       "planId": "user-admin-05-cli-user-commands",
-      "planPath": "impl-plans/active/user-admin-05-cli-user-commands.md",
+      "planPath": "impl-plans/completed/user-admin-05-cli-user-commands.md",
       "dependsOn": [],
       "writePaths": [
         "apps/cli/src/commands/user.ts",
         "apps/cli/src/user.test.ts",
         "apps/cli/src/main.ts",
         "apps/cli/src/cli.test.ts",
-        "impl-plans/active/user-admin-05-cli-user-commands.md"
+        "impl-plans/completed/user-admin-05-cli-user-commands.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
@@ -293,7 +293,7 @@
           "intendedEdit": "Conditional: edit only if an existing HELP or dispatch assertion must change. Otherwise leave it untouched."
         },
         {
-          "path": "impl-plans/active/user-admin-05-cli-user-commands.md",
+          "path": "impl-plans/completed/user-admin-05-cli-user-commands.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -315,11 +315,11 @@
     },
     {
       "planId": "user-admin-06-readme-docs",
-      "planPath": "impl-plans/active/user-admin-06-readme-docs.md",
+      "planPath": "impl-plans/completed/user-admin-06-readme-docs.md",
       "dependsOn": [],
       "writePaths": [
         "README.md",
-        "impl-plans/active/user-admin-06-readme-docs.md"
+        "impl-plans/completed/user-admin-06-readme-docs.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
@@ -328,7 +328,7 @@
           "intendedEdit": "Documentation only: User administration by API key subsection, MailEventScope.types SDL and semantics, watch --type example, the flying-mail user CLI block, and documentation-table rows for design-user-admin-capability.md and design-realtime-push.md."
         },
         {
-          "path": "impl-plans/active/user-admin-06-readme-docs.md",
+          "path": "impl-plans/completed/user-admin-06-readme-docs.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -354,7 +354,7 @@
     },
     {
       "planId": "user-admin-07-authorization",
-      "planPath": "impl-plans/active/user-admin-07-authorization.md",
+      "planPath": "impl-plans/completed/user-admin-07-authorization.md",
       "dependsOn": [
         "user-admin-01-capability-contract"
       ],
@@ -370,7 +370,7 @@
         "packages/application/src/usecases/admin.test.ts",
         "packages/infrastructure/src/graphql/schema-user-admin.test.ts",
         "packages/infrastructure/src/graphql/schema-users.test.ts",
-        "impl-plans/active/user-admin-07-authorization.md"
+        "impl-plans/completed/user-admin-07-authorization.md"
       ],
       "sharedPaths": [],
       "sharedPathNotes": [
@@ -391,7 +391,7 @@
           "intendedEdit": "Conditional: same condition as users.test.ts."
         },
         {
-          "path": "impl-plans/active/user-admin-07-authorization.md",
+          "path": "impl-plans/completed/user-admin-07-authorization.md",
           "intendedEdit": "Progress log and completion checkboxes only."
         }
       ],
@@ -414,7 +414,7 @@
     },
     {
       "planId": "user-admin-08-final-verification",
-      "planPath": "impl-plans/active/user-admin-08-final-verification.md",
+      "planPath": "impl-plans/completed/user-admin-08-final-verification.md",
       "dependsOn": [
         "user-admin-01-capability-contract",
         "user-admin-02-realtime-type-filter",
@@ -437,7 +437,7 @@
       "sharedPathNotes": [
         {
           "path": "impl-plans/active",
-          "intendedEdit": "Only after every gate passes: move the eight impl-plans/active/user-admin-0*.md plan files to impl-plans/completed with a plain filesystem move. Never edit, move or delete impl-plans/active/user-admin-s310-dispatch.json."
+          "intendedEdit": "Only after every gate passes: move the eight impl-plans/completed/user-admin-0*.md plan files to impl-plans/completed with a plain filesystem move. Never edit, move or delete impl-plans/completed/user-admin-s310-dispatch.json."
         },
         {
           "path": "impl-plans/completed",

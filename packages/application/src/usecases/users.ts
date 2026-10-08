@@ -30,6 +30,7 @@ import type { Viewer } from "../policies/viewer";
 import {
   loadUserWithPermissions,
   requireAdminUser,
+  requireUserAdministrator,
   type UserWithPermissions,
 } from "./auth-guards";
 import { issueInvitation } from "./invitations";
@@ -70,7 +71,7 @@ export function createListUsersUseCase(
   deps: AppDependencies,
 ): (viewer: Viewer) => Promise<readonly UserWithPermissions[]> {
   return async (viewer) => {
-    requireAdminUser(viewer);
+    await requireUserAdministrator(deps, viewer);
     const users = await deps.userRepository.list();
     return Promise.all(
       users.map((user) => loadUserWithPermissions(deps, user)),
@@ -82,7 +83,7 @@ export function createGetUserUseCase(
   deps: AppDependencies,
 ): (viewer: Viewer, id: UserId) => Promise<UserWithPermissions | null> {
   return async (viewer, id) => {
-    requireAdminUser(viewer);
+    await requireUserAdministrator(deps, viewer);
     const user = await deps.userRepository.findById(id);
     return user === null ? null : loadUserWithPermissions(deps, user);
   };
@@ -125,7 +126,7 @@ export function createSetUserRoleUseCase(
 ) => Promise<UserWithPermissions> {
   return async (viewer, id, role) =>
     withAsyncDomainErrorTranslation(async () => {
-      requireAdminUser(viewer);
+      await requireUserAdministrator(deps, viewer);
       const user = await deps.userRepository.findById(id);
       if (user === null) {
         throw new NotFoundError("User", id);
@@ -153,7 +154,7 @@ export function createSetUserActiveUseCase(
 ) => Promise<UserWithPermissions> {
   return async (viewer, id, active) =>
     withAsyncDomainErrorTranslation(async () => {
-      requireAdminUser(viewer);
+      await requireUserAdministrator(deps, viewer);
       const user = await deps.userRepository.findById(id);
       if (user === null) {
         throw new NotFoundError("User", id);
@@ -186,7 +187,7 @@ export function createAddUserMailPermissionUseCase(
 ) => Promise<UserMailPermission> {
   return async (viewer, userId, input) =>
     withAsyncDomainErrorTranslation(async () => {
-      requireAdminUser(viewer);
+      const { actorUserId } = await requireUserAdministrator(deps, viewer);
       const target = await deps.userRepository.findById(userId);
       if (target === null) {
         throw new NotFoundError("User", userId);
@@ -206,7 +207,7 @@ export function createAddUserMailPermissionUseCase(
         effect: input.effect,
         domainId: input.domainId,
         addressPattern: parsePermissionPattern(input.addressPattern),
-        createdByUserId: viewer.userId,
+        createdByUserId: actorUserId,
         createdAt: deps.clock.now().toISOString(),
       });
       await deps.userMailPermissionRepository.save(permission);
@@ -218,7 +219,7 @@ export function createRemoveUserMailPermissionUseCase(
   deps: AppDependencies,
 ): (viewer: Viewer, id: UserMailPermissionId) => Promise<boolean> {
   return async (viewer, id) => {
-    requireAdminUser(viewer);
+    await requireUserAdministrator(deps, viewer);
     const permission = await deps.userMailPermissionRepository.findById(id);
     if (permission === null) {
       throw new NotFoundError("UserMailPermission", id);

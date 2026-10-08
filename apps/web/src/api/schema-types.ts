@@ -47,7 +47,8 @@ export type Capability =
   | "TEMPLATE_UPDATE"
   | "TEMPLATE_DELETE"
   | "CONTACT_READ"
-  | "CONTACT_WRITE";
+  | "CONTACT_WRITE"
+  | "USER_ADMIN";
 
 export type TemplateCapability =
   | "TEMPLATE_READ"

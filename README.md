@@ -160,6 +160,32 @@ curl -sX POST https://<worker-host>/graphql \
   -d '{"query":"mutation { addUserMailPermission(userId: \"<user-id>\", input: { effect: ALLOW, domainId: \"<domain-id>\", addressPattern: \"support@example.com\" }) { id effect addressPattern } }"}'
 ```
 
+#### User administration by API key
+
+The global `USER_ADMIN` capability lets a key list users with `users` and
+`user(id)`, change roles and activation, and add or remove user mail and
+template permission rules. It does not grant any other capability (it can also
+list domains, for rule resolution), and it never authorizes `createUser` or
+`resendInvitation`; user creation and
+invitations remain web-only. Only a signed-in admin can grant `USER_ADMIN` in
+Settings > API keys. API keys cannot grant it, even keys with `KEY_ADMIN`, and
+the bootstrap key does not include it.
+Adding `USER_ADMIN` to an existing key is allowed only for the admin who
+created that key.
+
+The key's creating admin must continue to exist, be active, and have the
+`ADMIN` role. If not, its USER_ADMIN operations return `FORBIDDEN`, while its
+other scopes continue to work. A key cannot demote or deactivate the last
+active admin; that attempt returns `CONFLICT`. Rules created with the key are
+audited to its creating admin. For example, with a placeholder key:
+
+```bash
+curl -sX POST https://<worker-host>/graphql \
+  -H 'content-type: application/json' \
+  -H 'authorization: Bearer $KEY' \
+  -d '{"query":"mutation { setUserRole(id: \"<user-id>\", role: MEMBER) { id role } }"}'
+```
+
 Upload an attachment, download it by ID, or create and use a temporary file
 link:
 
@@ -187,7 +213,7 @@ enum MailEventType {
   DRAFT_SAVED DRAFT_DELETED LIVE
 }
 
-input MailEventScope { domainId: ID, address: String }
+input MailEventScope { domainId: ID, address: String, types: [MailEventType!] }
 
 type MailEvent {
   cursor: String!
@@ -203,6 +229,12 @@ type Subscription {
   mailEvents(scope: MailEventScope, after: String): MailEvent!
 }
 ```
+
+`scope.types` filters event types on the server; when omitted, all types are
+included. An empty list or a list containing `LIVE` is `BAD_USER_INPUT`. The
+system `LIVE` event is always delivered, regardless of the filter. Filtered-out
+rows still advance the subscription cursor, so replay remains gap-free and
+duplicate-free.
 
 Use `graphql-ws` with `keepAlive` enabled. Set `retryAttempts: 0` so the
 application can resume with its newest cursor. The stock retry resends the
@@ -270,7 +302,11 @@ JSON and persists its cursor:
 
 ```bash
 flying-mail watch --address support@example.com --json
+flying-mail watch --type received,sent --json
 ```
+
+`--type` accepts `received`, `sent`, `updated`, `deleted`, `draft-saved`, and
+`draft-deleted`. Each filter has a separate saved cursor.
 
 ```json
 {"type":"LIVE","cursor":"<epoch>.<seq>"}
@@ -378,8 +414,9 @@ Signing in and inviting users are manual browser operations by design:
 
 - Requesting a sign-in link needs a Turnstile token, which only a real browser
   can obtain.
-- `createUser` and `resendInvitation` require a signed-in admin web session.
-  API keys, including the bootstrap key, are refused for user management.
+- `createUser` and `resendInvitation` require a signed-in admin web session
+  and remain web-only. A `USER_ADMIN` API key can manage existing users and
+  their permission rules; the bootstrap key does not include `USER_ADMIN`.
 
 Everything else (mail, drafts, domains, mailboxes and files) is fully
 automatable through GraphQL and the REST file endpoints with scoped API keys.
@@ -395,7 +432,8 @@ kinko exec -- env FLYING_MAIL_ENDPOINT=https://mail.tacoserve.online \
   mise run bootstrap-admin you@example.com "You"
 ```
 
-The full-capability API key is written with mode `0600` to
+The bootstrap API key, which includes every bootstrap-granted capability
+except `USER_ADMIN`, is written with mode `0600` to
 `.private/bootstrap-admin-api-key`; command output includes the admin and
 key prefix only. Delete the bootstrap secret after the command succeeds.
 
@@ -406,6 +444,8 @@ key prefix only. Delete the bootstrap secret after the command succeeds.
 | `design-docs/specs/architecture.md` | System overview and layering |
 | `design-docs/specs/design-domain-model.md` | Entities and invariants |
 | `design-docs/specs/design-api-keys-and-permissions.md` | Key format, scopes, matching |
+| `design-docs/specs/design-user-admin-capability.md` | USER_ADMIN capability and event-type filter |
+| `design-docs/specs/design-realtime-push.md` | Real-time push and subscriptions |
 | `design-docs/specs/design-mail-pipeline.md` | Inbound ingest and outbound send |
 | `design-docs/specs/design-graphql-api.md` | Schema, errors, fetch state |
 | `design-docs/specs/design-storage-and-file-links.md` | D1 schema, R2 layout, file links |
@@ -435,6 +475,26 @@ Or from the shell:
 flying-mail mail fetch --ack --watch --interval 30
 flying-mail watch --address support@example.com --json
 ```
+
+## User administration from the CLI
+
+The `flying-mail user` commands require a live `USER_ADMIN` capability:
+
+```bash
+flying-mail user list --json
+flying-mail user show <email|id>
+flying-mail user set-role <user> <ADMIN|MEMBER|VIEWER>
+flying-mail user activate <user>
+flying-mail user deactivate <user>
+flying-mail user rule add <user> --effect ALLOW|DENY [--domain <name|id>] --pattern <pattern>
+flying-mail user rule remove <user> <rule-id>
+flying-mail user template-rule add <user> --capability TEMPLATE_READ|TEMPLATE_CREATE|TEMPLATE_UPDATE|TEMPLATE_DELETE --effect ALLOW|DENY
+flying-mail user template-rule remove <user> <rule-id>
+```
+
+A `FORBIDDEN` response exits with code 4 and includes a hint that the key
+needs `USER_ADMIN` or its creating admin is no longer active. User creation
+(`createUser`) and invitations (`resendInvitation`) remain web-only.
 
 ## Project name compatibility
 
