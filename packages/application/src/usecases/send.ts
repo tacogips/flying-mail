@@ -57,6 +57,7 @@ import {
 import { assembleOutbound } from "./outbound-assembly";
 import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
 import { recordMailEvents } from "./mail-events";
+import { enforceSendQuota } from "./send-quota";
 
 /** Provider limits, validated before the binding call so a caller gets a
  * `BAD_USER_INPUT` naming the offending field instead of an opaque
@@ -384,6 +385,7 @@ export function createSendMessageUseCase(
       }
       requireAddressCapability(viewer, Capability.MailSend, domain.id, [from]);
       assertCanSendMail(domain);
+      await enforceSendQuota(deps, viewer, domain.id);
       const provisionedFrom =
         await deps.mailAddressRepository.findByAddress(from);
       if (provisionedFrom !== null && !isMailAddressActive(provisionedFrom)) {

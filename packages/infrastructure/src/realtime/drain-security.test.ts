@@ -5,6 +5,7 @@ import {
   createMessageId,
 } from "@flying-mail/domain/value-objects/ids";
 import { describe, expect, test, vi } from "vitest";
+import { PRINCIPAL_CACHE_TTL_MS } from "./protocol";
 import {
   createRealtimeTestBundle,
   messagesOfType,
@@ -84,7 +85,8 @@ function nextCursors(socket: RecordingSocket, id: string): string[] {
 
 describe("realtime security regressions", () => {
   test("a revoked principal cannot stall a full replay page for another principal", async () => {
-    const bundle = createRealtimeTestBundle();
+    let clock = Date.now();
+    const bundle = createRealtimeTestBundle({ now: () => clock });
     let revoked = false;
     vi.spyOn(bundle.usecases, "resolveViewerFromTokenHash").mockImplementation(
       async (tokenHash) =>
@@ -108,6 +110,7 @@ describe("realtime security regressions", () => {
       await subscribe(bundle, pair.connection, token);
     }
     revoked = true;
+    clock += PRINCIPAL_CACHE_TTL_MS;
     await appendEvents(bundle, 250);
     await bundle.hub.requestDrain();
     expect(pairs[0]?.socket.closes.at(-1)?.code).toBe(4401);

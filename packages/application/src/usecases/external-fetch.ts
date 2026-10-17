@@ -4,7 +4,11 @@ import {
   isExternalAccountActive,
   markExternalMailAccountFetched,
 } from "@flying-mail/domain/entities/external-mail-account";
-import { createExternalMessageState } from "@flying-mail/domain/entities/external-message-state";
+import {
+  createExternalMessageState,
+  createSkippedExternalMessageState,
+  ExternalMessageSkipReason,
+} from "@flying-mail/domain/entities/external-message-state";
 import type { MailAddress } from "@flying-mail/domain/entities/mail-address";
 import type { EmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
@@ -12,10 +16,12 @@ import {
   type ExternalAccountId,
 } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
-import { ConflictError, NotFoundError } from "../errors";
+import type { SkippedRemoteMessage } from "../ports/external-mail";
+import { BadUserInputError, ConflictError, NotFoundError } from "../errors";
 import { authorizesAnyAddress } from "../policies/authorization";
 import type { Viewer } from "../policies/viewer";
 import { requireCipher } from "./external-accounts";
+import { MAX_EXTERNAL_FETCH_PER_RUN } from "./mail-limits";
 import type { ReceiveMessageInput, ReceiveMessageResult } from "./ingest";
 
 export const DEFAULT_EXTERNAL_FETCH_MAX = 50;
@@ -159,6 +165,28 @@ async function ingestFetchedMessage(
   }
 }
 
+/** Records remote messages the client declined to download in the dedupe
+ * ledger, so the next run does not list and skip them all over again.
+ * Returns how many were recorded. */
+async function recordSkippedMessages(
+  deps: AppDependencies,
+  account: ExternalMailAccount,
+  skipped: readonly SkippedRemoteMessage[],
+  now: string,
+): Promise<number> {
+  for (const entry of skipped) {
+    await deps.externalMessageStateRepository.save(
+      createSkippedExternalMessageState({
+        accountId: account.id,
+        remoteId: entry.remoteId,
+        skipReason: ExternalMessageSkipReason.TooLarge,
+        fetchedAt: now,
+      }),
+    );
+  }
+  return skipped.length;
+}
+
 /** Fetch orchestration over an existing `ExternalMailAccount`: JMAP or POP3,
  * deduped against the ledger, capped per run. Gated on `MAIL_READ` for the
  * bound address rather than `DomainAdmin` -- any authorized reader may poll
@@ -186,7 +214,13 @@ export function createFetchExternalMailUseCase(
     }
     requireCipher(deps);
 
-    const max = input?.max ?? DEFAULT_EXTERNAL_FETCH_MAX;
+    const requestedMax = input?.max ?? DEFAULT_EXTERNAL_FETCH_MAX;
+    if (!Number.isInteger(requestedMax)) {
+      throw new BadUserInputError("max must be an integer", "max");
+    }
+    // Each fetched message is parsed and stored inside one request, so the
+    // per-run count is bounded no matter what the caller asks for.
+    const max = Math.min(Math.max(requestedMax, 1), MAX_EXTERNAL_FETCH_PER_RUN);
     const now = deps.clock.now().toISOString();
     const password = await deps.credentialCipher.decrypt(
       account.fetch.passwordCiphertext,
@@ -218,6 +252,12 @@ export function createFetchExternalMailUseCase(
         max,
       );
       hasMore = result.hasMore;
+      skipped += await recordSkippedMessages(
+        deps,
+        account,
+        result.skipped,
+        now,
+      );
       for (const message of result.messages) {
         recordOutcome(
           await ingestFetchedMessage(
@@ -245,8 +285,17 @@ export function createFetchExternalMailUseCase(
       const newUidls = uidls.filter((uidl) => !known.has(uidl));
       const capped = newUidls.slice(0, max);
       hasMore = capped.length < newUidls.length;
-      const messages = await deps.pop3Client.fetchByUidl(credentials, capped);
-      for (const message of messages) {
+      const detailed = await deps.pop3Client.fetchByUidlDetailed(
+        credentials,
+        capped,
+      );
+      skipped += await recordSkippedMessages(
+        deps,
+        account,
+        detailed.skipped,
+        now,
+      );
+      for (const message of detailed.messages) {
         recordOutcome(
           await ingestFetchedMessage(
             deps,

@@ -19,7 +19,8 @@
     "./http/auth-middleware": "./src/http/auth-middleware.ts",
     "./http/attachments": "./src/http/attachments.ts",
     "./http/file-links": "./src/http/file-links.ts",
-    "./http/security-headers": "./src/http/security-headers.ts"
+    "./http/security-headers": "./src/http/security-headers.ts",
+    "./mcp/*": "./src/mcp/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -30,8 +31,9 @@
     "@flying-mail/application": "workspace:*",
     "@flying-mail/domain": "workspace:*",
     "graphql": "17.0.2",
-    "graphql-yoga": "5.21.3",
-    "hono": "4.13.2"
+    "graphql-yoga": "5.24.4",
+    "hono": "4.13.13",
+    "parse5": "8.0.1"
   },
   "devDependencies": {
     "typescript": "5.7.2"

@@ -27,6 +27,7 @@ import type { GraphQLContext } from "../graphql/context";
 import { mailEventResolvers } from "../graphql/resolvers/realtime";
 import { coerceScope } from "./drain-helpers";
 import type { MailEventPayload } from "./mail-event-payload";
+import { DEFAULT_MAX_ALIASES } from "../graphql/alias-limit";
 import { createSubscriptionExecutor } from "./executor";
 
 const DOMAIN_ID = createDomainId("dom-realtime");
@@ -215,6 +216,31 @@ describe("createSubscriptionExecutor", () => {
         expect(invalid.errors[0]?.extensions?.["field"]).toBe("scope.types");
         expect(invalid.errors[0]?.message).toBe(message);
       }
+    }
+  });
+
+  test("rejects documents with more aliased fields than the shared limit", () => {
+    const { executor } = createExecutor();
+    const aliased = (count: number): string =>
+      `subscription { mailEvents { ${Array.from(
+        { length: count },
+        (_, index) => `a${index}: cursor`,
+      ).join(" ")} } }`;
+
+    const atLimit = executor.prepare(
+      { query: aliased(DEFAULT_MAX_ALIASES) },
+      memberViewer(),
+    );
+    expect(atLimit.ok).toBe(true);
+
+    const overLimit = executor.prepare(
+      { query: aliased(DEFAULT_MAX_ALIASES + 1) },
+      memberViewer(),
+    );
+    expect(overLimit.ok).toBe(false);
+    if (!overLimit.ok) {
+      expect(overLimit.errors[0]?.extensions?.["code"]).toBe("BAD_USER_INPUT");
+      expect(overLimit.errors[0]?.message).toContain("too many aliases");
     }
   });
 

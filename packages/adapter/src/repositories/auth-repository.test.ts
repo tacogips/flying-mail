@@ -121,4 +121,74 @@ describe("auth repositories", () => {
     expect(await emptyRepository.createFirstUser(bootstrap)).toBe(true);
     expect(await emptyRepository.findById(bootstrap.id)).toEqual(bootstrap);
   });
+
+  describe("saveUnlessLastActiveAdmin", () => {
+    function admin(id: string) {
+      return createUser({
+        id: createUserId(id),
+        email: createEmailAddress(`${id}@example.com`),
+        name: id,
+        role: UserRole.Admin,
+        createdAt: NOW,
+      });
+    }
+
+    test("applies a demotion or deactivation only while another active admin remains", async () => {
+      const db = await createMigratedDatabase();
+      const repository = createUserRepository(db);
+      const first = admin("usr-a");
+      const second = admin("usr-b");
+      await repository.save(first);
+      await repository.save(second);
+
+      // Two admins: the first demotion is applied.
+      const demoted = {
+        ...first,
+        role: UserRole.Member,
+        updatedAt: "2026-08-23T01:00:00.000Z",
+      };
+      expect(await repository.saveUnlessLastActiveAdmin(demoted)).toBe(true);
+      expect((await repository.findById(first.id))?.role).toBe(UserRole.Member);
+
+      // Only one admin is left, so neither a demotion nor a deactivation
+      // of it may be applied.
+      expect(
+        await repository.saveUnlessLastActiveAdmin({
+          ...second,
+          role: UserRole.Member,
+          updatedAt: "2026-08-23T02:00:00.000Z",
+        }),
+      ).toBe(false);
+      expect(
+        await repository.saveUnlessLastActiveAdmin({
+          ...second,
+          deactivatedAt: "2026-08-23T02:00:00.000Z",
+          updatedAt: "2026-08-23T02:00:00.000Z",
+        }),
+      ).toBe(false);
+      const stored = await repository.findById(second.id);
+      expect(stored?.role).toBe(UserRole.Admin);
+      expect(stored?.deactivatedAt).toBeNull();
+    });
+
+    test("a deactivated admin does not count as the remaining admin", async () => {
+      const db = await createMigratedDatabase();
+      const repository = createUserRepository(db);
+      const live = admin("usr-live");
+      const gone = {
+        ...admin("usr-gone"),
+        deactivatedAt: "2026-08-22T00:00:00.000Z",
+      };
+      await repository.save(live);
+      await repository.save(gone);
+
+      expect(
+        await repository.saveUnlessLastActiveAdmin({
+          ...live,
+          role: UserRole.Member,
+          updatedAt: NOW,
+        }),
+      ).toBe(false);
+    });
+  });
 });

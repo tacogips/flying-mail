@@ -20,6 +20,7 @@ import {
   type User,
 } from "@flying-mail/domain/entities/user";
 import type { UserMailPermission } from "@flying-mail/domain/entities/user-mail-permission";
+import type { MessageListResult } from "@flying-mail/application/usecases/messages";
 import type { GraphQLContext } from "../context";
 import { holdsCapability, viewerCapabilities } from "./helpers";
 
@@ -141,6 +142,14 @@ export const messageResolvers = {
   },
 };
 
+/** `totalCount` is resolved on demand: the count query scans every row that
+ * matches the filter, so it runs only when a query selects the field. */
+export const messagePageResolvers = {
+  totalCount(page: MessageListResult): Promise<number> {
+    return page.loadTotalCount();
+  },
+};
+
 export const mailDomainResolvers = {
   /** Hidden from anyone who cannot administer domains: the token proves
    * ownership, so exposing it to every reader would let a member (or a
@@ -159,8 +168,27 @@ export const mailDomainResolvers = {
     return domain.verificationToken;
   },
 
+  /** The ownership TXT record embeds `verificationToken`, so for a viewer
+   * who cannot see the token the token is stripped from every record value
+   * -- the same capability check `verificationToken` uses. The record itself
+   * stays so the list keeps its shape. */
   dnsRecords(domain: MailDomain, _args: unknown, ctx: GraphQLContext) {
-    return ctx.usecases.domainDnsRecords(domain);
+    const records = ctx.usecases.domainDnsRecords(domain);
+    if (
+      ctx.viewer !== null &&
+      holdsCapability(ctx.viewer, Capability.DomainAdmin)
+    ) {
+      return records;
+    }
+    const token = domain.verificationToken;
+    if (token.length === 0) {
+      return records;
+    }
+    return records.map((record) =>
+      record.value.includes(token)
+        ? { ...record, value: record.value.replaceAll(token, "[redacted]") }
+        : record,
+    );
   },
 
   async inboundMx(
@@ -182,7 +210,7 @@ export const mailDomainResolvers = {
     _args: unknown,
     ctx: GraphQLContext,
   ): Promise<number> {
-    return ctx.deps.mailDomainRepository.countMessages(domain.id);
+    return ctx.loaders.messageCountByDomain.load(domain.id);
   },
 };
 

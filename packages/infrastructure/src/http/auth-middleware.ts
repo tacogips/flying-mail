@@ -25,9 +25,10 @@ export function extractBearerToken(req: Request): string | null {
   return token.length === 0 ? null : token;
 }
 
-/** Methods with no state-changing effect, exempt from the CSRF origin
- * check. Every mutating operation in this API is a `POST`; there are no
- * `GET` side effects for a cross-site navigation to trigger. */
+/** Methods with no state-changing effect. Exempt from the CSRF origin check
+ * unless the request carries an `Origin` header: there are no `GET` side
+ * effects for a cross-site navigation to trigger, but a cross-origin
+ * `fetch()` carries `Origin` and must not be able to read the response. */
 const CSRF_SAFE_METHODS: ReadonlySet<string> = new Set([
   "GET",
   "HEAD",
@@ -38,6 +39,8 @@ const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set([
   "localhost",
   "127.0.0.1",
   "::1",
+  // `URL.hostname` keeps the brackets around an IPv6 literal.
+  "[::1]",
 ]);
 
 /** True only for plain HTTP to a loopback host -- the one case where the
@@ -197,7 +200,17 @@ export function createAuthMiddleware(
     const cookieToken =
       bearerToken === null ? extractSessionCookie(c.req.raw) : null;
 
-    if (cookieToken !== null && !CSRF_SAFE_METHODS.has(c.req.method)) {
+    // Non-safe methods are always checked. Safe methods are checked only when
+    // the browser attached an `Origin` (a cross-origin fetch/XHR, which
+    // `isCrossOriginRequest` would reject): that stops a foreign site from
+    // reading cookie-authenticated responses, while a top-level navigation
+    // (e.g. opening `/api/attachments/:id`) sends no `Origin` and keeps
+    // working.
+    const originPresent = (c.req.header("origin") ?? "").length > 0;
+    if (
+      cookieToken !== null &&
+      (!CSRF_SAFE_METHODS.has(c.req.method) || originPresent)
+    ) {
       const publicOrigin = deps?.instanceConfig.publicOrigin ?? null;
       if (isCrossOriginRequest(c.req.raw, publicOrigin)) {
         return c.json({ error: "Cross-origin request rejected" }, 403);

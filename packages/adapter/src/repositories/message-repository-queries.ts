@@ -373,16 +373,13 @@ function collectFilterConditions(
 export interface BuiltListQuery {
   readonly rowsSql: string;
   readonly rowsParams: readonly SqlValue[];
+}
+
+export interface BuiltCountQuery {
   readonly countSql: string;
   readonly countParams: readonly SqlValue[];
 }
 
-/** Builds the listing and count queries for a filter.
- *
- * Ordering is `(occurred_at DESC, id DESC)` -- a total order, so the keyset
- * cursor is unambiguous even when several messages share a timestamp. One
- * extra row is requested so the caller can tell whether a next page exists
- * without a second query. */
 /** The scope allowlist as a reusable condition over the `messages` table.
  * Returns `null` when unrestricted, `"NONE"` when the viewer can see
  * nothing (empty allowlist), otherwise the SQL fragment. Exposed so other
@@ -400,25 +397,40 @@ export function buildAllowedPatternsCondition(
   return allowedPatternsCondition(patterns);
 }
 
+/** Builds the count query for a filter. Kept apart from the listing query
+ * so a caller that never asks for the total never pays for scanning every
+ * matching row. */
+export function buildMessageCountQuery(
+  filter: MessageListFilter,
+): BuiltCountQuery {
+  const conditions = collectFilterConditions(filter);
+  const whereParts = conditions.map((condition) => condition.sql);
+  const countParams: SqlValue[] = conditions.flatMap((condition) => [
+    ...condition.params,
+  ]);
+  const countSql =
+    whereParts.length === 0
+      ? "SELECT COUNT(*) AS count FROM messages"
+      : `SELECT COUNT(*) AS count FROM messages WHERE ${whereParts.join(" AND ")}`;
+  return { countSql, countParams };
+}
+
+/** Builds the listing query for a filter.
+ *
+ * Ordering is `(occurred_at DESC, id DESC)` -- a total order, so the keyset
+ * cursor is unambiguous even when several messages share a timestamp. One
+ * extra row is requested so the caller can tell whether a next page exists
+ * without a second query. */
 export function buildMessageListQuery(
   filter: MessageListFilter,
   limit: number,
   cursor: string | null,
 ): BuiltListQuery {
   const conditions = collectFilterConditions(filter);
-  const whereParts = conditions.map((condition) => condition.sql);
-  const whereParams: SqlValue[] = conditions.flatMap((condition) => [
+  const rowsParts = conditions.map((condition) => condition.sql);
+  const rowsParams: SqlValue[] = conditions.flatMap((condition) => [
     ...condition.params,
   ]);
-
-  const countSql =
-    whereParts.length === 0
-      ? "SELECT COUNT(*) AS count FROM messages"
-      : `SELECT COUNT(*) AS count FROM messages WHERE ${whereParts.join(" AND ")}`;
-  const countParams = [...whereParams];
-
-  const rowsParts = [...whereParts];
-  const rowsParams = [...whereParams];
   const decoded = cursor === null ? null : decodeCursor(cursor);
   if (decoded !== null) {
     rowsParts.push(
@@ -432,5 +444,5 @@ export function buildMessageListQuery(
   const rowsSql = `SELECT * FROM messages${where} ORDER BY messages.occurred_at DESC, messages.id DESC LIMIT ?`;
   rowsParams.push(limit + 1);
 
-  return { rowsSql, rowsParams, countSql, countParams };
+  return { rowsSql, rowsParams };
 }

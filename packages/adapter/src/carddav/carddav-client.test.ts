@@ -219,6 +219,24 @@ describe("carddav discovery", () => {
     ).rejects.toBeInstanceOf(CarddavTransportError);
   });
 
+  test("refuses a response whose Content-Length exceeds the cap", async () => {
+    const { fetchImpl } = fakeFetch([
+      () => ({ body: "<a/>", headers: { "content-length": "999999999" } }),
+    ]);
+    await expect(
+      createCarddavClient({ fetchImpl }).discover(CREDENTIALS),
+    ).rejects.toBeInstanceOf(CarddavTransportError);
+  });
+
+  test("aborts a body that outgrows the cap without a Content-Length", async () => {
+    const { fetchImpl } = fakeFetch([() => ({ body: "x".repeat(500) })]);
+    await expect(
+      createCarddavClient({ fetchImpl, maxResponseBytes: 100 }).discover(
+        CREDENTIALS,
+      ),
+    ).rejects.toBeInstanceOf(CarddavTransportError);
+  });
+
   test("throws when no addressbook-home-set is returned", async () => {
     const { fetchImpl } = fakeFetch([
       (request) =>

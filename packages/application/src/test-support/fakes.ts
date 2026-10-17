@@ -101,6 +101,7 @@ export const DEFAULT_INSTANCE_CONFIG: InstanceConfig = {
   spamThreshold: 0.6,
   spamPhrases: [],
   fileLinkMaxTtlSeconds: 604800,
+  maxSendsPerDomainPerDay: 1000,
   eventRetentionSeconds: 604800,
   inboundMxSuffix: "mx.cloudflare.net",
 };

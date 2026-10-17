@@ -54,6 +54,56 @@ describe("createClassificationRule", () => {
     ).toThrow(ValidationError);
   });
 
+  test.each([
+    "^(\\w+\\s?)*$",
+    "(a+)+",
+    "(a*)*b",
+    "(a+)*",
+    "(.*a)+",
+    "((a+)b)*",
+    "(?:x+y*)+z",
+    "(\\d+,)+",
+    "(a|a)*",
+    "(a|aa)+$",
+    "(foo|foobar)*",
+    "\\w+\\w+",
+    ".*.*x",
+    "a*a*",
+    "\\d+\\d*",
+    "[a-z]+[a-f]+",
+    "x(\\s*\\s*)y",
+    "(a+){2,}",
+  ])("rejects the catastrophic-backtracking pattern %s", (pattern) => {
+    expect(() => rule({ matcher: RuleMatcher.Regex, pattern })).toThrow(
+      ValidationError,
+    );
+  });
+
+  test.each([
+    "^\\s*(re|fwd):",
+    "invoice\\s+#?\\d+",
+    ".*unsubscribe.*",
+    "^\\[(promo|ad)\\]",
+    "(foo|bar)+",
+    "(\\d{3}-)+",
+    "\\w+@\\w+\\.example\\.com",
+    "[a-z]+[0-9]+",
+    "\\s*\\w+",
+    "a+b+c+",
+    "(?:^|\\s)sale(?:\\s|$)",
+    "(?<tag>x)y",
+    "order #\\d{4,8}",
+    "[a-z]*\\.[a-z]*",
+  ])("accepts the ordinary pattern %s", (pattern) => {
+    expect(rule({ matcher: RuleMatcher.Regex, pattern }).pattern).toBe(pattern);
+  });
+
+  test("the error names the problem", () => {
+    expect(() =>
+      rule({ matcher: RuleMatcher.Regex, pattern: "(a+)+" }),
+    ).toThrow(/nested quantifiers/);
+  });
+
   test("rejects an empty or oversized pattern", () => {
     expect(() => rule({ pattern: "   " })).toThrow(ValidationError);
     expect(() => rule({ pattern: "x".repeat(513) })).toThrow(ValidationError);
@@ -116,6 +166,19 @@ describe("ruleMatches", () => {
   test("a disabled rule matches nothing", () => {
     const disabled = setRuleEnabled(rule({}), false, NOW);
     expect(ruleMatches(disabled, INPUT)).toBe(false);
+  });
+
+  test("a stored catastrophic pattern fails closed without running", () => {
+    const stored = {
+      ...rule({}),
+      matcher: RuleMatcher.Regex,
+      field: RuleField.Subject,
+      pattern: "^(\\w+\\s?)*$",
+    };
+    const started = Date.now();
+    const hostile = `${"word ".repeat(40)}!`;
+    expect(ruleMatches(stored, { ...INPUT, subject: hostile })).toBe(false);
+    expect(Date.now() - started).toBeLessThan(500);
   });
 
   test("a stored pattern that no longer compiles fails closed", () => {

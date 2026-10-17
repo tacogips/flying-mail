@@ -114,6 +114,14 @@ export function createApiKeyRepository(db: SqlDatabase): ApiKeyRepository {
       return rows.map(rowToApiKey);
     },
 
+    async listByCreator(userId) {
+      const rows = await db.query<ApiKeyRow>(
+        "SELECT * FROM api_keys WHERE created_by_user_id = ? ORDER BY created_at DESC",
+        [userId],
+      );
+      return rows.map(rowToApiKey);
+    },
+
     async save(key) {
       await db.execute(UPSERT_KEY_SQL, [
         key.id,

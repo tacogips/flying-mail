@@ -30,6 +30,7 @@ import {
   requireGlobalCapability,
   requireViewer,
   scopedDomainIds,
+  viewerHoldsCapability,
 } from "./authorization";
 
 const domainA = createDomainId("dom-a");
@@ -50,6 +51,21 @@ describe("requireViewer", () => {
 });
 
 describe("global capabilities", () => {
+  test("viewerHoldsCapability checks API-key scope presence only", () => {
+    const mailRead = apiKeyViewer([
+      { capability: Capability.MailRead },
+      { capability: Capability.UserAdmin },
+    ]);
+
+    expect(viewerHoldsCapability(mailRead, Capability.MailRead)).toBe(true);
+    expect(viewerHoldsCapability(mailRead, Capability.MailSend)).toBe(false);
+    expect(viewerHoldsCapability(mailRead, Capability.UserAdmin)).toBe(true);
+    expect(authorizesGlobal(mailRead, Capability.UserAdmin)).toBe(false);
+    expect(viewerHoldsCapability(adminViewer(), Capability.UserAdmin)).toBe(
+      false,
+    );
+  });
+
   test("an ADMIN user holds them", () => {
     expect(authorizesGlobal(adminViewer(), Capability.DomainAdmin)).toBe(true);
     expect(authorizesGlobal(adminViewer(), Capability.KeyAdmin)).toBe(true);

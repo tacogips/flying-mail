@@ -11,12 +11,14 @@ import type { AppDependencies } from "../dependencies";
 import { NotFoundError } from "../errors";
 import type { Viewer } from "../policies/viewer";
 import { recordMailEvents } from "./mail-events";
+import { assertIdCountWithinLimit } from "./id-limits";
 import { loadReadableMessages } from "./messages";
 
 async function requireTags(
   deps: AppDependencies,
   tagIds: readonly TagId[],
 ): Promise<readonly Tag[]> {
+  assertIdCountWithinLimit(tagIds, "tagIds");
   const found = await deps.tagRepository.findByIds(tagIds);
   const foundIds = new Set<string>(found.map((tag) => tag.id));
   for (const tagId of tagIds) {
@@ -34,6 +36,7 @@ async function applyTags(
   tagIds: readonly TagId[],
   add: boolean,
 ): Promise<readonly Message[]> {
+  assertIdCountWithinLimit(messageIds, "messageIds");
   const messages = await loadReadableMessages(
     deps,
     viewer,
@@ -98,6 +101,7 @@ export function createMarkSpamUseCase(
   messageIds: readonly MessageId[],
 ) => Promise<readonly Message[]> {
   return async (viewer, messageIds) => {
+    assertIdCountWithinLimit(messageIds, "messageIds");
     const messages = await loadReadableMessages(
       deps,
       viewer,
@@ -133,6 +137,7 @@ export function createMarkNotSpamUseCase(
   messageIds: readonly MessageId[],
 ) => Promise<readonly Message[]> {
   return async (viewer, messageIds) => {
+    assertIdCountWithinLimit(messageIds, "messageIds");
     const messages = await loadReadableMessages(
       deps,
       viewer,

@@ -19,6 +19,8 @@ bun.lockb
 .env
 .env.local
 .env.*.local
+.dev.vars
+.dev.vars.*
 
 # IDE
 .idea/

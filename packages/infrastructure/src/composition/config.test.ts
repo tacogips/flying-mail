@@ -13,6 +13,7 @@ import {
   DEFAULT_EVENT_RETENTION_SECONDS,
   DEFAULT_INVITE_TTL_SECONDS,
   DEFAULT_INBOUND_MX_SUFFIX,
+  DEFAULT_MAX_SENDS_PER_DOMAIN_PER_DAY,
   DEFAULT_SPAM_THRESHOLD,
   MailConfigurationError,
   PublicOriginConfigurationError,
@@ -22,6 +23,7 @@ import {
   normalizeSqliteUrl,
   normalizeClientIpForRateLimit,
   resolveBlobBackend,
+  resolveMaxSendsPerDomainPerDay,
   resolveBootstrapToken,
   resolveCredentialKey,
   resolveFileLinkMaxTtl,
@@ -129,6 +131,25 @@ describe("scalar env resolution", () => {
       expect(
         resolveFileLinkMaxTtl({ FLYING_MAIL_FILE_LINK_MAX_TTL: bad }),
       ).toBe(DEFAULT_FILE_LINK_MAX_TTL_SECONDS);
+    }
+  });
+
+  test("daily send budget defaults to 1000 and rejects invalid values", () => {
+    expect(resolveMaxSendsPerDomainPerDay({})).toBe(
+      DEFAULT_MAX_SENDS_PER_DOMAIN_PER_DAY,
+    );
+    expect(DEFAULT_MAX_SENDS_PER_DOMAIN_PER_DAY).toBe(1000);
+    expect(
+      resolveMaxSendsPerDomainPerDay({
+        FLYING_MAIL_MAX_SENDS_PER_DOMAIN_PER_DAY: "250",
+      }),
+    ).toBe(250);
+    for (const bad of ["0", "-5", "1.5", "nope", ""]) {
+      expect(
+        resolveMaxSendsPerDomainPerDay({
+          FLYING_MAIL_MAX_SENDS_PER_DOMAIN_PER_DAY: bad,
+        }),
+      ).toBe(DEFAULT_MAX_SENDS_PER_DOMAIN_PER_DAY);
     }
   });
 

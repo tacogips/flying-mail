@@ -34,9 +34,11 @@ import type { Viewer } from "../policies/viewer";
 import {
   buildRecipientRows,
   deliver,
+  MAX_RECIPIENTS_PER_MESSAGE,
   resolveThreadContext,
   type ValidatedRecipients,
 } from "./send";
+import { enforceSendQuota } from "./send-quota";
 import {
   assertOutboundAttachmentLimits,
   resolveForwardSources,
@@ -75,11 +77,27 @@ function parseDraftRecipients(input: SaveDraftInput): ValidatedRecipients {
     field: string,
   ): readonly EmailAddress[] =>
     (values ?? []).map((value) => createEmailAddress(value, field));
-  return {
+  const recipients = {
     to: parse(input.to, "to"),
     cc: parse(input.cc, "cc"),
     bcc: parse(input.bcc, "bcc"),
   };
+  assertRecipientCount(
+    recipients.to.length + recipients.cc.length + recipients.bcc.length,
+  );
+  return recipients;
+}
+
+/** The same total (to + cc + bcc) cap a direct send enforces, applied at
+ * save time so an oversized draft cannot be stored, and again at send time
+ * for rows that predate the cap. */
+function assertRecipientCount(total: number): void {
+  if (total > MAX_RECIPIENTS_PER_MESSAGE) {
+    throw new BadUserInputError(
+      `A message may not have more than ${MAX_RECIPIENTS_PER_MESSAGE} recipients`,
+      "to",
+    );
+  }
 }
 
 async function requireDraftAuthority(
@@ -238,8 +256,14 @@ export function createSaveDraftUseCase(
           );
           existingBlobKeys.add(attachment.blobKey);
         }
+        // Drafts are private to their author: the event must carry only the
+        // sender addresses, never the (possibly secret Bcc) recipients.
         await recordMailEvents(deps, [
-          { type: MailEventType.DraftSaved, message: updated },
+          {
+            type: MailEventType.DraftSaved,
+            message: updated,
+            addresses: [existing.fromAddress, updated.fromAddress],
+          },
         ]);
         return updated;
       }
@@ -291,7 +315,11 @@ export function createSaveDraftUseCase(
         taggedAt: now,
       });
       await recordMailEvents(deps, [
-        { type: MailEventType.DraftSaved, message: draft },
+        {
+          type: MailEventType.DraftSaved,
+          message: draft,
+          addresses: [draft.fromAddress],
+        },
       ]);
       return draft;
     });
@@ -311,6 +339,7 @@ export function createSendDraftUseCase(
         throw new NotFoundError("Domain", draft.domainId);
       }
       assertCanSendMail(domain);
+      await enforceSendQuota(deps, viewer, domain.id);
 
       const recipientRows =
         (await deps.messageRepository.listRecipients([draft.id])).get(
@@ -320,6 +349,7 @@ export function createSendDraftUseCase(
         recipientRows
           .filter((row) => row.kind === kind)
           .map((row) => row.address);
+      assertRecipientCount(recipientRows.length);
       const to = byKind(RecipientKind.To);
       if (to.length === 0) {
         throw new BadUserInputError("The draft has no To recipient", "draftId");

@@ -101,18 +101,31 @@ export function createMailDomainRepository(
      * bootstrap deadlock: without it a non-catch-all domain could never
      * receive its first message, because the only way to become known
      * would be to have already received one. Sending once from a mailbox
-     * is the act that establishes it. */
+     * is the act that establishes it.
+     *
+     * Both clauses are deliberately narrow, because every other address on
+     * a stored message is attacker-controlled: the `To`/`Cc`/`Bcc` rows
+     * stored at ingest are header values, and an inbound message's
+     * `from_address` is whatever the sender claimed. Only an `ENVELOPE`
+     * row (the SMTP `RCPT TO` we actually accepted) proves delivery, and
+     * only a non-draft *outbound* message proves a send. */
     async hasKnownLocalPart(id, address) {
       const rows = await db.query<{ count: number }>(
         `SELECT
            (SELECT COUNT(*)
             FROM message_recipients
             JOIN messages ON messages.id = message_recipients.message_id
-            WHERE messages.domain_id = ? AND message_recipients.address = ?)
+            WHERE messages.domain_id = ?
+              AND message_recipients.address = ?
+              AND message_recipients.kind = 'ENVELOPE'
+              AND messages.direction = 'INBOUND')
            +
            (SELECT COUNT(*)
             FROM messages
-            WHERE messages.domain_id = ? AND messages.from_address = ?)
+            WHERE messages.domain_id = ?
+              AND messages.from_address = ?
+              AND messages.direction = 'OUTBOUND'
+              AND messages.status <> 'DRAFT')
            AS count`,
         [id, address, id, address],
       );

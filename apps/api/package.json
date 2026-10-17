@@ -11,16 +11,17 @@
     "typecheck": "tsc --noEmit",
     "cf:dev": "wrangler dev",
     "cf:deploy": "wrangler deploy",
+    "migrate:list": "wrangler d1 migrations list mailcal-db --remote",
     "migrate:remote": "wrangler d1 migrations apply mailcal-db --remote"
   },
   "dependencies": {
-    "@hono/node-server": "2.1.1",
-    "@libsql/client": "0.17.4",
     "@flying-mail/adapter": "workspace:*",
     "@flying-mail/application": "workspace:*",
     "@flying-mail/domain": "workspace:*",
     "@flying-mail/infrastructure": "workspace:*",
-    "hono": "4.13.2"
+    "@hono/node-server": "2.1.1",
+    "@libsql/client": "0.17.4",
+    "hono": "4.13.13"
   },
   "devDependencies": {
     "@types/node": "26.2.0",

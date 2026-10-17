@@ -3,12 +3,13 @@ import {
   type MailEventType,
   type NewMailEvent,
 } from "@flying-mail/domain/entities/mail-event";
-import type { Message } from "@flying-mail/domain/entities/message";
+import { MailStatus, type Message } from "@flying-mail/domain/entities/message";
 import type { MessageId } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 
 /**
  * Collects the sender and every recipient address with one repository call.
+ * A draft contributes only its sender.
  */
 export async function collectMailEventAddresses(
   deps: AppDependencies,
@@ -22,7 +23,12 @@ export async function collectMailEventAddresses(
   );
   return new Map(
     messages.map((message) => {
-      const recipients = recipientsByMessage.get(message.id) ?? [];
+      // A draft's recipients (Bcc especially) are not yet public; its events
+      // reach only the sender's mailbox.
+      const recipients =
+        message.status === MailStatus.Draft
+          ? []
+          : (recipientsByMessage.get(message.id) ?? []);
       return [
         message.id,
         normalizeEventAddresses([

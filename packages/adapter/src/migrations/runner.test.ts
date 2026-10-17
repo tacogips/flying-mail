@@ -115,6 +115,7 @@ describe("createMigrationRunner", () => {
       "0015_auth_hardening.sql",
       "0016_mail_events.sql",
       "0017_user_admin_capability.sql",
+      "0018_external_message_skips.sql",
     ]);
 
     const names = await tableNames(db);
@@ -171,6 +172,7 @@ describe("createMigrationRunner", () => {
       "0015_auth_hardening.sql",
       "0016_mail_events.sql",
       "0017_user_admin_capability.sql",
+      "0018_external_message_skips.sql",
     ]);
     expect(
       (

@@ -5,6 +5,7 @@ import type {
   DomainId,
   TagId,
 } from "../value-objects/ids";
+import { findRegexHazard } from "./regex-safety";
 
 /** Which message property a rule tests. `SENDER_DOMAIN` is the part of the
  * from address after the `@`, so one rule covers every sender at an
@@ -22,9 +23,10 @@ export enum RuleMatcher {
   /** Case-insensitive substring. */
   Contains = "CONTAINS",
   /** JavaScript regular expression, applied case-insensitively. Rules are
-   * operator-authored (DOMAIN_ADMIN), so the usual attacker-supplied-regex
-   * concern does not apply; inputs are still truncated before matching so
-   * a pathological pattern cannot stall ingest on a huge subject. */
+   * operator-authored (DOMAIN_ADMIN) but matched against attacker-supplied
+   * subjects and senders, so patterns with catastrophic-backtracking shapes
+   * (nested or overlapping unbounded quantifiers) are rejected at creation,
+   * and inputs are truncated before matching. */
   Regex = "REGEX",
 }
 
@@ -93,6 +95,13 @@ function normalizePattern(matcher: RuleMatcher, pattern: string): string {
         "pattern",
       );
     }
+    const hazard = findRegexHazard(trimmed);
+    if (hazard !== null) {
+      throw new ValidationError(
+        `rule pattern could take exponential time to match: ${hazard}`,
+        "pattern",
+      );
+    }
   }
   return trimmed;
 }
@@ -158,6 +167,24 @@ function fieldValue(
   }
 }
 
+const HAZARD_CACHE_LIMIT = 1000;
+const hazardCache = new Map<string, boolean>();
+
+/** Memoized {@link findRegexHazard}: `ruleMatches` runs per message per
+ * rule, and the same few patterns recur. */
+function isHazardousPattern(pattern: string): boolean {
+  const cached = hazardCache.get(pattern);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const hazardous = findRegexHazard(pattern) !== null;
+  if (hazardCache.size >= HAZARD_CACHE_LIMIT) {
+    hazardCache.clear();
+  }
+  hazardCache.set(pattern, hazardous);
+  return hazardous;
+}
+
 /** True when the rule matches. Never throws: a rule whose stored pattern
  * has become invalid (or matches a null field) simply does not match --
  * ingest must not lose mail to a bad rule. */
@@ -179,6 +206,10 @@ export function ruleMatches(
     case RuleMatcher.Contains:
       return value.toLowerCase().includes(rule.pattern.toLowerCase());
     case RuleMatcher.Regex:
+      // Rules stored before the creation-time check existed are not trusted.
+      if (isHazardousPattern(rule.pattern)) {
+        return false;
+      }
       try {
         return compileRulePattern(rule.pattern).test(value);
       } catch {

@@ -10,7 +10,7 @@ import {
   type SystemTagSlug,
   type Tag,
 } from "@flying-mail/domain/entities/tag";
-import type { User } from "@flying-mail/domain/entities/user";
+import { type User, UserRole } from "@flying-mail/domain/entities/user";
 import type { UserMailPermission } from "@flying-mail/domain/entities/user-mail-permission";
 import { createTagId } from "@flying-mail/domain/value-objects/ids";
 import type { ApiKeyRepository } from "../ports/api-key-repository";
@@ -217,6 +217,11 @@ export function fakeApiKeyRepository(stores: FakeStores): ApiKeyRepository {
     async list() {
       return [...stores.apiKeys.values()];
     },
+    async listByCreator(userId) {
+      return [...stores.apiKeys.values()].filter(
+        (key) => key.createdByUserId === userId,
+      );
+    },
     async save(key) {
       stores.apiKeys.set(key.id, key);
     },
@@ -322,6 +327,19 @@ export function fakeUserRepository(stores: FakeStores): UserRepository {
     },
     async createFirstUser(user) {
       if (stores.users.size > 0) {
+        return false;
+      }
+      stores.users.set(user.id, user);
+      return true;
+    },
+    async saveUnlessLastActiveAdmin(user) {
+      const otherActiveAdmin = [...stores.users.values()].some(
+        (candidate) =>
+          candidate.id !== user.id &&
+          candidate.role === UserRole.Admin &&
+          candidate.deactivatedAt === null,
+      );
+      if (!otherActiveAdmin || !stores.users.has(user.id)) {
         return false;
       }
       stores.users.set(user.id, user);

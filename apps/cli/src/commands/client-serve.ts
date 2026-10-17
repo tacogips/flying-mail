@@ -6,7 +6,11 @@ import { flagBoolean, flagNumber, flagString, type ParsedArgs } from "../args";
 import { requireEndpoint } from "../client";
 import type { CliConfig } from "../config";
 import { maskApiKey } from "../config";
+import { isLoopbackHost } from "../endpoint";
 import { CliError, ExitCode } from "../exit-codes";
+
+// Re-exported so existing importers keep a stable path.
+export { isLoopbackHost };
 
 export interface ClientServeOptions {
   readonly port: number;
@@ -53,19 +57,6 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   ".woff2": "font/woff2",
   ".ico": "image/x-icon",
 };
-
-export function isLoopbackHost(host: string): boolean {
-  const normalized = host
-    .trim()
-    .toLowerCase()
-    .replace(/^\[|\]$/g, "");
-  return (
-    normalized === "localhost" ||
-    normalized === "::1" ||
-    normalized === "0:0:0:0:0:0:0:1" ||
-    /^127\./.test(normalized)
-  );
-}
 
 export function shouldProxy(pathname: string): boolean {
   return PROXY_PREFIXES.some(
@@ -167,6 +158,78 @@ async function readStaticFile(filePath: string): Promise<Uint8Array | null> {
   }
 }
 
+/** Formats a hostname for a `Host` header, bracketing bare IPv6 literals. */
+function hostHeaderName(host: string): string {
+  const lower = host.trim().toLowerCase();
+  return lower.includes(":") && !lower.startsWith("[") ? `[${lower}]` : lower;
+}
+
+/** `Host` header values the loopback listener answers to: the configured
+ * listen address plus the usual loopback spellings, each with the port. */
+export function allowedHostHeaders(
+  options: Pick<ClientServeOptions, "host" | "port">,
+): ReadonlySet<string> {
+  const names = [
+    hostHeaderName(options.host),
+    "localhost",
+    "127.0.0.1",
+    "[::1]",
+  ];
+  return new Set(names.map((name) => `${name}:${options.port}`));
+}
+
+function forbidden(reason: string): Response {
+  return Response.json({ error: reason }, { status: 403 });
+}
+
+/** Browser-origin defences for the key-injecting proxy.
+ *
+ * Injecting the API key makes the listener an authenticated relay, and a
+ * browser will happily send requests to `127.0.0.1` on behalf of any web
+ * page. Two attacks follow, and each is closed by one check:
+ *
+ * - **CSRF**: a cross-site page POSTs to the listener (a form post is a
+ *   "simple" request and needs no preflight). The browser always attaches
+ *   an `Origin` header to such a POST, so any `Origin` that is not this
+ *   listener itself is refused.
+ * - **DNS rebinding**: a page on `attacker.example` re-points its name at
+ *   127.0.0.1, making requests same-origin from the browser's view and
+ *   so carrying no cross-origin `Origin`. The `Host` header still names
+ *   the attacker's domain, so requiring an exact loopback `Host` stops it.
+ *
+ * Returns the rejection, or `null` when the request may proceed. */
+export function checkProxyOrigin(
+  request: Request,
+  options: Pick<ClientServeOptions, "host" | "port">,
+): Response | null {
+  const allowed = allowedHostHeaders(options);
+  const host = request.headers.get("host")?.trim().toLowerCase();
+  if (host === undefined || !allowed.has(host)) {
+    return forbidden("Forbidden: unexpected Host header");
+  }
+  const origin = request.headers.get("origin");
+  if (origin !== null) {
+    const normalized = origin.trim().toLowerCase();
+    const matches = [...allowed].some(
+      (entry) => normalized === `http://${entry}`,
+    );
+    if (!matches) {
+      return forbidden("Forbidden: cross-origin request");
+    }
+  }
+  return null;
+}
+
+function isJsonContentType(request: Request): boolean {
+  return (
+    request.headers
+      .get("content-type")
+      ?.trim()
+      .toLowerCase()
+      .startsWith("application/json") === true
+  );
+}
+
 async function proxyRequest(
   request: Request,
   options: ClientServeOptions,
@@ -223,7 +286,37 @@ export function createClientServeApp(options: ClientServeOptions): Hono {
     const url = new URL(c.req.url);
 
     if (shouldProxy(url.pathname)) {
-      return proxyRequest(c.req.raw, options);
+      const request = c.req.raw;
+      // The proxy is same-origin only, so there is never a legitimate
+      // preflight. Answering locally -- with no CORS headers -- also means
+      // a cross-origin page cannot learn that the listener exists.
+      if (request.method === "OPTIONS") {
+        return forbidden("Forbidden: cross-origin requests are not supported");
+      }
+      // Only a key-injecting listener holds a credential worth stealing.
+      // Without injection (`--allow-remote`) the browser authenticates
+      // itself and the listener is expected to be reached by arbitrary
+      // hostnames, so the Host/Origin pinning does not apply.
+      if (options.apiKey !== null) {
+        const rejection = checkProxyOrigin(request, options);
+        if (rejection !== null) {
+          return rejection;
+        }
+      }
+      // A cross-site form can only send form-encoded, multipart or text/plain
+      // bodies; requiring JSON keeps GraphQL out of reach of such requests.
+      if (
+        url.pathname.startsWith("/graphql") &&
+        request.method !== "GET" &&
+        request.method !== "HEAD" &&
+        !isJsonContentType(request)
+      ) {
+        return Response.json(
+          { error: "GraphQL requests must use Content-Type: application/json" },
+          { status: 415 },
+        );
+      }
+      return proxyRequest(request, options);
     }
 
     const requested = url.pathname === "/" ? "/index.html" : url.pathname;

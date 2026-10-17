@@ -15,6 +15,10 @@ export const ADD_ENVELOPE_RECIPIENT_SQL = `INSERT INTO message_recipients
     WHERE message_id = ? AND kind = 'ENVELOPE' AND address = ?
   )`;
 
+export const COUNT_OUTBOUND_SINCE_SQL = `SELECT COUNT(*) AS count FROM messages
+  WHERE direction = 'OUTBOUND' AND status <> 'DRAFT'
+    AND domain_id = ? AND occurred_at >= ?`;
+
 export const SAVE_IF_DRAFT_SQL = `UPDATE messages SET
   domain_id = ?, thread_id = ?, rfc_message_id = ?, in_reply_to = ?,
   references_json = ?, reply_to = ?, forwarded_from_message_id = ?,

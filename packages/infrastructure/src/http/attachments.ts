@@ -1,11 +1,11 @@
-import { ApplicationError } from "@flying-mail/application/errors";
+import {
+  ApplicationError,
+  NotFoundError,
+} from "@flying-mail/application/errors";
+import { limitFailOpen } from "@flying-mail/application/ports/rate-limiter";
 import type { AppDependencies } from "@flying-mail/application/dependencies";
 import type { UseCases } from "@flying-mail/application/usecases";
 import { MAX_ATTACHMENT_UPLOAD_BYTES } from "@flying-mail/application/usecases/mail-limits";
-import {
-  buildAttachmentBlobKey,
-  createAttachment,
-} from "@flying-mail/domain/entities/attachment";
 import { createAttachmentId } from "@flying-mail/domain/value-objects/ids";
 import { Hono } from "hono";
 import type { AuthVariables } from "./auth-middleware";
@@ -97,6 +97,20 @@ export function createAttachmentRoutes(
       return unauthenticatedResponse();
     }
 
+    // Per-principal throttle: an upload buffers up to the full size limit
+    // and writes to blob storage, so it is the costliest authenticated
+    // route to hammer.
+    if (deps.rateLimiter !== null) {
+      const principal =
+        viewer.kind === "USER"
+          ? `user:${viewer.userId}`
+          : `key:${viewer.apiKeyId}`;
+      // Fails open: a limiter outage must not block authenticated uploads.
+      if (!(await limitFailOpen(deps.rateLimiter, `upload:${principal}`))) {
+        return Response.json({ error: "Too many requests" }, { status: 429 });
+      }
+    }
+
     // Reject an oversized request from its header alone, before
     // `formData()` reads (and buffers) any of the body.
     const contentLengthHeader = c.req.header("content-length");
@@ -125,26 +139,10 @@ export function createAttachmentRoutes(
         return sizeLimitResponse();
       }
 
-      const now = deps.clock.now().toISOString();
-      const attachmentId = createAttachmentId(deps.random.uuid());
-      const fileName = file.name.length === 0 ? "attachment" : file.name;
-      const blobKey = buildAttachmentBlobKey(attachmentId, fileName);
-      await deps.blobs.put(blobKey, new Uint8Array(await file.arrayBuffer()), {
-        contentType: file.type || "application/octet-stream",
-      });
-
-      // Staged: not tied to a message yet. `sendMessage` binds it when it
-      // consumes the id, which is also when it starts cascading on delete.
-      const attachment = createAttachment({
-        id: attachmentId,
-        messageId: null,
-        fileName,
-        contentType: file.type || "application/octet-stream",
-        size: file.size,
-        blobKey,
-        contentId: null,
-        inline: false,
-        createdAt: now,
+      const attachment = await usecases.stageAttachmentUpload(viewer, {
+        fileName: file.name,
+        contentType: file.type,
+        bytes: new Uint8Array(await file.arrayBuffer()),
       });
 
       const response: UploadAttachmentResponse = {
@@ -155,7 +153,6 @@ export function createAttachmentRoutes(
         url: `/api/attachments/${attachment.id}`,
         createdAt: attachment.createdAt,
       };
-      await deps.messageRepository.saveAttachment(attachment);
       return Response.json(response, { status: 201 });
     } catch (error) {
       if (error instanceof ApplicationError) {
@@ -179,37 +176,29 @@ export function createAttachmentRoutes(
 
     const attachmentId = createAttachmentId(c.req.param("id"));
     let attachment: Awaited<
-      ReturnType<AppDependencies["messageRepository"]["findAttachmentById"]>
-    >;
+      ReturnType<UseCases["readAttachment"]>
+    >["attachment"];
+    let blob: Awaited<ReturnType<UseCases["readAttachment"]>>["blob"];
     try {
-      attachment =
-        await deps.messageRepository.findAttachmentById(attachmentId);
+      ({ attachment, blob } = await usecases.readAttachment(
+        viewer,
+        attachmentId,
+        {
+          includeBody: true,
+        },
+      ));
     } catch (error) {
-      if (error instanceof ApplicationError) {
-        return applicationErrorResponse(error);
-      }
-      throw error;
-    }
-    if (attachment === null) {
-      return Response.json({ error: "Attachment not found" }, { status: 404 });
-    }
-
-    // A staged attachment has no message to authorize against, so it is not
-    // downloadable. Serving it here would let any authenticated caller read
-    // another caller's pending upload.
-    if (attachment.messageId === null) {
-      return Response.json({ error: "Attachment not found" }, { status: 404 });
-    } else {
-      const message = await usecases.getMessage(viewer, attachment.messageId);
-      if (message === null) {
+      if (error instanceof NotFoundError) {
         return Response.json(
           { error: "Attachment not found" },
           { status: 404 },
         );
       }
+      if (error instanceof ApplicationError) {
+        return applicationErrorResponse(error);
+      }
+      throw error;
     }
-
-    const blob = await deps.blobs.get(attachment.blobKey);
     if (blob === null) {
       return Response.json({ error: "Attachment not found" }, { status: 404 });
     }

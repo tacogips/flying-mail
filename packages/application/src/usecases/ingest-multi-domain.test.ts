@@ -79,6 +79,33 @@ function outbound(domainId: ReturnType<typeof createDomainId>, id: string) {
   });
 }
 
+/** A second copy that reuses an already-stored Message-ID but differs in
+ * content must be neither merged into the stored message nor dropped: the
+ * stored message keeps only its own envelope recipient, and the new copy is
+ * kept as a separate message (without the contested Message-ID) addressed to
+ * the second recipient, with its raw blob retained. */
+function expectKeptSeparately(
+  fake: FakeDependencies,
+  result: { readonly kind: string },
+  recipient: string,
+): void {
+  expect(result.kind).toBe("STORED");
+  const all = [...fake.messageStores.messages.values()];
+  expect(all).toHaveLength(2);
+  const original = all.find((message) => message.rfcMessageId !== null);
+  const kept = all.find((message) => message.rfcMessageId === null);
+  if (original === undefined || kept === undefined) {
+    throw new Error("expected the original and the separately kept message");
+  }
+  const envelopes = (id: string): readonly string[] =>
+    (fake.messageStores.recipients.get(id) ?? [])
+      .filter((entry) => entry.kind === RecipientKind.Envelope)
+      .map((entry) => entry.address);
+  expect(envelopes(original.id)).toEqual(["alice@tacoserve.online"]);
+  expect(envelopes(kept.id)).toEqual([recipient]);
+  expect(fake.blobs.keys()).toContain(kept.rawKey);
+}
+
 describe("receiveMessage multi-domain behavior", () => {
   let fake: FakeDependencies;
 
@@ -190,7 +217,6 @@ describe("receiveMessage multi-domain behavior", () => {
       rawSize: originalRaw.length,
     });
     expect(original.kind).toBe("STORED");
-    const keysBefore = fake.blobs.keys();
     const forgedRaw = new TextEncoder().encode(
       new TextDecoder()
         .decode(originalRaw)
@@ -204,19 +230,7 @@ describe("receiveMessage multi-domain behavior", () => {
       rawSize: forgedRaw.length,
     });
 
-    expect(duplicate.kind).toBe("DUPLICATE");
-    expect(fake.messageStores.messages.size).toBe(1);
-    expect(fake.blobs.keys()).toEqual(keysBefore);
-    const stored = [...fake.messageStores.messages.values()][0];
-    if (stored === undefined) {
-      throw new Error("expected the stored inbound message");
-    }
-    expect(
-      fake.messageStores.recipients
-        .get(stored.id)
-        ?.filter((recipient) => recipient.kind === RecipientKind.Envelope)
-        .map((recipient) => recipient.address),
-    ).toEqual(["alice@tacoserve.online"]);
+    expectKeptSeparately(fake, duplicate, "bob@tacoserve.online");
   });
 
   test("does not strip a Received field after the first non-trace header", async () => {
@@ -230,7 +244,6 @@ describe("receiveMessage multi-domain behavior", () => {
       rawSize: originalRaw.length,
     });
     expect(original.kind).toBe("STORED");
-    const keysBefore = fake.blobs.keys();
     const forgedRaw = new TextEncoder().encode(
       "From: sender@outside.example\r\nReceived: by mx2\r\nMessage-ID: <shared@outside.example>\r\nSubject: Hello\r\n\r\nHello\r\n",
     );
@@ -242,19 +255,7 @@ describe("receiveMessage multi-domain behavior", () => {
       rawSize: forgedRaw.length,
     });
 
-    expect(duplicate.kind).toBe("DUPLICATE");
-    expect(fake.messageStores.messages.size).toBe(1);
-    expect(fake.blobs.keys()).toEqual(keysBefore);
-    const stored = [...fake.messageStores.messages.values()][0];
-    if (stored === undefined) {
-      throw new Error("expected the stored inbound message");
-    }
-    expect(
-      fake.messageStores.recipients
-        .get(stored.id)
-        ?.filter((recipient) => recipient.kind === RecipientKind.Envelope)
-        .map((recipient) => recipient.address),
-    ).toEqual(["alice@tacoserve.online"]);
+    expectKeptSeparately(fake, duplicate, "bob@tacoserve.online");
   });
 
   test("concurrent same-domain duplicate cleans this call's raw and attachment blobs", async () => {
@@ -371,11 +372,37 @@ describe("receiveMessage multi-domain behavior", () => {
     ).toEqual(["alice@tacoserve.online", "bob@tacoserve.online"]);
   });
 
+  test("a second recipient's differing copy is delivered as its own message", async () => {
+    const receive = createReceiveMessageUseCase(fake.deps);
+    const first = await receive(input("alice@tacoserve.online"));
+    expect(first.kind).toBe("STORED");
+    fake.mimeParser.setResult({
+      from: { address: "sender@outside.example", name: "Sender" },
+      to: [{ address: "bob@tacoserve.online", name: null }],
+      subject: "Hello (bob's copy)",
+      messageId: "shared@outside.example",
+      text: "Hello bob",
+    });
+
+    const second = await receive({
+      ...input("bob@tacoserve.online"),
+      raw: new TextEncoder().encode("different raw source for bob"),
+      rawSize: 28,
+    });
+
+    expect(second.kind).toBe("STORED");
+    if (second.kind !== "STORED") {
+      throw new Error("expected the differing copy to be stored");
+    }
+    expect(second.message.subject).toBe("Hello (bob's copy)");
+    expect(second.message.rfcMessageId).toBeNull();
+    expectKeptSeparately(fake, second, "bob@tacoserve.online");
+  });
+
   test("does not merge a forged header Message-ID with a different sender", async () => {
     const receive = createReceiveMessageUseCase(fake.deps);
     const first = await receive(input("alice@tacoserve.online"));
     expect(first.kind).toBe("STORED");
-    const keysBefore = fake.blobs.keys();
     fake.mimeParser.setResult({
       from: { address: "eve@evil.example", name: "Eve" },
       to: [{ address: "bob@tacoserve.online", name: null }],
@@ -393,26 +420,13 @@ describe("receiveMessage multi-domain behavior", () => {
       rawSize: 21,
     });
 
-    expect(duplicate.kind).toBe("DUPLICATE");
-    expect(fake.messageStores.messages.size).toBe(1);
-    expect(fake.blobs.keys()).toEqual(keysBefore);
-    const stored = [...fake.messageStores.messages.values()][0];
-    if (stored === undefined) {
-      throw new Error("expected the stored inbound message");
-    }
-    expect(
-      fake.messageStores.recipients
-        .get(stored.id)
-        ?.filter((recipient) => recipient.kind === RecipientKind.Envelope)
-        .map((recipient) => recipient.address),
-    ).toEqual(["alice@tacoserve.online"]);
+    expectKeptSeparately(fake, duplicate, "bob@tacoserve.online");
   });
 
   test("does not merge a header-absent forged Message-ID with a different subject", async () => {
     const receive = createReceiveMessageUseCase(fake.deps);
     const first = await receive(input("alice@tacoserve.online"));
     expect(first.kind).toBe("STORED");
-    const keysBefore = fake.blobs.keys();
     fake.mimeParser.setResult({
       from: { address: "sender@outside.example", name: "Sender" },
       to: [{ address: "bob@tacoserve.online", name: null }],
@@ -427,26 +441,13 @@ describe("receiveMessage multi-domain behavior", () => {
       rawSize: 22,
     });
 
-    expect(duplicate.kind).toBe("DUPLICATE");
-    expect(fake.messageStores.messages.size).toBe(1);
-    expect(fake.blobs.keys()).toEqual(keysBefore);
-    const stored = [...fake.messageStores.messages.values()][0];
-    if (stored === undefined) {
-      throw new Error("expected the stored inbound message");
-    }
-    expect(
-      fake.messageStores.recipients
-        .get(stored.id)
-        ?.filter((recipient) => recipient.kind === RecipientKind.Envelope)
-        .map((recipient) => recipient.address),
-    ).toEqual(["alice@tacoserve.online"]);
+    expectKeptSeparately(fake, duplicate, "bob@tacoserve.online");
   });
 
   test("does not merge matching parsed fields when raw attachments differ", async () => {
     const receive = createReceiveMessageUseCase(fake.deps);
     const first = await receive(input("alice@tacoserve.online"));
     expect(first.kind).toBe("STORED");
-    const keysBefore = fake.blobs.keys();
     fake.mimeParser.setResult({
       from: { address: "sender@outside.example", name: "Sender" },
       to: [{ address: "bob@tacoserve.online", name: null }],
@@ -470,26 +471,13 @@ describe("receiveMessage multi-domain behavior", () => {
       rawSize: 36,
     });
 
-    expect(duplicate.kind).toBe("DUPLICATE");
-    expect(fake.messageStores.messages.size).toBe(1);
-    expect(fake.blobs.keys()).toEqual(keysBefore);
-    const stored = [...fake.messageStores.messages.values()][0];
-    if (stored === undefined) {
-      throw new Error("expected the stored inbound message");
-    }
-    expect(
-      fake.messageStores.recipients
-        .get(stored.id)
-        ?.filter((recipient) => recipient.kind === RecipientKind.Envelope)
-        .map((recipient) => recipient.address),
-    ).toEqual(["alice@tacoserve.online"]);
+    expectKeptSeparately(fake, duplicate, "bob@tacoserve.online");
   });
 
   test("does not merge a forged Message-ID in the duplicate-insert race", async () => {
     const receive = createReceiveMessageUseCase(fake.deps);
     const first = await receive(input("alice@tacoserve.online"));
     expect(first.kind).toBe("STORED");
-    const keysBefore = fake.blobs.keys();
     const repository = fake.deps.messageRepository;
     const findInbound = repository.findInboundByRfcMessageId.bind(repository);
     let lookups = 0;
@@ -526,19 +514,7 @@ describe("receiveMessage multi-domain behavior", () => {
       rawSize: 36,
     });
 
-    expect(duplicate.kind).toBe("DUPLICATE");
-    expect(fake.messageStores.messages.size).toBe(1);
-    expect(fake.blobs.keys()).toEqual(keysBefore);
-    const stored = [...fake.messageStores.messages.values()][0];
-    if (stored === undefined) {
-      throw new Error("expected the stored inbound message");
-    }
-    expect(
-      fake.messageStores.recipients
-        .get(stored.id)
-        ?.filter((recipient) => recipient.kind === RecipientKind.Envelope)
-        .map((recipient) => recipient.address),
-    ).toEqual(["alice@tacoserve.online"]);
+    expectKeptSeparately(fake, duplicate, "bob@tacoserve.online");
   });
 
   test("same-recipient retry exits before writing another raw blob", async () => {

@@ -11,6 +11,7 @@ import {
   createAuthMiddleware,
   isPlainHttpLocalhost,
 } from "./auth-middleware";
+import { enforceBodyLimit, MAX_GRAPHQL_BODY_BYTES } from "./body-limit";
 import { createFileLinkRoutes } from "./file-links";
 import {
   applySecurityHeaders,
@@ -94,6 +95,12 @@ export function createApp(
   const yoga = getGraphQLYoga(options.graphiql);
 
   app.all("/graphql", async (c) => {
+    // Cap the body before yoga buffers and parses it; the depth, selection
+    // and alias plugins only run after that has already happened.
+    const bounded = await enforceBodyLimit(c.req.raw, MAX_GRAPHQL_BODY_BYTES);
+    if (bounded.kind === "too-large") {
+      return c.json({ error: "Request body too large" }, 413);
+    }
     const context = buildGraphQLContext({
       viewer: c.get("viewer"),
       token: c.get("token"),
@@ -103,7 +110,7 @@ export function createApp(
       usecases: options.usecases,
     });
     const response = await yoga.fetch(
-      c.req.raw,
+      bounded.request,
       context as unknown as Record<string, unknown>,
     );
     const headers = new Headers(response.headers);
@@ -133,7 +140,13 @@ export function createApp(
   });
 
   app.route("/api", createAttachmentRoutes(options.deps, options.usecases));
-  app.route("/files", createFileLinkRoutes(options.usecases));
+  app.route(
+    "/files",
+    createFileLinkRoutes(options.usecases, {
+      rateLimiter: options.deps.rateLimiter,
+      resolveClientIp: options.resolveClientIp,
+    }),
+  );
 
   if (options.devInbound !== undefined) {
     const devInbound = options.devInbound;
@@ -161,6 +174,7 @@ export function createApp(
     return applySecurityHeaders(
       c.json({ error: "Internal server error" }, 500),
       false,
+      !isPlainHttpLocalhost(c.req.raw),
     );
   });
 

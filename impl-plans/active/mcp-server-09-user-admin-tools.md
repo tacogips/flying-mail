@@ -1,6 +1,6 @@
 # MCP Server 09: USER_ADMIN Tools
 
-**Status**: Not Started
+**Status**: Completed
 **Plan ID**: mcp-server-09-user-admin-tools
 **Wave**: 2 (phase 31)
 **Depends On**: mcp-server-03-protocol-core
@@ -145,8 +145,8 @@ user is the target. Each test case is `situation -> expected outcome`.
 
 ## Done criteria
 
-- [ ] `USER_ADMIN_TOOLS` has exactly the 5 tools, as specified.
-- [ ] Verification steps 1-4 pass, with logs recorded.
+- [x] `USER_ADMIN_TOOLS` has exactly the 5 tools, as specified.
+- [x] Verification steps 1-4 pass, with logs recorded. Step 4's broad pattern also matches the required `createUserId` and `createUserMailPermissionId` constructors; the exact-identifier grep and source assertion pass with word boundaries.
 
 ## Worker protocol
 
@@ -159,4 +159,13 @@ user is the target. Each test case is `situation -> expected outcome`.
 
 ## Progress Log
 
-(empty)
+### Session: 2026-10-08
+
+**Tasks Completed**: Implemented all five USER_ADMIN tools and focused behavioral tests.
+
+**Notes**:
+- `USER_ADMIN_TOOLS` exports `list_users`, `set_user_role`, `set_user_active`, `add_mail_permission`, and `remove_mail_permission` in the required order. Each is visible with USER_ADMIN and calls the existing user use case; liveness and last-active-admin enforcement remain in those use cases.
+- User and permission outputs follow the plan's `UserView` and structured result shapes. The tools do not call user creation, invitation, or login use cases.
+- Final-source verification passed: focused Vitest 7/7, all-workspace typecheck, and Biome on both assigned TypeScript files. Logs: `/tmp/mcp-server-09-r3-user-admin-vitest.log`, `/tmp/mcp-server-09-r3-user-admin-typecheck.log`, and `/tmp/mcp-server-09-r3-user-admin-biome.log`.
+- The planned broad grep exited 0 because it also matches the explicitly required `createUserId` and `createUserMailPermissionId` constructors. The word-boundary exact-identifier grep found no forbidden user-creation/authentication use case references (expected no-match exit 1); source assertion passed in the Vitest suite. Logs: `/tmp/mcp-server-09-r3-user-admin-grep-broad.log` and `/tmp/mcp-server-09-r3-user-admin-grep-exact.log`.
+- Earlier attempt-1 and attempt-2 verification failures were corrected and superseded by the final-source rerun above. Formal integration review remains downstream.

@@ -67,6 +67,8 @@ export interface InstanceConfig {
   readonly spamPhrases: readonly string[];
   /** Hard cap on a file link's requested `ttlSeconds`. */
   readonly fileLinkMaxTtlSeconds: number;
+  /** Rolling 24h cap on outbound messages per sending domain. */
+  readonly maxSendsPerDomainPerDay: number;
   /** Retention window for durable mail events, in seconds. */
   readonly eventRetentionSeconds: number;
   /** MX suffix that must receive inbound mail, or null to disable the gate. */

@@ -110,7 +110,7 @@ describe("drafts", () => {
     const drafts = await list(adminViewer(), {
       filter: { statuses: [MailStatus.Draft] },
     });
-    expect(drafts.totalCount).toBe(0);
+    expect(await drafts.loadTotalCount()).toBe(0);
   });
 
   test("a recipient-less or body-less draft refuses to send", async () => {
@@ -196,7 +196,7 @@ describe("drafts", () => {
     const sentOnly = await list(adminViewer(), {
       filter: { statuses: [MailStatus.Sent] },
     });
-    expect(sentOnly.totalCount).toBe(0);
+    expect(await sentOnly.loadTotalCount()).toBe(0);
   });
 });
 

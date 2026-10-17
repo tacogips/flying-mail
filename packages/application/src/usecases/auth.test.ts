@@ -24,7 +24,7 @@ import {
   createUserId,
   createUserMailPermissionId,
 } from "@flying-mail/domain/value-objects/ids";
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { createUseCases } from "../usecases";
 import {
   ConflictError,
@@ -40,6 +40,7 @@ import { createCreateApiKeyUseCase } from "./api-keys";
 import {
   createGetViewerUserUseCase,
   createLogoutUseCase,
+  createResolveApiKeyViewerFromTokenUseCase,
   createResolveViewerFromTokenUseCase,
 } from "./auth";
 import {
@@ -239,8 +240,9 @@ describe("resolveViewerFromToken", () => {
       scopes: [
         { capability: Capability.MailRead, domainId, addressPattern: "*" },
       ],
-      expiresAt: "2026-08-22T00:00:00.000Z",
+      expiresAt: "2026-08-24T00:00:00.000Z",
     });
+    fake.clock.set("2026-08-25T00:00:00.000Z");
 
     const resolve = createResolveViewerFromTokenUseCase(fake.deps);
     expect(await resolve(issued.secret)).toBeNull();
@@ -252,6 +254,107 @@ describe("resolveViewerFromToken", () => {
   ])("returns null for %s", async (_label, token) => {
     const resolve = createResolveViewerFromTokenUseCase(fake.deps);
     expect(await resolve(token)).toBeNull();
+  });
+});
+
+describe("resolveApiKeyViewerFromToken", () => {
+  let fake: FakeDependencies;
+
+  beforeEach(async () => {
+    fake = createFakeDependencies({ now: NOW });
+    await fake.deps.mailDomainRepository.save(
+      verifyMailDomain(
+        createMailDomain({
+          id: domainId,
+          name: createDomainName("example.com"),
+          catchAll: true,
+          verificationToken: "tok",
+          createdAt: NOW,
+        }),
+        NOW,
+      ),
+    );
+  });
+
+  async function issueKey(expiresAt: string | null = null) {
+    seedUser(fake);
+    return createCreateApiKeyUseCase(fake.deps)(adminViewer(), {
+      name: "agent",
+      scopes: [
+        { capability: Capability.MailRead, domainId, addressPattern: "*" },
+      ],
+      expiresAt,
+    });
+  }
+
+  test("resolves a valid API key with its scopes", async () => {
+    const issued = await issueKey();
+    const resolve = createResolveApiKeyViewerFromTokenUseCase(fake.deps);
+
+    expect(await resolve(issued.secret)).toEqual({
+      kind: "API_KEY",
+      apiKeyId: issued.apiKey.id,
+      scopes: [expect.objectContaining({ capability: Capability.MailRead })],
+    });
+  });
+
+  test("rejects a revoked key", async () => {
+    const issued = await issueKey();
+    fake.stores.apiKeys.set(issued.apiKey.id, {
+      ...issued.apiKey,
+      revokedAt: NOW,
+    });
+
+    await expect(
+      createResolveApiKeyViewerFromTokenUseCase(fake.deps)(issued.secret),
+    ).resolves.toBeNull();
+  });
+
+  test("rejects an expired key", async () => {
+    const issued = await issueKey("2026-08-24T00:00:00.000Z");
+    fake.clock.set("2026-08-25T00:00:00.000Z");
+
+    await expect(
+      createResolveApiKeyViewerFromTokenUseCase(fake.deps)(issued.secret),
+    ).resolves.toBeNull();
+  });
+
+  test("rejects an unknown well-formed key", async () => {
+    const resolve = createResolveApiKeyViewerFromTokenUseCase(fake.deps);
+
+    await expect(resolve("ybm_0123456789ab_unknown")).resolves.toBeNull();
+  });
+
+  test("does not consult sessions for a well-formed key token", async () => {
+    const token = "ybm_0123456789ab_x";
+    fake.stores.sessions.set(
+      "session-for-key-token",
+      createSession({
+        id: createSessionId("session-for-key-token"),
+        tokenHash: `hash(${token})`,
+        userId,
+        expiresAt: "2026-09-23T00:00:00.000Z",
+        createdAt: NOW,
+      }),
+    );
+    const sessionLookup = vi.spyOn(
+      fake.deps.sessionRepository,
+      "findByTokenHash",
+    );
+
+    await expect(
+      createResolveApiKeyViewerFromTokenUseCase(fake.deps)(token),
+    ).resolves.toBeNull();
+    expect(sessionLookup).not.toHaveBeenCalled();
+  });
+
+  test("does not hash malformed tokens", async () => {
+    const hash = vi.spyOn(fake.deps.tokenHasher, "hash");
+
+    await expect(
+      createResolveApiKeyViewerFromTokenUseCase(fake.deps)("session-token"),
+    ).resolves.toBeNull();
+    expect(hash).not.toHaveBeenCalled();
   });
 });
 
@@ -343,7 +446,7 @@ describe("passwordless email auth", () => {
     const mail = fake.mailSender.sent[0];
     expect(mail?.from).toBe("postmaster@example.com");
     expect(mail?.to).toEqual(["me@example.com"]);
-    expect(mail?.text).toContain("https://mail.example.com/auth/verify?token=");
+    expect(mail?.text).toContain("https://mail.example.com/auth/verify#token=");
   });
 
   test.each([

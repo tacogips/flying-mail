@@ -1,5 +1,6 @@
 import { Capability } from "@flying-mail/domain/entities/api-key";
 import { ExternalAccountStatus } from "@flying-mail/domain/entities/external-mail-account";
+import { ExternalMessageSkipReason } from "@flying-mail/domain/entities/external-message-state";
 import {
   createMailDomain,
   verifyMailDomain,
@@ -14,7 +15,7 @@ import {
   type MailAddressId,
 } from "@flying-mail/domain/value-objects/ids";
 import { beforeEach, describe, expect, test } from "vitest";
-import { ConflictError, NotFoundError } from "../errors";
+import { BadUserInputError, ConflictError, NotFoundError } from "../errors";
 import {
   createFakeDependencies,
   type FakeDependencies,
@@ -26,6 +27,7 @@ import {
 } from "../test-support/viewer-fixtures";
 import { createUseCases, type UseCases } from "../usecases";
 import type { CreateExternalAccountInput } from "./external-mail-usecases";
+import { MAX_EXTERNAL_FETCH_PER_RUN } from "./mail-limits";
 
 const NOW = "2026-08-23T00:00:00.000Z";
 const domainId = createDomainId("dom-1");
@@ -192,17 +194,81 @@ describe("fetchExternalMail (JMAP)", () => {
     expect(fake.jmapClient.fetchSinceCalls[0]?.max).toBe(1);
   });
 
+  test.each([
+    [500, 200],
+    [200, 200],
+    [0, 1],
+    [-3, 1],
+  ])("clamps max %s to %s", async (requested, expected) => {
+    await setup({
+      jmap: { fetchSinceResult: { messages: [], hasMore: false } },
+    });
+    const account = await usecases.createExternalAccount(
+      adminViewer(),
+      jmapInput(),
+    );
+    await usecases.fetchExternalMail(adminViewer(), account.id, {
+      max: requested,
+    });
+    expect(fake.jmapClient.fetchSinceCalls[0]?.max).toBe(expected);
+    expect(MAX_EXTERNAL_FETCH_PER_RUN).toBe(200);
+  });
+
+  test.each([1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "rejects a non-integer max of %s before any network call",
+    async (requested) => {
+      await setup({
+        jmap: { fetchSinceResult: { messages: [], hasMore: false } },
+      });
+      const account = await usecases.createExternalAccount(
+        adminViewer(),
+        jmapInput(),
+      );
+      await expect(
+        usecases.fetchExternalMail(adminViewer(), account.id, {
+          max: requested,
+        }),
+      ).rejects.toBeInstanceOf(BadUserInputError);
+      expect(fake.jmapClient.fetchSinceCalls).toHaveLength(0);
+    },
+  );
+
+  test("JMAP skipped messages are ledgered and counted", async () => {
+    await setup({
+      jmap: {
+        fetchSinceResult: {
+          messages: [],
+          hasMore: false,
+          skipped: [{ remoteId: "jmap-big", reason: "TOO_LARGE", size: null }],
+        },
+      },
+    });
+    const account = await usecases.createExternalAccount(
+      adminViewer(),
+      jmapInput(),
+    );
+
+    const summary = await usecases.fetchExternalMail(adminViewer(), account.id);
+    expect(summary).toEqual({ fetched: 0, skipped: 1, hasMore: false });
+    const known = await fake.deps.externalMessageStateRepository.listRemoteIds(
+      account.id,
+    );
+    expect(known.has("jmap-big")).toBe(true);
+    expect(fake.messageStores.messages.size).toBe(0);
+  });
+
   test("a DUPLICATE result records the ledger row directly, not via extraStatements", async () => {
     await setup({
       jmap: {
         fetchSinceResult: {
-          // Two distinct remote ids whose raw bytes parse to the *same*
-          // rfcMessageId (the fake parser returns one canned result
-          // regardless of input): the first ingest STOREs it, the second
-          // hits `receiveMessage`'s own dedupe and comes back DUPLICATE.
+          // Two distinct remote ids carrying the same message (same raw
+          // bytes, same rfcMessageId): the first ingest STOREs it, the
+          // second hits `receiveMessage`'s own dedupe and comes back
+          // DUPLICATE. (Same Message-ID with *different* bytes is stored as
+          // a separate message instead; see the ingest tests.)
           messages: [
-            { remoteId: "jmap-1", raw: raw("first") },
-            { remoteId: "jmap-2", raw: raw("second") },
+            { remoteId: "jmap-1", raw: raw("same") },
+            { remoteId: "jmap-2", raw: raw("same") },
           ],
           hasMore: false,
         },
@@ -316,6 +382,38 @@ describe("fetchExternalMail (POP3)", () => {
     expect(known.has("u1")).toBe(true);
     expect(known.has("u2")).toBe(true);
     expect(known.has("u3")).toBe(false);
+  });
+
+  test("oversized messages are ledgered as skipped, counted, and not re-listed", async () => {
+    await setup({
+      pop3: {
+        uidls: ["small", "huge"],
+        messagesByUidl: new Map([
+          ["small", raw("From: a@gmail.com\r\nSubject: 1\r\n\r\nBody")],
+        ]),
+        skippedUidls: new Map([["huge", 30 * 1024 * 1024]]),
+      },
+    });
+    const account = await usecases.createExternalAccount(
+      adminViewer(),
+      pop3Input(),
+    );
+
+    const summary = await usecases.fetchExternalMail(adminViewer(), account.id);
+    expect(summary).toEqual({ fetched: 1, skipped: 1, hasMore: false });
+    const huge = await fake.deps.externalMessageStateRepository.find(
+      account.id,
+      "huge",
+    );
+    expect(huge).toMatchObject({
+      messageId: null,
+      skipReason: ExternalMessageSkipReason.TooLarge,
+    });
+    expect(fake.messageStores.messages.size).toBe(1);
+
+    const again = await usecases.fetchExternalMail(adminViewer(), account.id);
+    expect(again).toEqual({ fetched: 0, skipped: 0, hasMore: false });
+    expect(fake.pop3Client.fetchByUidlCalls.at(-1)).toEqual([]);
   });
 
   test("a UIDL already in the ledger is skipped on the next run", async () => {

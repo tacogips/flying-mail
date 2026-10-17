@@ -54,7 +54,7 @@ export async function issueInvitation(
   });
   await deps.emailAuthChallengeRepository.save(challenge);
 
-  const url = `${mail.origin}/auth/verify?token=${encodeURIComponent(token)}`;
+  const url = `${mail.origin}/auth/verify#token=${encodeURIComponent(token)}`;
   const expiry = expiryWording(deps.instanceConfig.inviteTtlSeconds);
   await deps.mailSender.send({
     from: mail.from,

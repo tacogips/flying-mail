@@ -33,19 +33,36 @@ const NAMED_ENTITIES: Record<string, string> = {
   apos: "'",
 };
 
+const REPLACEMENT_CHARACTER = "\uFFFD";
+const MAX_CODE_POINT = 0x10ffff;
+
+/** Maps a numeric character reference to its character. A reference to a
+ * NUL, a surrogate, or a value past U+10FFFF is not a legal XML character,
+ * and `String.fromCodePoint` would throw on the last of those; each becomes
+ * U+FFFD so decoding stays total. */
+function codePointToString(code: number): string {
+  if (
+    !Number.isInteger(code) ||
+    code <= 0 ||
+    code > MAX_CODE_POINT ||
+    (code >= 0xd800 && code <= 0xdfff)
+  ) {
+    return REPLACEMENT_CHARACTER;
+  }
+  return String.fromCodePoint(code);
+}
+
 export function decodeXmlEntities(value: string): string {
   return value.replace(
-    /&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g,
-    (match, body: string) => {
+    /&(#[xX][0-9a-fA-F]+|#[0-9]+|[a-zA-Z]+);/g,
+    (_match, body: string) => {
       if (body.startsWith("#x") || body.startsWith("#X")) {
-        const code = Number.parseInt(body.slice(2), 16);
-        return Number.isNaN(code) ? match : String.fromCodePoint(code);
+        return codePointToString(Number.parseInt(body.slice(2), 16));
       }
       if (body.startsWith("#")) {
-        const code = Number.parseInt(body.slice(1), 10);
-        return Number.isNaN(code) ? match : String.fromCodePoint(code);
+        return codePointToString(Number.parseInt(body.slice(1), 10));
       }
-      return NAMED_ENTITIES[body.toLowerCase()] ?? match;
+      return NAMED_ENTITIES[body.toLowerCase()] ?? `&${body};`;
     },
   );
 }
@@ -74,19 +91,44 @@ function parseAttributes(source: string): Map<string, string> {
   return attributes;
 }
 
-function freeze(node: MutableXmlNode): XmlNode {
-  return {
+/** Iterative, so the depth of the tree never reaches the call stack. */
+function freeze(root: MutableXmlNode): XmlNode {
+  interface FrozenNode {
+    readonly name: string;
+    readonly attributes: ReadonlyMap<string, string>;
+    readonly children: XmlNode[];
+    readonly text: string;
+  }
+  const toFrozen = (node: MutableXmlNode): FrozenNode => ({
     name: node.name,
     attributes: node.attributes,
-    children: node.children.map(freeze),
+    children: [],
     text: node.text.trim(),
-  };
+  });
+  const frozenRoot = toFrozen(root);
+  const pending: { source: MutableXmlNode; target: FrozenNode }[] = [
+    { source: root, target: frozenRoot },
+  ];
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    for (const child of next.source.children) {
+      const frozenChild = toFrozen(child);
+      next.target.children.push(frozenChild);
+      pending.push({ source: child, target: frozenChild });
+    }
+  }
+  return frozenRoot;
 }
 
+/** Deepest element nesting that will be parsed. Real multistatus bodies are
+ * under ten levels; a hostile server could otherwise send megabytes of
+ * `<a>` to build an arbitrarily deep tree. */
+export const MAX_XML_DEPTH = 64;
+
 /** Parses a document into its root element, or `null` when there is no
- * well-formed root. Malformed input yields `null` rather than throwing: a
- * server that returns an HTML error page should surface as "no responses",
- * which the caller already handles. */
+ * well-formed root or the nesting exceeds {@link MAX_XML_DEPTH}. Malformed
+ * input yields `null` rather than throwing: a server that returns an HTML
+ * error page should surface as "no responses", which the caller already
+ * handles. */
 export function parseXml(source: string): XmlNode | null {
   const stack: MutableXmlNode[] = [];
   let root: MutableXmlNode | null = null;
@@ -152,6 +194,10 @@ export function parseXml(source: string): XmlNode | null {
       children: [],
       text: "",
     };
+    // `stack` holds the ancestors, so this node sits at `stack.length + 1`.
+    if (stack.length >= MAX_XML_DEPTH) {
+      return null;
+    }
     const parent = stack[stack.length - 1];
     if (parent !== undefined) {
       parent.children.push(node);
@@ -187,15 +233,20 @@ export function findDescendants(
   name: string,
 ): readonly XmlNode[] {
   const found: XmlNode[] = [];
-  const walk = (current: XmlNode): void => {
-    for (const child of current.children) {
-      if (child.name === name) {
-        found.push(child);
-      }
-      walk(child);
+  // Iterative pre-order walk; children are pushed reversed so they are
+  // visited in document order.
+  const pending: XmlNode[] = [...node.children].reverse();
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    if (next.name === name) {
+      found.push(next);
     }
-  };
-  walk(node);
+    for (let i = next.children.length - 1; i >= 0; i -= 1) {
+      const child = next.children[i];
+      if (child !== undefined) {
+        pending.push(child);
+      }
+    }
+  }
   return found;
 }
 

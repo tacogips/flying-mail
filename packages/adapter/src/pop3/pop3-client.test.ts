@@ -109,6 +109,10 @@ describe("pop3-client", () => {
         "1 uidl-1",
         "2 uidl-2",
         ".",
+        "+OK",
+        "1 50",
+        "2 123",
+        ".",
         "+OK 123 octets",
         "Subject: Test",
         "",
@@ -141,6 +145,9 @@ describe("pop3-client", () => {
         "+OK 1 message",
         "1 uidl-1",
         ".",
+        "+OK",
+        "1 10",
+        ".",
         "+OK 10 octets",
         "hello",
         ".",
@@ -170,6 +177,9 @@ describe("pop3-client", () => {
         "+OK 1 message",
         "1 uidl-1",
         ".",
+        "+OK",
+        "1 10",
+        ".",
         "-ERR no such message",
         "+OK bye",
       ],
@@ -179,5 +189,176 @@ describe("pop3-client", () => {
     const messages = await client.fetchByUidl(CREDENTIALS, ["uidl-1"]);
 
     expect(messages).toEqual([]);
+  });
+
+  describe("message size cap", () => {
+    const HEAD = ["+OK POP3 ready", "+OK user", "+OK pass"];
+
+    test("skips an oversized UIDL named by LIST without sending RETR", async () => {
+      const dialer = fakeTcpDialer();
+      dialer.queueScript({
+        serverLines: [
+          ...HEAD,
+          "+OK 2 messages",
+          "1 big",
+          "2 small",
+          ".",
+          "+OK",
+          "1 5000",
+          "2 5",
+          ".",
+          "+OK 5 octets",
+          "hello",
+          ".",
+          "+OK bye",
+        ],
+      });
+      const client = createPop3Client(dialer, { maxMessageBytes: 100 });
+
+      const result = await client.fetchByUidlDetailed(CREDENTIALS, [
+        "big",
+        "small",
+      ]);
+
+      expect(result.skipped).toEqual([
+        { remoteId: "big", reason: "TOO_LARGE", size: 5000 },
+      ]);
+      expect(result.messages.map((m) => m.remoteId)).toEqual(["small"]);
+      expect(dialer.writes.filter((w) => w.startsWith("RETR"))).toEqual([
+        "RETR 2\r\n",
+      ]);
+    });
+
+    test("fetchByUidl omits oversized messages", async () => {
+      const dialer = fakeTcpDialer();
+      dialer.queueScript({
+        serverLines: [
+          ...HEAD,
+          "+OK 1 message",
+          "1 big",
+          ".",
+          "+OK",
+          "1 5000",
+          ".",
+          "+OK bye",
+        ],
+      });
+      const client = createPop3Client(dialer, { maxMessageBytes: 100 });
+
+      await expect(client.fetchByUidl(CREDENTIALS, ["big"])).resolves.toEqual(
+        [],
+      );
+    });
+
+    test("aborts buffering a RETR that outgrows the cap and keeps the session in sync", async () => {
+      const dialer = fakeTcpDialer();
+      const longLine = "x".repeat(60);
+      dialer.queueScript({
+        serverLines: [
+          ...HEAD,
+          "+OK 2 messages",
+          "1 liar",
+          "2 fine",
+          ".",
+          // LIST understates the first message.
+          "+OK",
+          "1 10",
+          "2 5",
+          ".",
+          "+OK",
+          longLine,
+          longLine,
+          longLine,
+          ".",
+          "+OK",
+          "hello",
+          ".",
+          "+OK bye",
+        ],
+      });
+      const client = createPop3Client(dialer, { maxMessageBytes: 100 });
+
+      const result = await client.fetchByUidlDetailed(CREDENTIALS, [
+        "liar",
+        "fine",
+      ]);
+
+      expect(result.skipped).toEqual([
+        { remoteId: "liar", reason: "TOO_LARGE", size: 186 },
+      ]);
+      expect(result.messages.map((m) => m.remoteId)).toEqual(["fine"]);
+    });
+
+    test("gives up with a transport error when a RETR never stops", async () => {
+      const dialer = fakeTcpDialer();
+      const longLine = "x".repeat(98);
+      dialer.queueScript({
+        serverLines: [
+          ...HEAD,
+          "+OK 1 message",
+          "1 endless",
+          ".",
+          "-ERR no LIST",
+          "+OK",
+          // 4 x 100 byte cap = 400 byte drain limit; 5 lines of 100 bytes.
+          ...Array.from({ length: 6 }, () => longLine),
+          ".",
+          "+OK bye",
+        ],
+      });
+      const client = createPop3Client(dialer, { maxMessageBytes: 100 });
+
+      await expect(
+        client.fetchByUidl(CREDENTIALS, ["endless"]),
+      ).rejects.toBeInstanceOf(ExternalMailTransportError);
+    });
+
+    test("still fetches when the server refuses LIST", async () => {
+      const dialer = fakeTcpDialer();
+      dialer.queueScript({
+        serverLines: [
+          ...HEAD,
+          "+OK 1 message",
+          "1 uidl-1",
+          ".",
+          "-ERR LIST not supported",
+          "+OK",
+          "hello",
+          ".",
+          "+OK bye",
+        ],
+      });
+      const client = createPop3Client(dialer);
+
+      const messages = await client.fetchByUidl(CREDENTIALS, ["uidl-1"]);
+
+      expect(messages.map((m) => m.remoteId)).toEqual(["uidl-1"]);
+    });
+
+    test("accepts a message exactly at the cap", async () => {
+      const dialer = fakeTcpDialer();
+      // 98 chars + CRLF = 100 bytes.
+      dialer.queueScript({
+        serverLines: [
+          ...HEAD,
+          "+OK 1 message",
+          "1 uidl-1",
+          ".",
+          "+OK",
+          "1 100",
+          ".",
+          "+OK",
+          "y".repeat(98),
+          ".",
+          "+OK bye",
+        ],
+      });
+      const client = createPop3Client(dialer, { maxMessageBytes: 100 });
+
+      const result = await client.fetchByUidlDetailed(CREDENTIALS, ["uidl-1"]);
+
+      expect(result.skipped).toEqual([]);
+      expect(result.messages).toHaveLength(1);
+    });
   });
 });

@@ -300,12 +300,11 @@ describe("createLocalApp", () => {
     expect(body.kind).toBe("STORED");
     expect(body.subject).toBe("Local dev message");
 
-    const page = await deps.messageRepository.list(
-      { allowedPatterns: null, mailPermissionFilter: null },
-      10,
-      null,
-    );
-    expect(page.totalCount).toBe(1);
+    const count = await deps.messageRepository.count({
+      allowedPatterns: null,
+      mailPermissionFilter: null,
+    });
+    expect(count).toBe(1);
   });
 
   test("the dev inbound route rejects an unmanaged recipient", async () => {

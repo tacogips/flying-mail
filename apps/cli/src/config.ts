@@ -88,3 +88,18 @@ export function maskApiKey(key: string): string {
   }
   return `${parts[0]}_${parts[1]}_***`;
 }
+
+/** Warning for `--api-key <value>`: argv is readable by every local user
+ * (`ps`) and lands in shell history. Returned rather than printed so the
+ * decision is testable; `null` when nothing needs saying. Only interactive
+ * sessions are warned -- a script that passes the flag cannot act on it. */
+export function apiKeyArgvWarning(
+  args: ParsedArgs,
+  interactive: boolean,
+): string | null {
+  const value = flagString(args, "api-key");
+  if (!interactive || value === undefined || value.length === 0) {
+    return null;
+  }
+  return "Warning: --api-key puts the key in the process list and shell history. Prefer the FLYING_MAIL_API_KEY environment variable.";
+}

@@ -61,6 +61,8 @@ export function createRealtimeHub(options: HubOptions): RealtimeHub {
     string,
     { readonly connection: HubConnection; state: ConnectionState }
   >();
+  // lastMessageAt value most recently written to storage, per state object.
+  const persistedActivity = new WeakMap<ConnectionState, number>();
   const messageQueues = new Map<string, Promise<void>>();
   const initStarted = new Set<string>();
   const drain = createDrain({
@@ -82,7 +84,9 @@ export function createRealtimeHub(options: HubOptions): RealtimeHub {
     state: ConnectionState,
   ): Promise<void> => {
     if (states.get(conn.id)?.state !== state) return;
+    const activityAt = state.lastMessageAt;
     await options.host.saveState(conn, state);
+    persistedActivity.set(state, activityAt);
     if (states.get(conn.id)?.state !== state) {
       await options.host.deleteState(conn);
       return;
@@ -262,6 +266,8 @@ export function createRealtimeHub(options: HubOptions): RealtimeHub {
     init,
     subscribe,
     forget: drain.forget,
+    persistedActivityAt: (state) =>
+      persistedActivity.get(state) ?? Number.NEGATIVE_INFINITY,
   });
 
   return {
@@ -269,7 +275,10 @@ export function createRealtimeHub(options: HubOptions): RealtimeHub {
       states.clear();
       for (const conn of options.host.listConnections()) {
         const state = await options.host.loadState(conn);
-        if (state !== null) states.set(conn.id, { connection: conn, state });
+        if (state !== null) {
+          states.set(conn.id, { connection: conn, state });
+          persistedActivity.set(state, state.lastMessageAt);
+        }
       }
       await reschedule();
     },
@@ -313,6 +322,7 @@ export function createRealtimeHub(options: HubOptions): RealtimeHub {
         return;
       }
       await options.host.saveState(conn, state);
+      persistedActivity.set(state, state.lastMessageAt);
       await reschedule();
     },
     async message(conn, data) {

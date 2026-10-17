@@ -1,15 +1,24 @@
 import type { MiddlewareHandler } from "hono";
+import { isPlainHttpLocalhost } from "./auth-middleware";
+
+const HSTS_HEADER = "strict-transport-security";
+const HSTS_VALUE = "max-age=31536000; includeSubDomains";
 
 /** Baseline headers applied to every response.
  *
  * `nosniff` and `X-Frame-Options` matter most on the attachment/file-link
  * routes, where the bytes are attacker-supplied by definition, but applying
- * them uniformly means a future route cannot forget them. */
+ * them uniformly means a future route cannot forget them.
+ *
+ * HSTS is part of the baseline but is skipped for plain-HTTP localhost (see
+ * `applySecurityHeaders`): browsers ignore it over HTTP anyway, and sending
+ * it from a dev server invites confusion about what was pinned. */
 const BASELINE_HEADERS: readonly (readonly [string, string])[] = [
   ["x-content-type-options", "nosniff"],
   ["referrer-policy", "no-referrer"],
   ["x-frame-options", "DENY"],
   ["cross-origin-opener-policy", "same-origin"],
+  ["strict-transport-security", HSTS_VALUE],
 ];
 
 /** CSP for the SPA shell and Cloudflare Turnstile.
@@ -31,12 +40,18 @@ export const HTML_CSP = [
   "frame-ancestors 'none'",
 ].join("; ");
 
+/** `includeHsts` defaults to true so a caller that forgets the argument
+ * errs towards the stricter header. */
 export function applySecurityHeaders(
   response: Response,
   includeCsp: boolean,
+  includeHsts = true,
 ): Response {
   const headers = new Headers(response.headers);
   for (const [name, value] of BASELINE_HEADERS) {
+    if (name === HSTS_HEADER && !includeHsts) {
+      continue;
+    }
     if (!headers.has(name)) {
       headers.set(name, value);
     }
@@ -67,6 +82,10 @@ export function createSecurityHeadersMiddleware(): MiddlewareHandler {
     if (c.res === undefined) {
       return;
     }
-    c.res = applySecurityHeaders(c.res, isHtmlResponse(c.res));
+    c.res = applySecurityHeaders(
+      c.res,
+      isHtmlResponse(c.res),
+      !isPlainHttpLocalhost(c.req.raw),
+    );
   };
 }

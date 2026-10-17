@@ -30,6 +30,10 @@ export class CliError extends Error {
   constructor(
     message: string,
     readonly exitCode: ExitCode = ExitCode.GeneralError,
+    /** Server-reported error code (e.g. `RATE_LIMITED`), when the failure
+     * came from the API. Lets callers tell transient failures apart from
+     * permanent ones without parsing messages. */
+    readonly code: string | undefined = undefined,
   ) {
     super(message);
     this.name = "CliError";

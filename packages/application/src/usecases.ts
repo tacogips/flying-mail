@@ -1,4 +1,5 @@
 import type { ApiKey, ApiKeyScope } from "@flying-mail/domain/entities/api-key";
+import type { Attachment } from "@flying-mail/domain/entities/attachment";
 import type { MessageFetchState } from "@flying-mail/domain/entities/fetch-state";
 import type { FileLink } from "@flying-mail/domain/entities/file-link";
 import type {
@@ -87,7 +88,6 @@ import {
   type UserTemplatePermissionInput,
 } from "./usecases/user-template-permissions";
 import type { Viewer } from "./policies/viewer";
-import type { MessagePage } from "./ports/message-repository";
 import {
   type ApiKeyScopeInput,
   type ApiKeyWithSecret,
@@ -102,9 +102,17 @@ import {
 import {
   createGetViewerUserUseCase,
   createLogoutUseCase,
+  createResolveApiKeyViewerFromTokenUseCase,
   createResolveViewerFromTokenHashUseCase,
   createResolveViewerFromTokenUseCase,
+  type ApiKeyViewer,
 } from "./usecases/auth";
+import {
+  createReadAttachmentUseCase,
+  createStageAttachmentUploadUseCase,
+  type AttachmentContent,
+  type StageAttachmentUploadInput,
+} from "./usecases/attachment-uploads";
 import {
   buildDomainDnsRecords,
   createInboundMxStatusUseCase,
@@ -153,8 +161,10 @@ import {
   createListMessagesUseCase,
   createMarkReadUseCase,
   type ListMessagesInput,
+  type MessageListResult,
   type ThreadView,
 } from "./usecases/messages";
+import { createTrashMessagesUseCase } from "./usecases/trash";
 import {
   createListSendableAddressesUseCase,
   createRetrySendUseCase,
@@ -220,6 +230,9 @@ import {
 export interface UseCases {
   // --- auth ---
   readonly resolveViewerFromToken: (token: string) => Promise<Viewer | null>;
+  readonly resolveApiKeyViewerFromToken: (
+    token: string,
+  ) => Promise<ApiKeyViewer | null>;
   readonly resolveViewerFromTokenHash: (
     tokenHash: string,
     options: { readonly recordUsage: boolean },
@@ -271,7 +284,7 @@ export interface UseCases {
   readonly listMessages: (
     viewer: Viewer,
     input: ListMessagesInput,
-  ) => Promise<MessagePage>;
+  ) => Promise<MessageListResult>;
   readonly getMessage: (
     viewer: Viewer,
     id: MessageId,
@@ -289,6 +302,19 @@ export interface UseCases {
     viewer: Viewer,
     ids: readonly MessageId[],
   ) => Promise<number>;
+  readonly trashMessages: (
+    viewer: Viewer,
+    ids: readonly MessageId[],
+  ) => Promise<number>;
+  readonly stageAttachmentUpload: (
+    viewer: Viewer,
+    input: StageAttachmentUploadInput,
+  ) => Promise<Attachment>;
+  readonly readAttachment: (
+    viewer: Viewer,
+    id: AttachmentId,
+    options: { readonly includeBody: boolean },
+  ) => Promise<AttachmentContent>;
 
   // --- fetch state ---
   readonly markMessagesFetched: (
@@ -590,6 +616,8 @@ export function createUseCases(deps: AppDependencies): UseCases {
       createRemoveUserTemplatePermissionUseCase(deps),
 
     resolveViewerFromToken: createResolveViewerFromTokenUseCase(deps),
+    resolveApiKeyViewerFromToken:
+      createResolveApiKeyViewerFromTokenUseCase(deps),
     resolveViewerFromTokenHash: createResolveViewerFromTokenHashUseCase(deps),
     logout: createLogoutUseCase(deps),
     getViewerUser: createGetViewerUserUseCase(deps),
@@ -612,6 +640,9 @@ export function createUseCases(deps: AppDependencies): UseCases {
     getThread: createGetThreadUseCase(deps),
     markRead: createMarkReadUseCase(deps),
     deleteMessages: createDeleteMessagesUseCase(deps),
+    trashMessages: createTrashMessagesUseCase(deps),
+    stageAttachmentUpload: createStageAttachmentUploadUseCase(deps),
+    readAttachment: createReadAttachmentUseCase(deps),
 
     markMessagesFetched: createMarkMessagesFetchedUseCase(deps),
     markMessagesNotFetched: createMarkMessagesNotFetchedUseCase(deps),
@@ -690,6 +721,7 @@ export type {
   EmailAuthSession,
   FileLinkDownload,
   ListMessagesInput,
+  MessageListResult,
   ReceiveMessageInput,
   ReceiveMessageResult,
   SendMessageInput,

@@ -1,6 +1,6 @@
 # MCP Server 03: Protocol Core and Tool Contract
 
-**Status**: Not Started
+**Status**: Completed
 **Plan ID**: mcp-server-03-protocol-core
 **Wave**: 1 (phase 30)
 **Depends On**: none
@@ -474,10 +474,10 @@ MAIL_READ, one USER_ADMIN) and an injected audit array:
 
 ## Done criteria
 
-- [ ] Every contract symbol above exists with the pinned name and shape.
-- [ ] The five stub tool files export empty arrays, and
+- [x] Every contract symbol above exists with the pinned name and shape.
+- [x] The five stub tool files export empty arrays, and
       `MCP_TOOL_REGISTRY` builds.
-- [ ] Verification steps 1-5 pass, with logs recorded.
+- [x] Verification steps 1-5 pass, with logs recorded.
 
 ## Worker protocol
 
@@ -490,4 +490,47 @@ MAIL_READ, one USER_ADMIN) and an injected audit array:
 
 ## Progress Log
 
-(empty)
+### Session: 2026-10-08 — Step 6 implementation
+
+**Tasks Completed**: protocol-core contracts and behavioral tests.
+
+- Added API-key scope-presence visibility policy and export.
+- Extracted GraphQL-compatible `classifyError`; GraphQL suite remains green.
+- Added MCP constants, FieldSpec schema/parser, tool contracts, JSON-RPC
+  helpers, error mapping, audit sink, ordered registry, protocol dispatcher,
+  five empty tool-group stubs, and shared test harness.
+- Added tests for schema derivation and validation, error mapping/masking,
+  audit safety, dual-era lifecycle/framing/version/header behavior, hidden
+  tool equivalence, tool failure audit, registry validation, and the test
+  harness smoke path.
+
+**Verification** (final source; full logs in `/tmp`):
+
+- `bunx vitest run packages/infrastructure/src/mcp packages/application/src/policies` — exit 0, 84 passed, 0 failed; `/tmp/mcp-server-03-unit-final.log`.
+- `bunx vitest run packages/infrastructure/src/graphql` — exit 0, 122 passed, 0 failed; `/tmp/mcp-server-03-graphql-final.log`.
+- `bun run typecheck` — exit 0; `/tmp/mcp-server-03-typecheck-final3.log`.
+- `bunx biome check <plan-owned source files>` — exit 0, 22 files checked; `/tmp/mcp-server-03-biome-final.log`.
+- `wc -l packages/infrastructure/src/mcp/*.ts packages/application/src/policies/authorization.ts` — exit 0; every file under 1000 lines; `/tmp/mcp-server-03-lines.log`.
+- `test "$(wc -l < packages/infrastructure/src/mcp/protocol.ts)" -lt 500` — exit 0; protocol.ts is 355 lines; `/tmp/mcp-server-03-protocol-limit.log`.
+
+Earlier moving-tree attempts are retained: the first unit run failed in the
+plan-02 HTML sanitizer test (83 passed, 1 failed), and an early typecheck saw
+temporary plan-01 attachment-use-case type errors. Both exact gates passed on
+the final shared source above; no out-of-plan files were changed.
+
+### Session: 2026-10-08 — integrity review repair
+
+**Tasks Completed**: TI-03-001 and TI-03-002 feedback in comm-005189.
+
+- JSON Schema `required` now includes only fields marked `required: true`; schema defaults and `InferArgs` / `parseArguments` behavior remain unchanged. The test expects only `id`, verifies `page` is absent from `required`, and retains default application coverage.
+- Added protocol regression assertions for legacy unknown-method HTTP 200, unsupported-version `data.supported` / `data.requested`, legacy list metadata omissions, text structured-content equivalence, and the harness viewer's single scope.
+
+**Verification** (current source; full logs in `/tmp`):
+
+- `bunx vitest run packages/infrastructure/src/mcp packages/application/src/policies` — exit 0, 85 passed, 0 failed; `/tmp/mcp-server-03-unit-r2-final.log`.
+- `bunx vitest run packages/infrastructure/src/graphql` — exit 0, 122 passed, 0 failed; `/tmp/mcp-server-03-graphql-r2-final.log`.
+- `bun run typecheck` — exit 0; `/tmp/mcp-server-03-typecheck-r2-final.log`.
+- `bunx biome check packages/infrastructure/src/mcp/tool-schema.ts packages/infrastructure/src/mcp/tool-schema.test.ts packages/infrastructure/src/mcp/protocol.test.ts` — exit 0; `/tmp/mcp-server-03-biome-r2-final.log`.
+- Targeted `bunx biome format --write packages/infrastructure/src/mcp/protocol.test.ts` — exit 0, applied the single-file formatting required by Biome.
+
+The first targeted Biome check identified only formatting in the new protocol assertion block; the targeted formatter corrected it, and all final gates above passed.

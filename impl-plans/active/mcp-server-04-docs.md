@@ -1,6 +1,6 @@
 # MCP Server 04: README Client Configuration and Deploy-Skill Smoke Check (documentation only)
 
-**Status**: Not Started
+**Status**: Completed
 **Plan ID**: mcp-server-04-docs
 **Wave**: 1 (phase 30)
 **Depends On**: none (documents the accepted design; no code dependency)
@@ -173,8 +173,8 @@ Content, in this order:
 
 ## Done criteria
 
-- [ ] TASK-001 and TASK-002 content present.
-- [ ] Document checks 1-10 meet their expected results, with outputs
+- [x] TASK-001 and TASK-002 content present.
+- [x] Document checks 1-10 meet their expected results, with outputs
       recorded.
 
 ## Worker protocol
@@ -187,4 +187,43 @@ Content, in this order:
 
 ## Progress Log
 
-(empty)
+### Session: 2026-10-08
+
+**Tasks Completed**: TASK-001 and TASK-002.
+
+**Notes**: Added the README MCP client/configuration section, exact 27-tool
+visibility and annotation table, key guidance, untrusted-content note and
+limits. Added the `MCP_RATE_LIMITER` inventory row and post-deploy legacy,
+modern and unauthenticated smoke checks to the deploy skill. Check 5 returned
+matches only in existing subscription, deployment and security text; none were
+MCP tool rows. The first check-8 attempt caught the forbidden `curl -v`
+spelling in its own warning sentence; the wording was changed to "verbose
+curl mode" and all final checks passed.
+
+**Verification**: Document checks 1-10 passed on the final source; logs are
+under `tmp/mcp-server-s316/mcp-server-04-docs/attempt-1/final-2/`. The
+non-printable counts stayed at README 15 and SKILL 0 (pre-edit README 15,
+SKILL 0). The extracted MCP smoke-check script passed `bash -n`. Biome was
+not run because it does not lint Markdown. Independent review and later
+workflow finalization remain downstream.
+
+### Session: 2026-10-08 (IR-04-DOCGATE repair)
+
+**Finding**: IR-04-DOCGATE.
+
+**Verification class**: documentation-only (workflow constraint). This plan
+contains documentation deliverables and explicitly defines document checks;
+behavioral test counts do not apply.
+
+**Tasks Completed**: Re-ran document checks 1-10 on current README.md and
+.agents/skills/flying-mail-deploy/SKILL.md. All exited 0. Outputs and exit codes
+are recorded under `tmp/mcp-server-s316/mcp-server-04-docs/attempt-2/` in
+`check-01.log` through `check-10.log` and `exit-codes.txt`. Check 5 matches were
+inspected and are existing non-MCP README text. Check 10 counts remained at
+README 15 and deploy skill 0, matching the pre-edit values. The extracted smoke
+script syntax check and `git diff --check` also exited 0; see
+`smoke-script-syntax.log` and `diff-check.log`.
+
+**Notes**: README.md and .agents/skills/flying-mail-deploy/SKILL.md required no
+content changes. The required branch classification is
+`verificationClass: documentation-only`; implementation is not blocked.

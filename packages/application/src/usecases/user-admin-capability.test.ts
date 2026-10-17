@@ -256,10 +256,9 @@ describe("USER_ADMIN capability", () => {
     await expect(usecases.listUsers(mailReader)).rejects.toThrow(
       "no longer an active ADMIN",
     );
-    await expect(usecases.listMessages(mailReader, {})).resolves.toMatchObject({
-      nodes: [],
-      totalCount: 0,
-    });
+    const page = await usecases.listMessages(mailReader, {});
+    expect(page.nodes).toEqual([]);
+    expect(await page.loadTotalCount()).toBe(0);
   });
 
   test("only an admin session can create USER_ADMIN keys; adding it is creator-only", async () => {

@@ -1,4 +1,3 @@
-import { Capability } from "@flying-mail/domain/entities/api-key";
 import {
   assertTagDeletable,
   createSystemTag,
@@ -11,6 +10,7 @@ import {
 import { createTagId, type TagId } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
+import { authorizesAnyMailManage } from "../policies/authorization";
 import type { Viewer } from "../policies/viewer";
 import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
 
@@ -18,13 +18,7 @@ import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
  * `MAIL_MANAGE` somewhere -- checked without an address, since there is no
  * single mailbox a tag belongs to. */
 function requireTagManagement(viewer: Viewer): void {
-  if (viewer.kind === "USER") {
-    return;
-  }
-  const hasManage = viewer.scopes.some(
-    (scope) => scope.capability === Capability.MailManage,
-  );
-  if (!hasManage) {
+  if (!authorizesAnyMailManage(viewer)) {
     throw new ForbiddenError("This credential is not permitted to manage tags");
   }
 }

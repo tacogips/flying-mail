@@ -7,6 +7,8 @@ import { isUserActive, type User } from "@flying-mail/domain/entities/user";
 import type { AppDependencies } from "../dependencies";
 import type { Viewer } from "../policies/viewer";
 
+export type ApiKeyViewer = Extract<Viewer, { kind: "API_KEY" }>;
+
 /** Resolves a presented bearer/cookie token to a `Viewer`.
  *
  * Sessions are checked first, then API keys: the browser client's cookie is
@@ -23,6 +25,22 @@ export function createResolveViewerFromTokenUseCase(
     }
     const tokenHash = await deps.tokenHasher.hash(token);
     return resolveViewerFromTokenHash(deps, tokenHash, { recordUsage: true });
+  };
+}
+
+/** Resolves only API-key bearer tokens. Session credentials are never read. */
+export function createResolveApiKeyViewerFromTokenUseCase(
+  deps: AppDependencies,
+): (token: string) => Promise<ApiKeyViewer | null> {
+  return async (token) => {
+    if (!/^ybm_[0-9a-f]{12}_\S+$/.test(token)) {
+      return null;
+    }
+    const tokenHash = await deps.tokenHasher.hash(token);
+    const now = deps.clock.now().toISOString();
+    return resolveApiKeyViewerFromHash(deps, tokenHash, now, {
+      recordUsage: true,
+    });
   };
 }
 
@@ -69,6 +87,15 @@ async function resolveViewerFromTokenHash(
     };
   }
 
+  return resolveApiKeyViewerFromHash(deps, tokenHash, now, options);
+}
+
+async function resolveApiKeyViewerFromHash(
+  deps: AppDependencies,
+  tokenHash: string,
+  now: string,
+  options: { readonly recordUsage: boolean },
+): Promise<ApiKeyViewer | null> {
   const apiKey = await deps.apiKeyRepository.findByKeyHash(tokenHash);
   if (apiKey === null || !isApiKeyUsable(apiKey, now)) {
     return null;

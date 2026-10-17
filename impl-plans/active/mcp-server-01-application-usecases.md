@@ -1,6 +1,6 @@
 # MCP Server 01: Application Use Cases (API-key-only resolution, trash, attachments)
 
-**Status**: Not Started
+**Status**: Completed
 **Plan ID**: mcp-server-01-application-usecases
 **Wave**: 1 (phase 30)
 **Depends On**: none
@@ -254,9 +254,9 @@ existing `describe("resolveViewerFromToken")` setup in the same file.
 
 ## Done criteria
 
-- [ ] Four new `UseCases` members exist, with the pinned signatures.
-- [ ] Verification steps 1-6 pass, with logs recorded.
-- [ ] `git diff --quiet -- packages/application/src/usecases/messages.ts packages/infrastructure/src/http/app.test.ts`
+- [x] Four new `UseCases` members exist, with the pinned signatures.
+- [x] Verification steps 1-6 pass, with logs recorded.
+- [x] `git diff --quiet -- packages/application/src/usecases/messages.ts packages/infrastructure/src/http/app.test.ts`
       exits 0 (both files untouched).
 
 ## Worker protocol
@@ -274,4 +274,27 @@ existing `describe("resolveViewerFromToken")` setup in the same file.
 
 ## Progress Log
 
-(empty)
+### Session: 2026-10-08
+
+**Tasks Completed**: TASK-001 through TASK-005.
+
+**Implementation**:
+
+- Added `resolveApiKeyViewerFromToken`, extracted the API-key hash branch, and preserved session-first behavior in `resolveViewerFromToken`.
+- Added non-purging `trashMessages` with MAIL_MANAGE filtering, idempotent Trash tagging, and events only for new tags.
+- Added staged attachment upload and authorized attachment read use cases, including the size cap and no-blob-read metadata path.
+- Wired all four members into `UseCases` and `createUseCases`; refactored REST attachment routes through those use cases while retaining the existing 201/404/download response paths.
+- Added focused tests for malformed/session/revoked/expired/unknown keys, trash authorization/idempotency/missing tag, and attachment limits/access/blob behavior.
+- `packages/application/src/usecases/messages.ts` and `packages/infrastructure/src/http/app.test.ts` remain unchanged.
+
+**Verification** (final source; complete logs):
+
+1. `bunx vitest run packages/application/src/usecases/auth.test.ts packages/application/src/usecases/trash.test.ts packages/application/src/usecases/attachment-uploads.test.ts 2>&1 | tee /tmp/mcp-server-01-unit.log` — exit 0; 3 files and 45 tests passed.
+2. `bunx vitest run packages/infrastructure/src/http 2>&1 | tee /tmp/mcp-server-01-http.log` — exit 0; 3 files and 54 tests passed, including unchanged REST attachment tests.
+3. `bunx vitest run packages/application 2>&1 | tee /tmp/mcp-server-01-app.log` — exit 0; 48 files and 629 tests passed.
+4. `bun run typecheck 2>&1 | tee /tmp/mcp-server-01-typecheck.log` — exit 0; all workspace typechecks passed. An earlier run exposed test-only BlobStore port typing errors and transient concurrent MCP test-support errors; the test typing was corrected and the full rerun passed.
+5. `bunx biome check packages/application/src/usecases/auth.ts packages/application/src/usecases/auth.test.ts packages/application/src/usecases/trash.ts packages/application/src/usecases/trash.test.ts packages/application/src/usecases/attachment-uploads.ts packages/application/src/usecases/attachment-uploads.test.ts packages/application/src/usecases.ts packages/infrastructure/src/http/attachments.ts 2>&1 | tee /tmp/mcp-server-01-biome-final.log` — exit 0; 8 files checked, no fixes needed.
+6. `wc -l packages/application/src/usecases.ts packages/application/src/usecases/auth.ts packages/infrastructure/src/http/attachments.ts` — exit 0; counts 730, 141 and 201 respectively, all below 1000 lines.
+7. `git diff --quiet -- packages/application/src/usecases/messages.ts packages/infrastructure/src/http/app.test.ts` — exit 0; both protected files unchanged.
+
+**Evidence**: per-edit intentions and SHA-256 ledger are under `tmp/mcp-server-s316/mcp-server-01-application-usecases/attempt-01/`.

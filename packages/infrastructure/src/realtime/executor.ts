@@ -18,6 +18,10 @@ import {
   validateSubscriptionArgs,
   type ValidatedSubscriptionArgs,
 } from "graphql";
+import {
+  DEFAULT_MAX_ALIASES,
+  documentAliasCount,
+} from "../graphql/alias-limit";
 import { buildGraphQLContext } from "../graphql/context";
 import { DEFAULT_MAX_DEPTH, documentDepth } from "../graphql/depth-limit";
 import { toGraphQLError } from "../graphql/errors";
@@ -254,6 +258,11 @@ export function createSubscriptionExecutor(
       if (documentSelectionCount(document) > DEFAULT_MAX_SELECTIONS) {
         return badInput(
           `Query has too many selections: maximum is ${DEFAULT_MAX_SELECTIONS}`,
+        );
+      }
+      if (documentAliasCount(document) > DEFAULT_MAX_ALIASES) {
+        return badInput(
+          `Query has too many aliases: maximum is ${DEFAULT_MAX_ALIASES}`,
         );
       }
 

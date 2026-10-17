@@ -26,6 +26,7 @@ export const DEFAULT_SQLITE_URL = "file:./data/mailcal.db";
 export const DEFAULT_SPAM_THRESHOLD = 0.6;
 export const DEFAULT_FILE_LINK_MAX_TTL_SECONDS = 604800;
 export const DEFAULT_INVITE_TTL_SECONDS = 604800;
+export const DEFAULT_MAX_SENDS_PER_DOMAIN_PER_DAY = 1000;
 export const DEFAULT_EVENT_RETENTION_SECONDS = 604800;
 export const DEFAULT_INBOUND_MX_SUFFIX = "mx.cloudflare.net";
 const DEFAULT_S3_REGION = "us-east-1";
@@ -49,6 +50,7 @@ export interface BuildDependenciesConfig {
   readonly spamThreshold?: number;
   readonly spamPhrases?: readonly string[];
   readonly fileLinkMaxTtlSeconds?: number;
+  readonly maxSendsPerDomainPerDay?: number;
   readonly inviteTtlSeconds?: number;
   readonly eventRetentionSeconds?: number;
   readonly mailEventNotifier?: MailEventNotifier;
@@ -355,6 +357,16 @@ export function resolveFileLinkMaxTtl(env: EnvLike): number {
   );
 }
 
+/** `FLYING_MAIL_MAX_SENDS_PER_DOMAIN_PER_DAY`: rolling 24h cap on outbound
+ * messages per sending domain. Invalid values fall back to the default. */
+export function resolveMaxSendsPerDomainPerDay(env: EnvLike): number {
+  return resolveNumber(
+    env["FLYING_MAIL_MAX_SENDS_PER_DOMAIN_PER_DAY"],
+    DEFAULT_MAX_SENDS_PER_DOMAIN_PER_DAY,
+    (value) => Number.isInteger(value) && value >= 1,
+  );
+}
+
 /** Invalid invite lifetimes fall back to the seven-day default. */
 export function resolveInviteTtlSeconds(env: EnvLike): number {
   const raw = env["FLYING_MAIL_INVITE_TTL_SECONDS"];
@@ -531,6 +543,7 @@ export function loadConfigFromEnv(env: EnvLike): BuildDependenciesConfig {
     spamThreshold: resolveSpamThreshold(env),
     spamPhrases: resolveSpamPhrases(env),
     fileLinkMaxTtlSeconds: resolveFileLinkMaxTtl(env),
+    maxSendsPerDomainPerDay: resolveMaxSendsPerDomainPerDay(env),
     inviteTtlSeconds,
     eventRetentionSeconds,
     inboundMxSuffix: resolveInboundMxSuffix(env),

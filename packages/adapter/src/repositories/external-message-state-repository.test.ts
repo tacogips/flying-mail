@@ -1,5 +1,9 @@
 import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
 import { createExternalMailAccount } from "@flying-mail/domain/entities/external-mail-account";
+import {
+  createSkippedExternalMessageState,
+  ExternalMessageSkipReason,
+} from "@flying-mail/domain/entities/external-message-state";
 import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
 import {
   createDomainId,
@@ -76,12 +80,14 @@ describe("external message state repository", () => {
       remoteId: "remote-1",
       messageId: createMessageId("msg-1"),
       fetchedAt: NOW,
+      skipReason: null,
     });
     await repository.save({
       accountId: OTHER_ACCOUNT_ID,
       remoteId: "remote-1",
       messageId: createMessageId("msg-2"),
       fetchedAt: NOW,
+      skipReason: null,
     });
 
     expect(await repository.find(ACCOUNT_ID, "remote-1")).toEqual({
@@ -89,6 +95,7 @@ describe("external message state repository", () => {
       remoteId: "remote-1",
       messageId: createMessageId("msg-1"),
       fetchedAt: NOW,
+      skipReason: null,
     });
     // The same remoteId string under a different account is a distinct row.
     expect(await repository.find(OTHER_ACCOUNT_ID, "remote-1")).toMatchObject({
@@ -108,12 +115,14 @@ describe("external message state repository", () => {
       remoteId: "remote-1",
       messageId: createMessageId("msg-1"),
       fetchedAt: NOW,
+      skipReason: null,
     });
     await repository.save({
       accountId: ACCOUNT_ID,
       remoteId: "remote-1",
       messageId: createMessageId("msg-1-again"),
       fetchedAt: "2026-08-25T00:00:00.000Z",
+      skipReason: null,
     });
 
     const found = await repository.find(ACCOUNT_ID, "remote-1");
@@ -129,6 +138,7 @@ describe("external message state repository", () => {
       remoteId: "remote-built",
       messageId: createMessageId("msg-built"),
       fetchedAt: NOW,
+      skipReason: null,
     };
     const statement = repository.buildSaveStatement(state);
     expect(await repository.find(ACCOUNT_ID, "remote-built")).toBeNull();
@@ -144,8 +154,25 @@ describe("external message state repository", () => {
       remoteId: "remote-1",
       messageId: createMessageId("msg-1"),
       fetchedAt: NOW,
+      skipReason: null,
     });
     await createExternalMailAccountRepository(db).delete(ACCOUNT_ID);
     expect(await repository.listRemoteIds(ACCOUNT_ID)).toEqual(new Set());
+  });
+
+  test("round-trips a skipped row with no message", async () => {
+    const repository = createExternalMessageStateRepository(db);
+    const skipped = createSkippedExternalMessageState({
+      accountId: ACCOUNT_ID,
+      remoteId: "remote-big",
+      skipReason: ExternalMessageSkipReason.TooLarge,
+      fetchedAt: NOW,
+    });
+    await repository.save(skipped);
+
+    expect(await repository.find(ACCOUNT_ID, "remote-big")).toEqual(skipped);
+    expect((await repository.listRemoteIds(ACCOUNT_ID)).has("remote-big")).toBe(
+      true,
+    );
   });
 });

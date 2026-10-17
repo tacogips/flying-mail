@@ -182,4 +182,40 @@ describe("webmail message repository operations", () => {
       "after@example.net",
     );
   });
+
+  test("counts only non-draft outbound messages of the domain inside the window", async () => {
+    const at = (id: string, occurredAt: string, domainId = DOMAIN_A) => ({
+      ...buildMessage({
+        id,
+        domainId,
+        direction: "OUTBOUND",
+        rfcMessageId: `${id}@a.example`,
+      }),
+      occurredAt,
+    });
+    await insert(at("recent", "2026-08-23T12:00:00.000Z"));
+    await insert(at("edge", "2026-08-23T00:00:00.000Z"));
+    await insert(at("old", "2026-08-22T23:59:59.999Z"));
+    await insert(at("other-domain", "2026-08-23T12:00:00.000Z", DOMAIN_B));
+    await insert(
+      buildMessage({ id: "inbound", rfcMessageId: "inbound@a.example" }),
+    );
+    await insert(
+      buildMessage({
+        id: "draft",
+        status: "draft",
+        rfcMessageId: "draft@a.example",
+      }),
+    );
+
+    expect(
+      await repository.countOutboundSince(DOMAIN_A, "2026-08-23T00:00:00.000Z"),
+    ).toBe(2);
+    expect(
+      await repository.countOutboundSince(DOMAIN_B, "2026-08-23T00:00:00.000Z"),
+    ).toBe(1);
+    expect(
+      await repository.countOutboundSince(DOMAIN_A, "2026-09-01T00:00:00.000Z"),
+    ).toBe(0);
+  });
 });

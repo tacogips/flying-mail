@@ -3,20 +3,13 @@ import type {
   MimeBuilder,
 } from "@flying-mail/application/ports/mime";
 import { createMimeMessage, Mailbox, type MIMEMessage } from "mimetext/browser";
+import {
+  assertThreadingHeadersSafe,
+  FORBIDDEN_HEADER_VALUE,
+  HeaderInjectionError,
+} from "./header-safety";
 
-/** Thrown when a caller-supplied header value contains CR or LF.
- *
- * This is the last line of the header-injection defence: the send use case
- * validates headers too, but enforcing it here means *any* path that builds
- * a MIME source is covered, including a future one that forgets to. */
-export class HeaderInjectionError extends Error {
-  constructor(readonly headerName: string) {
-    super(`Header "${headerName}" must not contain CR or LF`);
-    this.name = "HeaderInjectionError";
-  }
-}
-
-const FORBIDDEN_HEADER_VALUE = /[\r\n]/;
+export { HeaderInjectionError };
 
 function toBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -60,6 +53,7 @@ function applyThreadingHeaders(
   message: MIMEMessage,
   input: BuildMimeInput,
 ): void {
+  assertThreadingHeadersSafe(input);
   message.setHeader("Message-ID", `<${input.messageId}>`);
   message.setHeader("Date", new Date(input.date).toUTCString());
   if (input.replyTo !== undefined) {
@@ -101,6 +95,17 @@ function applyCustomHeaders(message: MIMEMessage, input: BuildMimeInput): void {
 
 function applyAttachments(message: MIMEMessage, input: BuildMimeInput): void {
   for (const attachment of input.attachments ?? []) {
+    // Backstop: the domain validates content types, but a part header is
+    // built from this value directly.
+    if (FORBIDDEN_HEADER_VALUE.test(attachment.contentType)) {
+      throw new HeaderInjectionError("Content-Type");
+    }
+    if (
+      attachment.contentId !== null &&
+      FORBIDDEN_HEADER_VALUE.test(attachment.contentId)
+    ) {
+      throw new HeaderInjectionError("Content-ID");
+    }
     message.addAttachment({
       filename: attachment.fileName,
       contentType: attachment.contentType,

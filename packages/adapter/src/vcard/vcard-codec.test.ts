@@ -6,6 +6,7 @@ import {
 import { describe, expect, test } from "vitest";
 import { createVcardCodec } from "./vcard-codec";
 import {
+  encodeParamValue,
   escapeText,
   foldLine,
   unescapeText,
@@ -14,6 +15,19 @@ import {
 
 const BOOK_ID = createAddressBookId("book-1");
 const NOW = "2026-08-24T00:00:00.000Z";
+
+describe("encodeParamValue", () => {
+  test("strips CR/LF, other control characters and quotes", () => {
+    expect(encodeParamValue('wo"rk\r\nTEL:+1\u0000\u007f')).toBe(
+      '"workTEL:+1"',
+    );
+    expect(encodeParamValue("home\r\nnote")).toBe("homenote");
+  });
+
+  test("still quotes a value with a separator", () => {
+    expect(encodeParamValue("HOME, pref")).toBe('"HOME, pref"');
+  });
+});
 
 describe("vcard folding and escaping", () => {
   test("foldLine leaves short lines untouched", () => {

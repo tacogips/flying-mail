@@ -171,6 +171,25 @@ function assertGrantable(
   }
 }
 
+/** Parses and normalizes an expiry to canonical ISO-8601. `isApiKeyUsable`
+ * compares expiry to "now" as strings, so an unparseable or non-canonical
+ * value (or a past date) would otherwise yield a key that never expires or
+ * is dead on arrival. */
+function normalizeExpiresAt(raw: string | null, now: string): string | null {
+  if (raw === null) {
+    return null;
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadUserInputError("expiresAt is not a valid date", "expiresAt");
+  }
+  const normalized = parsed.toISOString();
+  if (normalized <= now) {
+    throw new BadUserInputError("expiresAt must be in the future", "expiresAt");
+  }
+  return normalized;
+}
+
 export function createCreateApiKeyUseCase(
   deps: AppDependencies,
 ): (
@@ -189,8 +208,9 @@ export function createCreateApiKeyUseCase(
         );
       }
 
-      const generated = await generateApiKeySecret(deps);
       const now = deps.clock.now().toISOString();
+      const expiresAt = normalizeExpiresAt(input.expiresAt, now);
+      const generated = await generateApiKeySecret(deps);
       const apiKeyId = createApiKeyId(deps.random.uuid());
 
       const scopes: ApiKeyScope[] = [];
@@ -219,7 +239,7 @@ export function createCreateApiKeyUseCase(
         keyHash: generated.keyHash,
         keyPrefix: generated.keyPrefix,
         createdByUserId: viewer.kind === "USER" ? viewer.userId : null,
-        expiresAt: input.expiresAt,
+        expiresAt,
         createdAt: now,
       });
 

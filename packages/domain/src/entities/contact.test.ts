@@ -4,6 +4,7 @@ import { createAddressBookId, createContactId } from "../value-objects/ids";
 import {
   createContact,
   MAX_CONTACT_DISPLAY_NAME_LENGTH,
+  MAX_CONTACT_EXTRA_VCARD_BYTES,
   MAX_CONTACT_LABEL_LENGTH,
   MAX_CONTACT_LIST_LENGTH,
   updateContact,
@@ -191,6 +192,19 @@ describe("createContact", () => {
     ).toThrow(ValidationError);
   });
 
+  it("strips control characters and quotes from labels", () => {
+    const contact = createContact({
+      ...base,
+      displayName: "Ada",
+      emails: [{ address: "ada@example.com", label: 'wo"rk\r\nTEL:+1\u0000' }],
+      phones: [{ number: "+1-555-0100", label: "\r\n" }],
+      postalAddresses: [{ formatted: "1 Loop", label: ' "home" ' }],
+    });
+    expect(contact.emails[0]?.label).toBe("workTEL:+1");
+    expect(contact.phones[0]?.label).toBeNull();
+    expect(contact.postalAddresses[0]?.label).toBe("home");
+  });
+
   it("rejects an empty phone number or postal address", () => {
     expect(() =>
       createContact({
@@ -226,6 +240,60 @@ describe("createContact", () => {
       extraVcardLines: payload,
     });
     expect(contact.extraVcardLines).toBe(payload);
+  });
+});
+
+describe("extraVcardLines cap", () => {
+  const line = `X-FILLER:${"a".repeat(1000)}\n`;
+  const lineBytes = new TextEncoder().encode(line).byteLength;
+
+  it("keeps a payload exactly at the cap", () => {
+    const filler = "a".repeat(MAX_CONTACT_EXTRA_VCARD_BYTES);
+    const contact = createContact({
+      ...base,
+      displayName: "Ada",
+      extraVcardLines: filler,
+    });
+    expect(contact.extraVcardLines).toBe(filler);
+  });
+
+  it("drops whole lines past the cap", () => {
+    const count = Math.ceil(MAX_CONTACT_EXTRA_VCARD_BYTES / lineBytes) + 5;
+    const contact = createContact({
+      ...base,
+      displayName: "Ada",
+      extraVcardLines: line.repeat(count),
+    });
+    const kept = contact.extraVcardLines ?? "";
+    expect(new TextEncoder().encode(kept).byteLength).toBeLessThanOrEqual(
+      MAX_CONTACT_EXTRA_VCARD_BYTES,
+    );
+    expect(kept.length).toBeGreaterThan(0);
+    expect(kept.endsWith("\n")).toBe(true);
+    expect(kept.length % line.length).toBe(0);
+  });
+
+  it("never splits a folded property", () => {
+    const folded = `PHOTO:${"b".repeat(40_000)}\n ${"c".repeat(40_000)}\n`;
+    const contact = createContact({
+      ...base,
+      displayName: "Ada",
+      extraVcardLines: `X-KEEP:1\n${folded}X-DROPPED:2\n`,
+    });
+    // The folded PHOTO does not fit after X-KEEP, so it goes whole.
+    expect(contact.extraVcardLines).toBe("X-KEEP:1\n");
+  });
+
+  it("applies the cap on update too", () => {
+    const contact = createContact({ ...base, displayName: "Ada" });
+    const updated = updateContact(
+      contact,
+      { extraVcardLines: line.repeat(200) },
+      "2026-08-25T00:00:00.000Z",
+    );
+    expect(
+      new TextEncoder().encode(updated.extraVcardLines ?? "").byteLength,
+    ).toBeLessThanOrEqual(MAX_CONTACT_EXTRA_VCARD_BYTES);
   });
 });
 

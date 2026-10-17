@@ -1,6 +1,6 @@
 # MCP Server 02: Untrusted Content Shaping (parse5, HTML to text, sanitized HTML, views)
 
-**Status**: Not Started
+**Status**: Completed
 **Plan ID**: mcp-server-02-content-shaping
 **Wave**: 1 (phase 30)
 **Depends On**: none
@@ -286,9 +286,9 @@ export function toMessageDetailView(input: MessageDetailInput): MessageDetailVie
 
 ## Done criteria
 
-- [ ] `parse5` pinned at 8.0.1, and the lockfile frozen-install passes.
-- [ ] The pinned exports exist with the exact names and shapes above.
-- [ ] Verification steps 1-6 pass, with logs recorded.
+- [x] `parse5` pinned at 8.0.1, and the lockfile frozen-install passes.
+- [x] The pinned exports exist with the exact names and shapes above.
+- [x] Verification steps 1-6 pass, with logs recorded.
 
 ## Worker protocol
 
@@ -304,4 +304,20 @@ export function toMessageDetailView(input: MessageDetailInput): MessageDetailVie
 
 ## Progress Log
 
-(empty)
+### Session: 2026-10-08 (Step 6 implementation)
+
+**Tasks Completed**: TASK-001 through TASK-004.
+
+**Notes**: Added the exact `parse5@8.0.1` dependency and MCP export wildcard. Added parse5-based HTML-to-text conversion, allowlist HTML reconstruction, and untrusted-content message/attachment views with body truncation. Added focused tests. The bounded author self-review found and fixed propagation of HTML input-cap truncation markers into shaped bodies, including when the body cap also truncates output. `bun install --frozen-lockfile` confirmed the existing lock resolution required no `bun.lock` change. Final gates passed on the final source: frozen install (exit 0), focused Vitest (3 files, 19 tests passed), `bun run typecheck` (exit 0), targeted Biome (exit 0), exact dependency grep (exit 0), and no-fetch grep (exit 0). Complete logs: `tmp/mcp-server-s316/mcp-server-02-content-shaping/attempt-7/verify-agent-{install,focused-vitest,typecheck,biome,dependency-grep,no-fetch}.log`.
+
+### Integration review IR-02-ADDR resolution
+
+**Tasks Completed**: Source tasks TASK-001 through TASK-004 remain complete and verified. The integration review resolved the address-shape criterion against the accepted design.
+
+**Notes**: `from_address` and `recipients[].address` are validated `EmailAddress` values and remain at the top level as specified by design section 4.5 and TASK-004. Sender-controlled free text (`subject`, `from_name`, `snippet`, body text/HTML, `reply_to`, RFC identifiers, `list_id`, and attachment `file_name`) remains only under `untrusted_content` per design section 5.1 rule 1. The manifest wording “addresses and names” is superseded by the accepted design; changing the DTO would break the pinned schema consumed by plans 05-09. No source edit was required. Reverification passed: frozen install (exit 0), focused Vitest (3 files, 19/19 passed), typecheck (exit 0), targeted Biome (exit 0), exact parse5 pin grep (exit 0), and no-fetch check (exit 0). Logs: `/tmp/mcp-server-02-ir-install.log`, `/tmp/mcp-server-02-ir-unit.log`, `/tmp/mcp-server-02-ir-typecheck.log`, `/tmp/mcp-server-02-ir-biome.log`, `/tmp/mcp-server-02-ir-pin.log`, `/tmp/mcp-server-02-ir-no-fetch.log`. Source identity matches `attempt-7/final-source.sha256`.
+
+### Adversarial review AR-02-HTML-DEPTH
+
+**Tasks Completed**: Bounded the parse5 tree walks and added deep-nesting regression coverage for TASK-002/TASK-003 and the shaped message/thread views.
+
+**Notes**: `html-text.ts` exports `MCP_HTML_MAX_DEPTH = 256`; `visit`, `render`, and `renderBounded` stop descending past that depth. The sanitizer imports the shared cap. Tests cover shallow text preservation, 20,000-level HTML-to-text and sanitizer input, and `toMessageDetailView` with `includeHtml` both false and true plus `toThreadEntryView`. Stress-test timeouts are 60 seconds because parse5 processing of the adversarial-depth fixtures exceeds Vitest's default timeout; the assertions are unchanged in scope. Final focused Vitest passed 3 files / 23 tests (exit 0; `/tmp/mcp-server-02-ar-unit-r2.log`). The direct depth probe returned `ok` for both functions at 20,000 and 100,000 levels (exit 0; `/tmp/mcp-server-02-ar-depth-probe-r2.log`). Typecheck passed (exit 0; `/tmp/mcp-server-02-ar-typecheck-r2.log`); targeted Biome passed (exit 0; `/tmp/mcp-server-02-ar-biome-r2.log`); no-fetch passed (exit 0; `/tmp/mcp-server-02-ar-no-fetch-r2.log`); `git diff --check` passed; the pre/post hashes for `constants.ts`, `package.json`, and `bun.lock` match. Five final source hashes are recorded in `attempt-8/final-source.sha256`. An earlier focused run failed because the three deep fixtures exceeded Vitest's default timeout; each stress test now has a 60-second timeout, and the final source-matched focused run passed all 23 tests. The branch is ready for independent adversarial re-review.

@@ -3,6 +3,10 @@ import type {
   OutboundAttachment,
   OutboundMail,
 } from "@flying-mail/application/ports/mail-sender";
+import {
+  assertHeaderValueSafe,
+  assertThreadingHeadersSafe,
+} from "../mime/header-safety";
 import { classifyProviderCode, MailDeliveryError } from "./delivery-error";
 
 /**
@@ -55,6 +59,7 @@ function toBase64(bytes: Uint8Array): string {
 function toRequestAttachment(
   attachment: OutboundAttachment,
 ): SendRequestAttachment {
+  assertHeaderValueSafe("Content-Type", attachment.contentType);
   const contentId = attachment.inline ? attachment.contentId : undefined;
   return {
     content: toBase64(attachment.content),
@@ -109,9 +114,14 @@ function providerMessageIdFromResponse(raw: string): string | null {
 }
 
 function providerHeaders(mail: OutboundMail): Record<string, string> {
+  // Ids are copied from inbound (attacker-controlled) mail, so CR/LF is
+  // refused here too rather than trusting the provider to reject it.
+  assertThreadingHeadersSafe(mail);
   const headers: Record<string, string> = {};
   for (const [name, value] of mail.headers ?? []) {
     if (!/^message-id$/i.test(name) && !/^bcc$/i.test(name)) {
+      assertHeaderValueSafe(name, name);
+      assertHeaderValueSafe(name, value);
       headers[name] = value;
     }
   }

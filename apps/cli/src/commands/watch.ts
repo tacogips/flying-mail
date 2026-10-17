@@ -7,6 +7,7 @@ import { flagBoolean, flagString, hasFlag, type ParsedArgs } from "../args";
 import { createCliClient, requireEndpoint } from "../client";
 import type { CliConfig } from "../config";
 import { resolveConfig } from "../config";
+import { parseEndpointUrl } from "../endpoint";
 import { CliError, ExitCode } from "../exit-codes";
 import {
   cursorKey,
@@ -110,18 +111,13 @@ function defaultSignals(): SignalPort {
   };
 }
 
-function websocketUrl(endpoint: string): string {
-  let url: URL;
-  try {
-    url = new URL(endpoint);
-  } catch {
-    throw new CliError("Invalid endpoint URL.", ExitCode.UsageError);
-  }
-  if (url.protocol === "https:") url.protocol = "wss:";
-  else if (url.protocol === "http:") url.protocol = "ws:";
-  else {
-    throw new CliError("Endpoint must use http or https.", ExitCode.UsageError);
-  }
+/** Derives the subscription socket URL from the endpoint. Mirrors the
+ * HTTP rule: `wss:` only, with plaintext `ws:` accepted solely for loopback
+ * hosts, so the bearer token in `connection_init` is never sent in clear
+ * over a network. */
+export function websocketUrl(endpoint: string): string {
+  const url = parseEndpointUrl(endpoint);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.pathname = "/graphql";
   url.search = "";
   url.hash = "";

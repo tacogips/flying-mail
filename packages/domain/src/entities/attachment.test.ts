@@ -8,6 +8,8 @@ import {
   classifyAttachmentKind,
   createAttachment,
   copyAttachmentForForward,
+  isValidAttachmentContentType,
+  normalizeAttachmentContentType,
   sanitizeFileName,
 } from "./attachment";
 
@@ -81,6 +83,62 @@ describe("createAttachment", () => {
     expect(() => createAttachment({ ...input, contentType: "  " })).toThrow(
       ValidationError,
     );
+  });
+
+  test.each([
+    ["CRLF header injection", "text/plain\r\nBcc: victim@example.com"],
+    ["bare LF", "text/plain\nX-Evil: 1"],
+    ["control character in a parameter", "text/plain; charset=\u0001"],
+    ["no subtype", "text"],
+    ["space in the type", "text /plain"],
+    ["over the length cap", `text/${"a".repeat(255)}`],
+  ])("rejects a content type with %s", (_name, contentType) => {
+    expect(() => createAttachment({ ...input, contentType })).toThrow(
+      ValidationError,
+    );
+  });
+
+  test("keeps a content type with a valid parameter, trimmed", () => {
+    expect(
+      createAttachment({
+        ...input,
+        contentType: ' text/plain; charset="utf-8" ',
+      }).contentType,
+    ).toBe('text/plain; charset="utf-8"');
+  });
+});
+
+describe("attachment content type validation", () => {
+  test.each([
+    "application/pdf",
+    "image/svg+xml",
+    "application/vnd.ms-excel",
+    "text/plain; charset=utf-8",
+    'multipart/mixed; boundary="a b"; format=flowed',
+  ])("accepts %j", (value) => {
+    expect(isValidAttachmentContentType(value)).toBe(true);
+  });
+
+  test.each([
+    "",
+    "text/plain\r\n",
+    "text/plain; =x",
+    'text/plain; a="unterminated',
+    "text/plain;\u0000",
+  ])("rejects %j", (value) => {
+    expect(isValidAttachmentContentType(value)).toBe(false);
+  });
+
+  test("normalizeAttachmentContentType degrades invalid input", () => {
+    expect(normalizeAttachmentContentType("IMAGE/PNG")).toBe("IMAGE/PNG");
+    expect(normalizeAttachmentContentType("  image/png ")).toBe("image/png");
+    expect(normalizeAttachmentContentType("text/plain\r\nBcc: x")).toBe(
+      "application/octet-stream",
+    );
+    expect(normalizeAttachmentContentType(undefined)).toBe(
+      "application/octet-stream",
+    );
+    expect(normalizeAttachmentContentType("")).toBe("application/octet-stream");
   });
 });
 

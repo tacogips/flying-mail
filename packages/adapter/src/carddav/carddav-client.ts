@@ -19,6 +19,7 @@ import {
   type MultistatusResponse,
   parseMultistatus,
 } from "../webdav/xml";
+import { ResponseTooLargeError, readTextBounded } from "../webdav/bounded-body";
 import { resolveHref } from "../webdav/url";
 
 /** RFC 6352 CardDAV client. Discovery, sync, multiget, and writes share
@@ -34,7 +35,13 @@ export interface CarddavClientOptions {
    * Worker request has a subrequest budget and a body size to build. */
   readonly multigetChunkSize?: number;
   readonly maxRedirects?: number;
+  /** Largest response body that will be read, in bytes. */
+  readonly maxResponseBytes?: number;
 }
+
+/** A multistatus for a large address book is a few hundred KiB; this leaves
+ * ample headroom while stopping a hostile server from exhausting memory. */
+const DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 const DEFAULT_MULTIGET_CHUNK = 50;
 const DEFAULT_MAX_REDIRECTS = 5;
@@ -88,6 +95,8 @@ export function createCarddavClient(
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const multigetChunkSize = options.multigetChunkSize ?? DEFAULT_MULTIGET_CHUNK;
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
+  const maxResponseBytes =
+    options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
   const userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
 
   /** Redirects are followed by hand with `redirect: "manual"`.
@@ -164,7 +173,21 @@ export function createCarddavClient(
         }
       }
 
-      const body = await response.text();
+      let body: string;
+      try {
+        body = await readTextBounded(response, maxResponseBytes);
+      } catch (error) {
+        if (error instanceof ResponseTooLargeError) {
+          throw new CarddavTransportError(
+            `CardDAV ${method} ${currentUrl} response exceeded ${maxResponseBytes} bytes`,
+            error,
+          );
+        }
+        throw new CarddavTransportError(
+          `CardDAV ${method} ${currentUrl} response could not be read`,
+          error,
+        );
+      }
       if (response.status === 401) {
         throw new CarddavAuthError(
           "CardDAV server rejected the credentials (401)",

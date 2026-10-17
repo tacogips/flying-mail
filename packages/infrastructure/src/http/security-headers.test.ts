@@ -3,7 +3,13 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { describe, expect, test } from "vitest";
-import { createSecurityHeadersMiddleware, HTML_CSP } from "./security-headers";
+import {
+  applySecurityHeaders,
+  createSecurityHeadersMiddleware,
+  HTML_CSP,
+} from "./security-headers";
+
+const HSTS = "max-age=31536000; includeSubDomains";
 
 const HEADERS_FILE = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -51,5 +57,54 @@ describe("HTML content security policy", () => {
 
     const response = await app.request("/");
     expect(response.headers.get("content-security-policy")).toBe(HTML_CSP);
+  });
+});
+
+describe("Strict-Transport-Security", () => {
+  function buildApp(): Hono {
+    const app = new Hono();
+    app.use("*", createSecurityHeadersMiddleware());
+    app.get("/", (context) => context.json({ ok: true }));
+    return app;
+  }
+
+  test("is sent over HTTPS", async () => {
+    const response = await buildApp().request("https://mail.example.com/");
+    expect(response.headers.get("strict-transport-security")).toBe(HSTS);
+  });
+
+  test("is sent for plain HTTP to a non-loopback host", async () => {
+    const response = await buildApp().request("http://mail.example.com/");
+    expect(response.headers.get("strict-transport-security")).toBe(HSTS);
+  });
+
+  test.each([
+    "http://localhost/",
+    "http://127.0.0.1:8787/",
+    "http://[::1]:8787/",
+  ])("is omitted for plain-HTTP loopback %s", async (url) => {
+    const response = await buildApp().request(url);
+    expect(response.headers.get("strict-transport-security")).toBeNull();
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  test("applySecurityHeaders honours the flag and defaults to on", () => {
+    expect(
+      applySecurityHeaders(new Response("x"), false).headers.get(
+        "strict-transport-security",
+      ),
+    ).toBe(HSTS);
+    expect(
+      applySecurityHeaders(new Response("x"), false, false).headers.get(
+        "strict-transport-security",
+      ),
+    ).toBeNull();
+  });
+
+  test("matches the static web shell headers", () => {
+    const headers = readFileSync(HEADERS_FILE, "utf8");
+    expect(headers).toMatch(
+      new RegExp(`^\\s+Strict-Transport-Security:\\s*${HSTS}\\s*$`, "m"),
+    );
   });
 });

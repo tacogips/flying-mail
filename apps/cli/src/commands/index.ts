@@ -15,8 +15,10 @@ import {
   readConfigFile,
   writeConfigFile,
 } from "../config";
+import { parseEndpointUrl } from "../endpoint";
 import { CliError, ExitCode } from "../exit-codes";
 import { printJson, printTable } from "../output";
+import { resolvePollIntervalMs, runPollLoop } from "./fetch-watch";
 
 export interface CommandContext {
   readonly args: ParsedArgs;
@@ -68,6 +70,35 @@ async function readTextSource(path: string): Promise<string> {
     chunks.push(Buffer.from(chunk as Uint8Array));
   }
   return Buffer.concat(chunks).toString("utf-8");
+}
+
+/** Reads all of stdin as text. */
+async function readStdin(): Promise<string> {
+  return readTextSource("-");
+}
+
+/** Resolves the value for `config set`. `-` reads the API key from stdin so
+ * the secret never appears in argv (`ps`, shell history); surrounding
+ * whitespace -- notably the trailing newline from `echo` -- is trimmed. */
+export async function resolveConfigSetValue(
+  key: "endpoint" | "apiKey",
+  value: string,
+  read: () => Promise<string> = readStdin,
+): Promise<string> {
+  if (key === "endpoint") {
+    // Same scheme rule as every request, so a bad endpoint is rejected when
+    // saved rather than on the next command.
+    parseEndpointUrl(value);
+    return value;
+  }
+  if (value !== "-") {
+    return value;
+  }
+  const fromStdin = (await read()).trim();
+  if (fromStdin.length === 0) {
+    throw new CliError("No API key received on stdin.", ExitCode.UsageError);
+  }
+  return fromStdin;
 }
 
 const DURATION_PATTERN = /^(\d+)([smhd])$/;
@@ -558,7 +589,9 @@ export const mailCommands: ReadonlyMap<string, CommandHandler> = new Map([
       const limit = flagNumber(ctx.args, "limit") ?? 20;
       const ack = flagBoolean(ctx.args, "ack");
       const watch = flagBoolean(ctx.args, "watch");
-      const intervalMs = (flagNumber(ctx.args, "interval") ?? 30) * 1000;
+      const intervalMs = resolvePollIntervalMs(
+        flagString(ctx.args, "interval"),
+      );
 
       const pollOnce = async (): Promise<void> => {
         const data = await ctx.client.request<{
@@ -588,14 +621,12 @@ export const mailCommands: ReadonlyMap<string, CommandHandler> = new Map([
         }
       };
 
-      await pollOnce();
       if (!watch) {
+        await pollOnce();
         return ExitCode.Success;
       }
-      for (;;) {
-        await new Promise((done) => setTimeout(done, intervalMs));
-        await pollOnce();
-      }
+      await runPollLoop(pollOnce, intervalMs);
+      return ExitCode.Success;
     },
   ],
   [
@@ -698,13 +729,14 @@ export const configCommands: ReadonlyMap<string, CommandHandler> = new Map([
     "set",
     async (ctx) => {
       const key = ctx.args.positionals[0];
-      const value = ctx.args.positionals[1];
-      if ((key !== "endpoint" && key !== "apiKey") || value === undefined) {
+      const rawValue = ctx.args.positionals[1];
+      if ((key !== "endpoint" && key !== "apiKey") || rawValue === undefined) {
         throw new CliError(
-          "Usage: flying-mail config set <endpoint|apiKey> <value>",
+          "Usage: flying-mail config set <endpoint|apiKey> <value>  (use - as the apiKey value to read it from stdin)",
           ExitCode.UsageError,
         );
       }
+      const value = await resolveConfigSetValue(key, rawValue);
       const path = configFilePath(ctx.env);
       const existing = await readConfigFile(path);
       await writeConfigFile(path, { ...existing, [key]: value });

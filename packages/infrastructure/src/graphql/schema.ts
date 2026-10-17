@@ -1,6 +1,7 @@
 import type { GraphQLSchema } from "graphql";
 import { createSchema, createYoga } from "graphql-yoga";
 import type { GraphQLContext } from "./context";
+import { useAliasLimit } from "./alias-limit";
 import { useDepthLimit } from "./depth-limit";
 import { contactTypeDefs } from "./schema-contacts.graphql";
 import { externalMailTypeDefs } from "./schema-external-mail.graphql";
@@ -33,6 +34,7 @@ import {
   attachmentResolvers,
   fileLinkResolvers,
   mailDomainResolvers,
+  messagePageResolvers,
   messageResolvers,
   tagResolvers,
   classificationRuleResolvers,
@@ -104,6 +106,7 @@ export function buildGraphQLSchema(): GraphQLSchema {
       Contact: contactResolvers,
       ExternalMailAccount: externalMailAccountResolvers,
       Message: messageResolvers,
+      MessagePage: messagePageResolvers,
       MailDomain: mailDomainResolvers,
       Tag: tagResolvers,
       Attachment: attachmentResolvers,
@@ -127,7 +130,7 @@ export function buildGraphQLSchema(): GraphQLSchema {
  *
  * Every thrown value goes through `toGraphQLError` via yoga's
  * `maskedErrors.maskError` hook, so `extensions.code` is always present and
- * an unrecognized error is always masked. The two limit plugins reject
+ * an unrecognized error is always masked. The three limit plugins (depth, selections, aliases) reject
  * pathological documents before execution -- this endpoint is exposed to
  * untrusted agents. */
 export function createGraphQLYoga(
@@ -141,7 +144,13 @@ export function createGraphQLYoga(
     // passes it as the extra server-context argument to
     // `yoga.fetch(request, context)`; it flows through unchanged here.
     context: (initialContext) => initialContext as unknown as GraphQLContext,
-    plugins: [useDepthLimit(), useSelectionLimit()],
+    // graphql-yoga's default CORS plugin reflects any `Origin` with
+    // `Access-Control-Allow-Credentials: true`, which would let any site
+    // read cookie-authenticated responses. This API is same-origin for the
+    // web client and bearer-authenticated for everything else, so no CORS
+    // headers are emitted at all.
+    cors: false,
+    plugins: [useDepthLimit(), useSelectionLimit(), useAliasLimit()],
     maskedErrors: {
       maskError: (error) => toGraphQLError(error),
     },

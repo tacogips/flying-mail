@@ -7,6 +7,7 @@ import {
   type TcpDialer,
   type TextSocket,
 } from "@flying-mail/application/ports/external-mail";
+import { MAX_FETCHED_RAW_BYTES } from "../mail/fetch-limits";
 
 /** RFC 1939 POP3 client. POP3 accepts implicit TLS on `995` only --
  * `validatePop3Endpoint` in the domain layer already rejects anything else,
@@ -17,6 +18,42 @@ import {
 
 const POP3_TLS_MODE = "implicit" as const;
 const LINE_ENDING = "\r\n";
+/** A `UIDL`/`LIST` listing is ~20 bytes per message; this allows hundreds of
+ * thousands while still refusing a server that never ends the listing. */
+const MAX_LISTING_BYTES = 8 * 1024 * 1024;
+/** After a `RETR` passes the size cap its remaining lines are read and
+ * discarded, so the session stays usable. This many times the cap is the
+ * most that will be drained before the connection is given up on. */
+const DRAIN_LIMIT_FACTOR = 4;
+
+export interface Pop3ClientOptions {
+  /** Largest message, in bytes, that will be buffered. Larger ones are
+   * reported in `skipped`. */
+  readonly maxMessageBytes?: number;
+}
+
+/** A message `fetchByUidlDetailed` deliberately did not download. The caller
+ * should record it in its ledger so it is not retried on every run. */
+export interface Pop3SkippedMessage {
+  readonly remoteId: string;
+  readonly reason: "TOO_LARGE";
+  /** Size in bytes, as reported by `LIST` or counted while reading. */
+  readonly size: number;
+}
+
+export interface Pop3FetchResultWithSkips {
+  readonly messages: readonly Pop3FetchedMessage[];
+  readonly skipped: readonly Pop3SkippedMessage[];
+}
+
+/** {@link Pop3Client} that can also report messages it skipped for size.
+ * `fetchByUidl` keeps the base contract and simply omits them. */
+export interface Pop3ClientWithSkips extends Pop3Client {
+  fetchByUidlDetailed(
+    credentials: Pop3Credentials,
+    uidls: readonly string[],
+  ): Promise<Pop3FetchResultWithSkips>;
+}
 
 async function writeLine(socket: TextSocket, line: string): Promise<void> {
   await socket.write(`${line}${LINE_ENDING}`);
@@ -39,21 +76,66 @@ function isOk(line: string): boolean {
   return line.startsWith("+OK");
 }
 
+type MultilineResult =
+  | { readonly kind: "ok"; readonly lines: readonly string[] }
+  | { readonly kind: "too-large"; readonly bytes: number };
+
 /** Reads a multi-line POP3 response body (a `UIDL`/`LIST` listing or a
  * `RETR` payload) up to the lone `.` terminator, undoing byte-stuffing on
- * any line that starts with a leading `.` (RFC 1939 section 3). */
+ * any line that starts with a leading `.` (RFC 1939 section 3).
+ *
+ * Memory is bounded: once the body passes `maxBytes` the lines are no longer
+ * kept, only counted and discarded up to `drainLimit`, so the terminator is
+ * still consumed and the session remains in sync. Past `drainLimit` the
+ * server is treated as broken and the read fails. */
 async function readMultiline(
   socket: TextSocket,
   context: string,
-): Promise<readonly string[]> {
+  maxBytes: number,
+  drainLimit: number,
+): Promise<MultilineResult> {
   const lines: string[] = [];
+  const encoder = new TextEncoder();
+  let bytes = 0;
   for (;;) {
     const line = await readReplyLine(socket, context);
     if (line === ".") {
-      return lines;
+      return bytes > maxBytes
+        ? { kind: "too-large", bytes }
+        : { kind: "ok", lines };
     }
-    lines.push(line.startsWith(".") ? line.slice(1) : line);
+    bytes += encoder.encode(line).byteLength + LINE_ENDING.length;
+    if (bytes > drainLimit) {
+      throw new ExternalMailTransportError(
+        `POP3 response to ${context} exceeded ${drainLimit} bytes; giving up on the connection`,
+      );
+    }
+    if (bytes <= maxBytes) {
+      lines.push(line.startsWith(".") ? line.slice(1) : line);
+    } else if (lines.length > 0) {
+      // Over the cap: nothing read so far will be used, so free it now.
+      lines.length = 0;
+    }
   }
+}
+
+/** A listing that is not `ok` means the server never stopped talking. */
+async function readListing(
+  socket: TextSocket,
+  context: string,
+): Promise<readonly string[]> {
+  const result = await readMultiline(
+    socket,
+    context,
+    MAX_LISTING_BYTES,
+    MAX_LISTING_BYTES,
+  );
+  if (result.kind !== "ok") {
+    throw new ExternalMailTransportError(
+      `POP3 ${context} listing exceeded ${MAX_LISTING_BYTES} bytes`,
+    );
+  }
+  return result.lines;
 }
 
 async function authenticate(
@@ -124,7 +206,7 @@ async function listUidlMap(
   if (!isOk(status)) {
     throw new ExternalMailTransportError(`POP3 UIDL command failed: ${status}`);
   }
-  const lines = await readMultiline(socket, "UIDL");
+  const lines = await readListing(socket, "UIDL");
   const byUidl = new Map<string, string>();
   for (const line of lines) {
     const spaceIndex = line.indexOf(" ");
@@ -136,22 +218,104 @@ async function listUidlMap(
   return byUidl;
 }
 
+/** Message-number -> size in octets, from a bare `LIST`. `null` when the
+ * server refuses `LIST`; sizes are then simply unknown and the byte cap
+ * applied while reading is the only guard. */
+async function listSizes(
+  socket: TextSocket,
+): Promise<ReadonlyMap<string, number> | null> {
+  await writeLine(socket, "LIST");
+  const status = await readReplyLine(socket, "LIST");
+  if (!isOk(status)) {
+    return null;
+  }
+  const sizes = new Map<string, number>();
+  for (const line of await readListing(socket, "LIST")) {
+    const [msgNum, size] = line.trim().split(/\s+/);
+    const parsed = Number(size);
+    if (msgNum !== undefined && size !== undefined && Number.isFinite(parsed)) {
+      sizes.set(msgNum, parsed);
+    }
+  }
+  return sizes;
+}
+
+type RetrieveOutcome =
+  | { readonly kind: "ok"; readonly raw: Uint8Array }
+  | { readonly kind: "missing" }
+  | { readonly kind: "too-large"; readonly size: number };
+
 async function retrieve(
   socket: TextSocket,
   msgNum: string,
-): Promise<Uint8Array | null> {
+  maxBytes: number,
+): Promise<RetrieveOutcome> {
   await writeLine(socket, `RETR ${msgNum}`);
   const status = await readReplyLine(socket, `RETR ${msgNum}`);
   if (!isOk(status)) {
     // A message the server no longer has by the time RETR runs is a
     // per-message skip, not a hard failure for the whole batch.
-    return null;
+    return { kind: "missing" };
   }
-  const lines = await readMultiline(socket, `RETR ${msgNum}`);
-  return new TextEncoder().encode(lines.join(LINE_ENDING) + LINE_ENDING);
+  const result = await readMultiline(
+    socket,
+    `RETR ${msgNum}`,
+    maxBytes,
+    maxBytes * DRAIN_LIMIT_FACTOR,
+  );
+  if (result.kind === "too-large") {
+    return { kind: "too-large", size: result.bytes };
+  }
+  return {
+    kind: "ok",
+    raw: new TextEncoder().encode(result.lines.join(LINE_ENDING) + LINE_ENDING),
+  };
 }
 
-export function createPop3Client(dialer: TcpDialer): Pop3Client {
+export function createPop3Client(
+  dialer: TcpDialer,
+  options: Pop3ClientOptions = {},
+): Pop3ClientWithSkips {
+  const maxBytes = options.maxMessageBytes ?? MAX_FETCHED_RAW_BYTES;
+
+  async function fetchByUidlDetailed(
+    credentials: Pop3Credentials,
+    uidls: readonly string[],
+  ): Promise<Pop3FetchResultWithSkips> {
+    return withSession(dialer, credentials, async (socket) => {
+      const byUidl = await listUidlMap(socket);
+      // Sizes are asked for once, up front, so an oversized message is
+      // skipped without a single byte of it being transferred.
+      const sizes = await listSizes(socket);
+      const messages: Pop3FetchedMessage[] = [];
+      const skipped: Pop3SkippedMessage[] = [];
+      for (const uidl of uidls) {
+        const msgNum = byUidl.get(uidl);
+        if (msgNum === undefined) {
+          // Not currently in the mailbox -- the same "skip, do not fail
+          // the batch" outcome as a server -ERR reply to RETR.
+          continue;
+        }
+        const listed = sizes?.get(msgNum);
+        if (listed !== undefined && listed > maxBytes) {
+          skipped.push({ remoteId: uidl, reason: "TOO_LARGE", size: listed });
+          continue;
+        }
+        const outcome = await retrieve(socket, msgNum, maxBytes);
+        if (outcome.kind === "ok") {
+          messages.push({ remoteId: uidl, raw: outcome.raw });
+        } else if (outcome.kind === "too-large") {
+          skipped.push({
+            remoteId: uidl,
+            reason: "TOO_LARGE",
+            size: outcome.size,
+          });
+        }
+      }
+      return { messages, skipped };
+    });
+  }
+
   return {
     async testConnection(credentials) {
       await withSession(dialer, credentials, async () => {});
@@ -165,23 +329,9 @@ export function createPop3Client(dialer: TcpDialer): Pop3Client {
     },
 
     async fetchByUidl(credentials, uidls) {
-      return withSession(dialer, credentials, async (socket) => {
-        const byUidl = await listUidlMap(socket);
-        const results: Pop3FetchedMessage[] = [];
-        for (const uidl of uidls) {
-          const msgNum = byUidl.get(uidl);
-          if (msgNum === undefined) {
-            // Not currently in the mailbox -- the same "skip, do not fail
-            // the batch" outcome as a server -ERR reply to RETR.
-            continue;
-          }
-          const raw = await retrieve(socket, msgNum);
-          if (raw !== null) {
-            results.push({ remoteId: uidl, raw });
-          }
-        }
-        return results;
-      });
+      return (await fetchByUidlDetailed(credentials, uidls)).messages;
     },
+
+    fetchByUidlDetailed,
   };
 }

@@ -531,7 +531,10 @@ as close `1006`, and the client reconnects with backoff.
 | Connections per hub | 1000 | Host at upgrade (HTTP 503) |
 | Connection attempts per IP | 10 / 60 s | `RateLimiter`, key `ws:connect:<ip>` (HTTP 429) |
 | `connection_init` per principal | 10 / 60 s | `RateLimiter`, key `ws:init:<kind>:<id>` (close `1013`) |
-| Replay page | 200 rows | Hub core |
+| Inbound frames per connection | 30 / 10 s | Hub core, in-memory token bucket per connection (close `1013`). Ping/pong frames no longer persist state on every frame; `lastMessageAt` is kept in memory and persisted at most every 37.5 s |
+| Aliased fields per subscription document | 50 | Hub core, same `documentAliasCount` helper as the HTTP endpoint (subscription error) |
+| Principal re-resolution | cached 60 s per token hash | Hub drain; a revoked credential is dropped within one cache period |
+| Replay page | 200 rows | Hub core; subscriptions within one page of the head and those replaying from older cursors are drained as separate groups so a replay cannot stall live delivery |
 
 ## 7. Security
 

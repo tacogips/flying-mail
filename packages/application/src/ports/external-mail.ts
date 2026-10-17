@@ -72,9 +72,20 @@ export interface JmapFetchedMessage {
   readonly raw: Uint8Array;
 }
 
+/** A remote message the client deliberately did not download. The caller
+ * records it in the dedupe ledger so it is not listed again on every run. */
+export interface SkippedRemoteMessage {
+  readonly remoteId: string;
+  readonly reason: "TOO_LARGE";
+  /** Declared or observed size in bytes, when known. */
+  readonly size: number | null;
+}
+
 export interface JmapFetchResult {
   readonly messages: readonly JmapFetchedMessage[];
   readonly hasMore: boolean;
+  /** Messages skipped instead of downloaded (e.g. over the size cap). */
+  readonly skipped: readonly SkippedRemoteMessage[];
 }
 
 export interface JmapClient {
@@ -103,6 +114,11 @@ export interface Pop3FetchedMessage {
   readonly raw: Uint8Array;
 }
 
+export interface Pop3FetchResult {
+  readonly messages: readonly Pop3FetchedMessage[];
+  readonly skipped: readonly SkippedRemoteMessage[];
+}
+
 export interface Pop3Client {
   testConnection(credentials: Pop3Credentials): Promise<void>;
   listUidls(credentials: Pop3Credentials): Promise<readonly string[]>;
@@ -111,6 +127,12 @@ export interface Pop3Client {
     credentials: Pop3Credentials,
     uidls: readonly string[],
   ): Promise<readonly Pop3FetchedMessage[]>;
+  /** Like {@link Pop3Client.fetchByUidl}, but also reports the messages it
+   * skipped (e.g. over the size cap) so the caller can ledger them. */
+  fetchByUidlDetailed(
+    credentials: Pop3Credentials,
+    uidls: readonly string[],
+  ): Promise<Pop3FetchResult>;
 }
 
 export interface SmtpCredentials {

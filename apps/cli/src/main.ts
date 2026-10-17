@@ -20,7 +20,7 @@ import {
   keyCommands,
   mailCommands,
 } from "./commands";
-import { resolveConfig } from "./config";
+import { apiKeyArgvWarning, resolveConfig } from "./config";
 import { CliError, ExitCode } from "./exit-codes";
 import { colorize } from "./output";
 
@@ -44,9 +44,16 @@ Commands
 
 Global flags
   --endpoint <url>            Deployment base URL ($FLYING_MAIL_ENDPOINT)
-  --api-key <key>             API key ($FLYING_MAIL_API_KEY)
+  --api-key <key>             API key. Prefer $FLYING_MAIL_API_KEY: command-line
+                              arguments are visible in the process list and
+                              shell history
   --json                      Machine-readable output
   --help, --version
+
+config set
+  config set endpoint <url>   Save the deployment URL (https; http only for localhost)
+  config set apiKey <key>     Save the API key; pass - as <key> to read it from
+                              stdin, e.g. pass show flying-mail | flying-mail config set apiKey -
 
 client serve flags
   --port <n>                  Listen port (default 5173)
@@ -97,7 +104,8 @@ mail fetch flags
   --limit <n>                 Messages per poll (default 20)
   --ack                       Acknowledge after printing
   --watch                     Poll continuously
-  --interval <s>              Seconds between polls (default 30)
+  --interval <s>              Seconds between polls (default 30, minimum 1).
+                              Rate-limit and network errors back off up to 60s
 
 mail send flags
   --from <addr>               Sender (must be within a MAIL_SEND scope)
@@ -151,6 +159,18 @@ async function runClientServe(
   return ExitCode.Success;
 }
 
+/** `parseArgs` keeps every token before the first flag in `command`, so
+ * `domain add example.com` leaves `positionals` empty. Handlers expect the
+ * operands after `<group> <subcommand>` in `positionals`; this moves them
+ * there. Operands that follow a flag already are in `positionals`. */
+export function withOperands(args: ParsedArgs): ParsedArgs {
+  return {
+    command: args.command.slice(0, 2),
+    flags: args.flags,
+    positionals: [...args.command.slice(2), ...args.positionals],
+  };
+}
+
 export async function runCli(
   argv: readonly string[],
   env: Record<string, string | undefined>,
@@ -166,6 +186,14 @@ export async function runCli(
     return args.command.length === 0 && !flagBoolean(args, "help")
       ? ExitCode.UsageError
       : ExitCode.Success;
+  }
+
+  const warning = apiKeyArgvWarning(
+    args,
+    process.stdin.isTTY === true && process.stderr.isTTY === true,
+  );
+  if (warning !== null) {
+    console.error(warning);
   }
 
   const [group, subcommand] = args.command;
@@ -205,7 +233,8 @@ export async function runCli(
   }
   const config = await resolveConfig(args, env);
   const context: CommandContext = {
-    args,
+    // `user` commands slice `command` themselves (see `operands`).
+    args: group === "user" ? args : withOperands(args),
     config,
     client: createCliClient(config),
     env,

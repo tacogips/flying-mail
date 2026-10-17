@@ -15,7 +15,7 @@ import {
   createUserId,
 } from "@flying-mail/domain/value-objects/ids";
 import { SystemTagSlug } from "@flying-mail/domain/entities/tag";
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { BadUserInputError } from "../errors";
 import {
   createFakeDependencies,
@@ -122,7 +122,21 @@ describe("listMessages", () => {
       "msg-2",
       "msg-1",
     ]);
-    expect(page.totalCount).toBe(3);
+    expect(await page.loadTotalCount()).toBe(3);
+  });
+
+  test("does not run the count query unless the total is requested", async () => {
+    const countSpy = vi.spyOn(fake.deps.messageRepository, "count");
+    const list = createListMessagesUseCase(fake.deps);
+    const page = await list(adminViewer(), { first: 2 });
+    expect(page.nodes).toHaveLength(2);
+    expect(page.nextCursor).not.toBeNull();
+    expect(countSpy).not.toHaveBeenCalled();
+
+    // The total ignores paging, and is computed once however often asked.
+    expect(await page.loadTotalCount()).toBe(3);
+    expect(await page.loadTotalCount()).toBe(3);
+    expect(countSpy).toHaveBeenCalledTimes(1);
   });
 
   test("a scoped key sees only its own mailbox", async () => {
@@ -139,7 +153,7 @@ describe("listMessages", () => {
     ]);
     const page = await list(viewer, {});
     expect(page.nodes).toEqual([]);
-    expect(page.totalCount).toBe(0);
+    expect(await page.loadTotalCount()).toBe(0);
   });
 
   test("excludes spam by default and includes it on request", async () => {
@@ -512,13 +526,13 @@ describe("deleteMessages", () => {
     await remove(adminViewer(), [createMessageId("msg-1")]);
 
     const list = createListMessagesUseCase(fake.deps);
-    expect((await list(adminViewer(), {})).totalCount).toBe(0);
+    expect(await (await list(adminViewer(), {})).loadTotalCount()).toBe(0);
     expect(
-      (
+      await (
         await list(adminViewer(), {
           filter: { systemSlugs: [SystemTagSlug.Trash] },
         })
-      ).totalCount,
+      ).loadTotalCount(),
     ).toBe(1);
   });
 

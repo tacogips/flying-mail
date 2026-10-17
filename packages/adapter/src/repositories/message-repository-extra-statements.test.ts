@@ -96,6 +96,7 @@ describe("insertWithRelations extraStatements batching", () => {
           remoteId: "remote-1",
           messageId: message.id,
           fetchedAt: NOW,
+          skipReason: null,
         }),
       ],
     });

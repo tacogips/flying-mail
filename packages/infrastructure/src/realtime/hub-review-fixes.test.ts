@@ -134,7 +134,7 @@ describe("RealtimeHub review fixes", () => {
     );
 
     await expect(
-      bundle.hub.message(pair.connection, '{"type":"ping"}'),
+      bundle.hub.message(pair.connection, subscribe("persist-failure")),
     ).resolves.toBeUndefined();
     expect(pair.socket.closes.at(-1)?.code).toBe(CloseCode.InternalError);
     expect(log).toHaveBeenCalledWith("Realtime message processing failed");

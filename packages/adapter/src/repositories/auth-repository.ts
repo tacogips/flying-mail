@@ -97,6 +97,18 @@ export function createUserRepository(db: SqlDatabase): UserRepository {
       ]);
     },
 
+    async saveUnlessLastActiveAdmin(user) {
+      const result = await db.execute(
+        `UPDATE users SET role = ?, updated_at = ?, deactivated_at = ?
+         WHERE id = ? AND EXISTS (
+           SELECT 1 FROM users
+           WHERE role = 'ADMIN' AND deactivated_at IS NULL AND id <> ?
+         )`,
+        [user.role, user.updatedAt, user.deactivatedAt, user.id, user.id],
+      );
+      return result.rowsAffected > 0;
+    },
+
     async createFirstUser(user) {
       // `INSERT ... SELECT ... WHERE NOT EXISTS` folds the emptiness check
       // into the insert itself: of N racing bootstrap calls, exactly one

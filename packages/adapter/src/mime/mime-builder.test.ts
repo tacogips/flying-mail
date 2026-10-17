@@ -99,6 +99,48 @@ describe("createMimeTextBuilder", () => {
     ).toThrow(HeaderInjectionError);
   });
 
+  test.each([
+    ["messageId", { messageId: "a@x.com>\r\nBcc: evil@x.com" }],
+    ["inReplyTo", { inReplyTo: "p@x.com\r\nBcc: evil@x.com" }],
+    ["references entry", { references: ["ok@x.com", "r\nBcc: evil@x.com"] }],
+  ])("rejects CR/LF in the threading header %s", (_label, overrides) => {
+    expect(() => builder.build(baseInput(overrides))).toThrow(
+      HeaderInjectionError,
+    );
+  });
+
+  test("rejects CR/LF in an attachment content type or content id", () => {
+    const attachment = {
+      fileName: "a.txt",
+      contentType: "text/plain",
+      content: new Uint8Array([1]),
+      contentId: null,
+      inline: false,
+    };
+    expect(() =>
+      builder.build(
+        baseInput({
+          attachments: [
+            { ...attachment, contentType: "text/plain\r\nBcc: evil@x.com" },
+          ],
+        }),
+      ),
+    ).toThrow(HeaderInjectionError);
+    expect(() =>
+      builder.build(
+        baseInput({
+          attachments: [
+            {
+              ...attachment,
+              inline: true,
+              contentId: "x\r\nBcc: evil@x.com",
+            },
+          ],
+        }),
+      ),
+    ).toThrow(HeaderInjectionError);
+  });
+
   test("encodes an attachment as base64", () => {
     const raw = builder.build(
       baseInput({

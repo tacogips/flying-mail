@@ -267,6 +267,41 @@ export function isStagedAttachment(attachment: Attachment): boolean {
   return attachment.messageId === null;
 }
 
+export const MAX_ATTACHMENT_CONTENT_TYPE_LENGTH = 255;
+/** What an invalid inbound type degrades to. */
+export const FALLBACK_ATTACHMENT_CONTENT_TYPE = "application/octet-stream";
+
+// RFC 7230 `token`.
+const TOKEN = String.raw`[!#$%&'*+.^_\x60|~0-9A-Za-z-]+`;
+// A parameter value is a token or a quoted-string with no control characters.
+const PARAMETER_VALUE = String.raw`(?:${TOKEN}|"(?:[^"\\\x00-\x1f\x7f]|\\[^\x00-\x1f\x7f])*")`;
+const CONTENT_TYPE_PATTERN = new RegExp(
+  String.raw`^${TOKEN}/${TOKEN}(?:[ \t]*;[ \t]*${TOKEN}=${PARAMETER_VALUE})*$`,
+);
+
+/** True when `value` is a media type (`type/subtype`, RFC 7230 token
+ * characters) optionally followed by well-formed `; name=value` parameters.
+ * Rejects CR/LF and every other control character, so an accepted value can
+ * be written into a MIME part header without injecting another header. */
+export function isValidAttachmentContentType(value: string): boolean {
+  return (
+    value.length <= MAX_ATTACHMENT_CONTENT_TYPE_LENGTH &&
+    CONTENT_TYPE_PATTERN.test(value)
+  );
+}
+
+/** Returns the trimmed content type when valid, otherwise
+ * `application/octet-stream`. For inbound mail, which carries arbitrary
+ * declared types: ingest must degrade a malformed one rather than throw. */
+export function normalizeAttachmentContentType(
+  value: string | null | undefined,
+): string {
+  const trimmed = value?.trim() ?? "";
+  return isValidAttachmentContentType(trimmed)
+    ? trimmed
+    : FALLBACK_ATTACHMENT_CONTENT_TYPE;
+}
+
 export function createAttachment(input: CreateAttachmentInput): Attachment {
   if (!Number.isFinite(input.size) || input.size < 0) {
     throw new ValidationError(
@@ -274,9 +309,17 @@ export function createAttachment(input: CreateAttachmentInput): Attachment {
       "size",
     );
   }
-  if (input.contentType.trim().length === 0) {
+  const contentType = input.contentType.trim();
+  if (contentType.length === 0) {
     throw new ValidationError(
       "attachment contentType must not be empty",
+      "contentType",
+    );
+  }
+  if (!isValidAttachmentContentType(contentType)) {
+    throw new ValidationError(
+      "attachment contentType must be a valid media type of at most " +
+        `${MAX_ATTACHMENT_CONTENT_TYPE_LENGTH} characters`,
       "contentType",
     );
   }
@@ -284,13 +327,12 @@ export function createAttachment(input: CreateAttachmentInput): Attachment {
     id: input.id,
     messageId: input.messageId,
     fileName: sanitizeFileName(input.fileName),
-    contentType: input.contentType,
+    contentType,
     size: input.size,
     blobKey: input.blobKey,
     contentId: input.contentId,
     inline: input.inline,
-    kind:
-      input.kind ?? classifyAttachmentKind(input.contentType, input.fileName),
+    kind: input.kind ?? classifyAttachmentKind(contentType, input.fileName),
     createdAt: input.createdAt,
   };
 }

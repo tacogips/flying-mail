@@ -1,4 +1,5 @@
 import type { CliConfig } from "./config";
+import { parseEndpointUrl } from "./endpoint";
 import { CliError, ExitCode, exitCodeForGraphQLError } from "./exit-codes";
 
 export interface CliGraphQLClient {
@@ -25,7 +26,18 @@ export function requireEndpoint(config: CliConfig): string {
       ExitCode.UsageError,
     );
   }
+  // Validated before use so a typo'd or plaintext scheme fails here, not
+  // after the bearer token has already been sent.
+  parseEndpointUrl(config.endpoint);
   return config.endpoint.replace(/\/+$/, "");
+}
+
+/** HTTP statuses that the API uses for transient failures, mapped to the
+ * same codes it reports in GraphQL error extensions. */
+function transientCodeForStatus(status: number): string | undefined {
+  if (status === 429) return "RATE_LIMITED";
+  if (status === 503) return "SERVICE_UNAVAILABLE";
+  return undefined;
 }
 
 function authHeaders(config: CliConfig): Record<string, string> {
@@ -76,6 +88,7 @@ export function createCliClient(config: CliConfig): CliGraphQLClient {
         throw new CliError(
           `Unexpected non-JSON response (HTTP ${response.status})`,
           response.status === 401 ? ExitCode.AuthError : ExitCode.GeneralError,
+          transientCodeForStatus(response.status),
         );
       }
 
@@ -84,6 +97,7 @@ export function createCliClient(config: CliConfig): CliGraphQLClient {
         throw new CliError(
           firstError.message,
           exitCodeForGraphQLError(firstError.extensions?.code ?? ""),
+          firstError.extensions?.code,
         );
       }
       if (payload.data === undefined) {
@@ -114,6 +128,7 @@ export function createCliClient(config: CliConfig): CliGraphQLClient {
         throw new CliError(
           `Upload of ${fileName} failed (HTTP ${response.status})`,
           response.status === 401 ? ExitCode.AuthError : ExitCode.GeneralError,
+          transientCodeForStatus(response.status),
         );
       }
       return (await response.json()) as {

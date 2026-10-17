@@ -59,6 +59,7 @@ import {
   DEFAULT_FILE_LINK_MAX_TTL_SECONDS,
   DEFAULT_EVENT_RETENTION_SECONDS,
   DEFAULT_INVITE_TTL_SECONDS,
+  DEFAULT_MAX_SENDS_PER_DOMAIN_PER_DAY,
   DEFAULT_INBOUND_MX_SUFFIX,
   DEFAULT_SPAM_THRESHOLD,
   DEFAULT_SQLITE_URL,
@@ -259,6 +260,8 @@ export function buildDependencies(
       spamPhrases: config.spamPhrases ?? [],
       fileLinkMaxTtlSeconds:
         config.fileLinkMaxTtlSeconds ?? DEFAULT_FILE_LINK_MAX_TTL_SECONDS,
+      maxSendsPerDomainPerDay:
+        config.maxSendsPerDomainPerDay ?? DEFAULT_MAX_SENDS_PER_DOMAIN_PER_DAY,
       inboundMxSuffix:
         config.inboundMxSuffix === undefined
           ? DEFAULT_INBOUND_MX_SUFFIX

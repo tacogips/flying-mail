@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { RateLimiterUnavailableError } from "@flying-mail/application/ports/rate-limiter";
 import type { Clock } from "@flying-mail/application/ports/runtime-ports";
 import { createInMemoryRateLimiter, AUTH_RATE_LIMIT } from "./in-memory";
 import {
@@ -48,7 +49,7 @@ describe("createWorkersRateLimiter", () => {
     ).resolves.toBe(false);
   });
 
-  test("logs binding failures and fails open", async () => {
+  test("logs binding failures and throws a typed unavailable error", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const failure = new Error("binding unavailable");
     const limiter = createWorkersRateLimiter({
@@ -57,9 +58,9 @@ describe("createWorkersRateLimiter", () => {
       },
     });
 
-    await expect(limiter.limit("auth:bootstrapAdmin:unknown")).resolves.toBe(
-      true,
-    );
+    const rejection = limiter.limit("auth:bootstrapAdmin:unknown");
+    await expect(rejection).rejects.toBeInstanceOf(RateLimiterUnavailableError);
+    await expect(rejection).rejects.toMatchObject({ cause: failure });
     expect(log).toHaveBeenCalledWith("Rate limiter binding failed", failure);
   });
 });

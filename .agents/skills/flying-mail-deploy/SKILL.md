@@ -25,6 +25,7 @@ identifiers and are not secret.
 | D1 database | `mailcal-db` (`database_id` in `wrangler.toml`) |
 | R2 bucket | `mailcal-mail` |
 | Rate limit binding | `AUTH_RATE_LIMITER` (10 requests per 60 s) |
+| Rate limit binding | `MCP_RATE_LIMITER` (120 requests per 60 s; `/mcp` answers 503 without it) |
 | Durable Object binding | `MAIL_EVENT_HUB` -> `MailEventHub` |
 | Send binding | `EMAIL` (`send_email`) |
 | Turnstile widget | `flying-mail-login` (public site key in `wrangler.toml`) |
@@ -92,9 +93,13 @@ printf 'FLYING_MAIL_BOOTSTRAP_TOKEN=%s\n' "$(openssl rand -base64 48 | tr '+/' '
    applies pending remote D1 migrations, including migration
    `0016_mail_events.sql`, before deploying the Worker. The subsequent
    `wrangler deploy` applies the Durable Object migration with
-   `new_sqlite_classes`:
+   `new_sqlite_classes`. The task first runs lint and tests, prints the
+   remote migration state, and refuses to continue unless
+   `FLYING_MAIL_DEPLOY_CONFIRM=yes` is set, so pending migrations are always
+   reviewed before they are applied:
    ```bash
-   mise run cf-deploy
+   mise run cf-deploy                              # dry pass: shows pending migrations, then stops
+   FLYING_MAIL_DEPLOY_CONFIRM=yes mise run cf-deploy  # applies migrations and deploys
    ```
    New migrations go in `apps/api/migrations/NNNN_*.sql`. Never edit or
    squash an applied migration.
@@ -143,6 +148,53 @@ kinko --path "$PWD" exec --env FLYING_MAIL_API_KEY -- sh -c \
   'curl -s https://mail.tacoserve.online/graphql -H "content-type: application/json" -H "authorization: Bearer $FLYING_MAIL_API_KEY" -d "{\"query\":\"{ viewer { sendableAddresses } }\"}"'
 ```
 
+### MCP endpoint
+
+After an authorized deployment, verify the legacy and modern MCP protocols
+with the operator key from kinko. The key appears only as an environment
+variable inside the single-quoted `sh -c` script below. Never print it, pass
+it as a URL parameter or use verbose curl mode. The endpoint responds with
+503 if the `MCP_RATE_LIMITER` binding is absent.
+
+```bash
+kinko --path "$PWD" exec --env FLYING_MAIL_API_KEY -- sh -c '
+  B=https://mail.tacoserve.online
+  curl -sS "$B/mcp" \
+    -H "content-type: application/json" \
+    -H "accept: application/json, text/event-stream" \
+    -H "authorization: Bearer $FLYING_MAIL_API_KEY" \
+    --data-binary '\''{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"smoke-check","version":"1"}}}'\'' \
+    | jq -e '\''.result.protocolVersion == "2025-11-25"'\'' >/dev/null
+  printf "%s\\n" "Legacy initialize passed"
+
+  curl -sS "$B/mcp" \
+    -H "content-type: application/json" \
+    -H "accept: application/json, text/event-stream" \
+    -H "authorization: Bearer $FLYING_MAIL_API_KEY" \
+    -H "mcp-protocol-version: 2025-11-25" \
+    --data-binary '\''{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'\'' \
+    | jq -er '\''.result.tools[].name'\''
+
+  curl -sS "$B/mcp" \
+    -H "content-type: application/json" \
+    -H "accept: application/json, text/event-stream" \
+    -H "authorization: Bearer $FLYING_MAIL_API_KEY" \
+    -H "mcp-protocol-version: 2026-07-28" \
+    -H "mcp-method: server/discover" \
+    --data-binary '\''{"jsonrpc":"2.0","id":3,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}'\'' \
+    | jq -e '\''.result.supportedVersions | index("2026-07-28") != null'\'' >/dev/null
+  printf "%s\\n" "Modern server/discover passed"
+
+  headers=$(curl -sS -o /dev/null -D - "$B/mcp" \
+    -H "content-type: application/json" \
+    -H "accept: application/json, text/event-stream" \
+    --data-binary '\''{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}}'\'')
+  printf "%s\\n" "$headers" | grep -Ei "^(HTTP/[^ ]+ 401|www-authenticate: Bearer)"
+  printf "%s\\n" "$headers" | grep -Eqi "^HTTP/[^ ]+ 401"
+  printf "%s\\n" "$headers" | grep -Eqi "^www-authenticate: Bearer"
+'
+```
+
 ## Fresh environment (first deploy)
 
 Follow this order exactly. It mirrors section 8 of the security model and
@@ -160,8 +212,9 @@ the README "Deploying" section.
      `challenge-widgets`).
    - Pipe the returned `secret` straight into kinko and `wrangler secret
      put`. Never print it.
-3. Run `mise run cf-deploy`. This applies all migrations on an empty
-   database and attaches the custom domain.
+3. Run `FLYING_MAIL_DEPLOY_CONFIRM=yes mise run cf-deploy`. This applies all
+   migrations on an empty database and attaches the custom domain. Without
+   the confirmation variable the task only lists the migration state.
 4. Set `FLYING_MAIL_CREDENTIAL_KEY`, `FLYING_MAIL_TURNSTILE_SECRET_KEY` and
    `FLYING_MAIL_BOOTSTRAP_TOKEN` as Worker secrets from kinko. The bootstrap
    token must be at least 32 characters.
@@ -235,7 +288,7 @@ first.
 - **R2.** List the objects with
   `GET /accounts/<account>/r2/buckets/mailcal-mail/objects`. Delete each one
   with `DELETE .../objects/<url-encoded key>`.
-- **Redeploy.** Run `mise run cf-deploy`. Then repeat the fresh-environment
+- **Redeploy.** Run `FLYING_MAIL_DEPLOY_CONFIRM=yes mise run cf-deploy`. Then repeat the fresh-environment
   steps 4 onward: bootstrap, domains, mailboxes. Because the domains are
   re-created, they get new ownership tokens, so the `_mailcal` TXT records
   must be updated.

@@ -496,7 +496,10 @@ describe("client serve app", () => {
 
     const response = await app.request("http://localhost/graphql?x=1", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        host: "127.0.0.1:5173",
+      },
       body: JSON.stringify({ query: "{ viewer { capabilities } }" }),
     });
 
@@ -528,6 +531,7 @@ describe("client serve app", () => {
     });
     await app.request("http://localhost/graphql", {
       method: "POST",
+      headers: { "content-type": "application/json" },
       body: "{}",
     });
     expect(authorization).toBeNull();
@@ -548,6 +552,7 @@ describe("client serve app", () => {
     });
     const response = await app.request("http://localhost/graphql", {
       method: "POST",
+      headers: { "content-type": "application/json" },
       body: "{}",
     });
     expect(response.status).toBe(502);

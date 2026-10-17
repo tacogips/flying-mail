@@ -3,6 +3,10 @@ import type {
   OutboundAttachment,
   OutboundMail,
 } from "@flying-mail/application/ports/mail-sender";
+import {
+  assertHeaderValueSafe,
+  assertThreadingHeadersSafe,
+} from "../mime/header-safety";
 import { classifyProviderError, MailDeliveryError } from "./delivery-error";
 
 const LOCAL_PART_PATTERN = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i;
@@ -108,6 +112,7 @@ export class InvalidSenderAddressError extends Error {
 function toBindingAttachment(
   attachment: OutboundAttachment,
 ): CloudflareEmailAttachment {
+  assertHeaderValueSafe("Content-Type", attachment.contentType);
   const common = {
     filename: attachment.fileName,
     type: attachment.contentType,
@@ -124,9 +129,14 @@ function toBindingAttachment(
 }
 
 function toProviderHeaders(mail: OutboundMail): Record<string, string> {
+  // Ids are copied from inbound (attacker-controlled) mail, so CR/LF is
+  // refused here too rather than trusting the provider to reject it.
+  assertThreadingHeadersSafe(mail);
   const headers: Record<string, string> = {};
   for (const [name, value] of mail.headers ?? []) {
     if (!/^message-id$/i.test(name) && !/^bcc$/i.test(name)) {
+      assertHeaderValueSafe(name, name);
+      assertHeaderValueSafe(name, value);
       headers[name] = value;
     }
   }

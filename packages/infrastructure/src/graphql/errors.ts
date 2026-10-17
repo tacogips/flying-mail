@@ -10,6 +10,12 @@ import { GraphQLError } from "graphql";
  * the masked catch-all. */
 export type ErrorCode = ApplicationErrorCode | "INTERNAL_SERVER_ERROR";
 
+export interface ClassifiedError {
+  readonly code: ErrorCode;
+  readonly message: string;
+  readonly field?: string;
+}
+
 function graphQLErrorWithCode(
   message: string,
   code: ErrorCode,
@@ -77,12 +83,6 @@ function isMailDeliveryErrorLike(value: unknown): value is Error {
   return value instanceof Error && value.name === "MailDeliveryError";
 }
 
-function mailUnavailableError(): GraphQLError {
-  return serviceUnavailableError(
-    "Email delivery is not configured on this server",
-  );
-}
-
 /** Maps any thrown value onto a `GraphQLError` carrying the right
  * `extensions.code`.
  *
@@ -115,22 +115,38 @@ export function toGraphQLError(err: unknown): GraphQLError {
       extensions: mapped.extensions,
     });
   }
+  const classified = classifyError(err);
+  return graphQLErrorWithCode(
+    classified.message,
+    classified.code,
+    classified.field === undefined ? undefined : { field: classified.field },
+  );
+}
+
+/** Classifies non-GraphQLError causes using GraphQL's established ordering.
+ * This is shared with MCP so its domain codes and messages stay identical. */
+export function classifyError(err: unknown): ClassifiedError {
   if (err instanceof BadUserInputError) {
-    return badUserInputError(err.message, err.field);
+    return err.field === undefined
+      ? { code: "BAD_USER_INPUT", message: err.message }
+      : { code: "BAD_USER_INPUT", message: err.message, field: err.field };
   }
   if (err instanceof ApplicationError) {
-    return graphQLErrorWithCode(err.message, err.code);
+    return { code: err.code, message: err.message };
   }
   if (err instanceof ValidationError) {
-    return badUserInputError(err.message, err.field);
+    return err.field === undefined
+      ? { code: "BAD_USER_INPUT", message: err.message }
+      : { code: "BAD_USER_INPUT", message: err.message, field: err.field };
   }
   if (err instanceof DomainError) {
-    return badUserInputError(err.message);
+    return { code: "BAD_USER_INPUT", message: err.message };
   }
   if (isMailDeliveryErrorLike(err)) {
-    return mailUnavailableError();
+    return {
+      code: "SERVICE_UNAVAILABLE",
+      message: "Email delivery is not configured on this server",
+    };
   }
-  return new GraphQLError("Internal server error", {
-    extensions: { code: "INTERNAL_SERVER_ERROR" },
-  });
+  return { code: "INTERNAL_SERVER_ERROR", message: "Internal server error" };
 }

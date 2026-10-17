@@ -6,7 +6,7 @@ import type { Viewer } from "../policies/viewer";
 import { deleteAttachmentsAndUnreferencedBlobs } from "./attachment-blobs";
 import { loadOwnDraft } from "./drafts";
 import { withAsyncDomainErrorTranslation } from "./translate-domain-error";
-import { collectMailEventAddresses, recordMailEvents } from "./mail-events";
+import { recordMailEvents } from "./mail-events";
 
 /** Deletes a draft the viewer may send, including now-unreferenced blobs. */
 export function createDeleteDraftUseCase(
@@ -15,15 +15,18 @@ export function createDeleteDraftUseCase(
   return async (viewer, id) =>
     withAsyncDomainErrorTranslation(async () => {
       const draft = await loadOwnDraft(deps, viewer, id);
-      const addressesByMessage = await collectMailEventAddresses(deps, [draft]);
-      const addresses = addressesByMessage.get(draft.id) ?? [];
       const attachments =
         (await deps.messageRepository.listAttachments([id])).get(id) ?? [];
       if (!(await deps.messageRepository.deleteDraftIfDraft(id))) {
         throw new NotFoundError("Draft", id);
       }
       await recordMailEvents(deps, [
-        { type: MailEventType.DraftDeleted, message: draft, addresses },
+        {
+          type: MailEventType.DraftDeleted,
+          message: draft,
+          // Sender only: a draft's recipients are never exposed via events.
+          addresses: [draft.fromAddress],
+        },
       ]);
       await deleteAttachmentsAndUnreferencedBlobs(deps, attachments);
       return true;

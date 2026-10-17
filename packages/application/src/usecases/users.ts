@@ -1,9 +1,11 @@
+import { revokeApiKey } from "@flying-mail/domain/entities/api-key";
 import {
   createUser,
   deactivateUser,
   isAdmin,
   reactivateUser,
   setUserRole,
+  type User,
   UserRole,
 } from "@flying-mail/domain/entities/user";
 import {
@@ -59,6 +61,41 @@ export interface UserMailPermissionInput {
 async function countActiveAdmins(deps: AppDependencies): Promise<number> {
   const users = await deps.userRepository.list();
   return users.filter(isAdmin).length;
+}
+
+const DEMOTE_CONFLICT_MESSAGE =
+  "Cannot demote the last active admin; promote another user first";
+const DEACTIVATE_CONFLICT_MESSAGE =
+  "Cannot deactivate the last active admin; activate another admin first";
+
+/** Persists a change that removes an active admin's admin power. The count
+ * in the caller is only a pre-check for a clear message; this conditional
+ * write is what actually holds the invariant under concurrency, because it
+ * refuses to apply when no other active admin exists at write time. */
+async function saveAdminRemoval(
+  deps: AppDependencies,
+  updated: User,
+  conflictMessage: string,
+): Promise<void> {
+  if (!(await deps.userRepository.saveUnlessLastActiveAdmin(updated))) {
+    throw new ConflictError(conflictMessage);
+  }
+}
+
+/** A deactivated user must not keep working through keys it minted: an API
+ * key authorizes by its own scopes and would otherwise outlive the user.
+ * Uses the same domain revoke as the explicit revoke use case. */
+async function revokeKeysCreatedBy(
+  deps: AppDependencies,
+  userId: UserId,
+  now: string,
+): Promise<void> {
+  const keys = await deps.apiKeyRepository.listByCreator(userId);
+  for (const key of keys) {
+    if (key.revokedAt === null) {
+      await deps.apiKeyRepository.save(revokeApiKey(key, now));
+    }
+  }
 }
 
 function parsePermissionPattern(value: string): AddressPattern {
@@ -134,13 +171,15 @@ export function createSetUserRoleUseCase(
       if (isAdmin(user) && role !== UserRole.Admin) {
         const activeAdmins = await countActiveAdmins(deps);
         if (activeAdmins <= 1) {
-          throw new ConflictError(
-            "Cannot demote the last active admin; promote another user first",
-          );
+          throw new ConflictError(DEMOTE_CONFLICT_MESSAGE);
         }
       }
       const updated = setUserRole(user, role, deps.clock.now().toISOString());
-      await deps.userRepository.save(updated);
+      if (isAdmin(user) && role !== UserRole.Admin) {
+        await saveAdminRemoval(deps, updated, DEMOTE_CONFLICT_MESSAGE);
+      } else {
+        await deps.userRepository.save(updated);
+      }
       return loadUserWithPermissions(deps, updated);
     });
 }
@@ -162,9 +201,7 @@ export function createSetUserActiveUseCase(
       if (!active && isAdmin(user)) {
         const activeAdmins = await countActiveAdmins(deps);
         if (activeAdmins <= 1) {
-          throw new ConflictError(
-            "Cannot deactivate the last active admin; activate another admin first",
-          );
+          throw new ConflictError(DEACTIVATE_CONFLICT_MESSAGE);
         }
       }
       const now = deps.clock.now().toISOString();
@@ -173,7 +210,14 @@ export function createSetUserActiveUseCase(
       const updated = active
         ? reactivateUser(user, now)
         : deactivateUser(user, now);
-      await deps.userRepository.save(updated);
+      if (!active && isAdmin(user)) {
+        await saveAdminRemoval(deps, updated, DEACTIVATE_CONFLICT_MESSAGE);
+      } else {
+        await deps.userRepository.save(updated);
+      }
+      if (!active) {
+        await revokeKeysCreatedBy(deps, user.id, now);
+      }
       return loadUserWithPermissions(deps, updated);
     });
 }

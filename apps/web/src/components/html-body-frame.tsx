@@ -10,6 +10,10 @@ import "./html-body-frame.css";
 
 const MAX_INLINE_IMAGE_BYTES = 5 * 1024 * 1024;
 const MIN_FRAME_HEIGHT_PX = 120;
+/** Upper bound on the auto-sized frame. A message declaring a huge height
+ * would otherwise make the reading pane unusably tall; past this the frame
+ * scrolls internally. */
+export const MAX_FRAME_HEIGHT_PX = 30000;
 const EMPTY_INLINE_IMAGES: ReadonlyMap<string, string> = new Map();
 
 function isInlineImageCandidate(attachment: AttachmentView): boolean {
@@ -96,6 +100,11 @@ async function loadInlineImages(
  * `sanitizeMailHtml`. Attachments over 5 MiB, or without a matching
  * `contentId` and an `image/*` content type, are skipped.
  */
+/** Clamps a measured content height to the frame's allowed range. */
+export function clampFrameHeight(measured: number): number {
+  return Math.min(MAX_FRAME_HEIGHT_PX, Math.max(MIN_FRAME_HEIGHT_PX, measured));
+}
+
 export function HtmlBodyFrame(props: {
   readonly html: string;
   readonly title?: string;
@@ -127,7 +136,7 @@ export function HtmlBodyFrame(props: {
     try {
       const measured = iframeRef?.contentDocument?.documentElement.scrollHeight;
       if (measured !== undefined && measured > 0) {
-        setFrameHeight(Math.max(MIN_FRAME_HEIGHT_PX, measured));
+        setFrameHeight(clampFrameHeight(measured));
       }
     } catch {
       // Cross-origin or already-detached frame: keep the current height.

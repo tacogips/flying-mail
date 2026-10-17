@@ -1,4 +1,7 @@
-import type { RateLimiter } from "@flying-mail/application/ports/rate-limiter";
+import {
+  type RateLimiter,
+  RateLimiterUnavailableError,
+} from "@flying-mail/application/ports/rate-limiter";
 
 export interface RateLimitBindingLike {
   limit(options: {
@@ -15,7 +18,12 @@ export function createWorkersRateLimiter(
         return (await binding.limit({ key })).success;
       } catch (error) {
         console.error("Rate limiter binding failed", error);
-        return true;
+        // Not an answer about the caller's rate: surface it so each caller
+        // chooses to fail open or closed.
+        throw new RateLimiterUnavailableError(
+          "Rate limiter binding failed",
+          error,
+        );
       }
     },
   };

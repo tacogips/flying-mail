@@ -349,10 +349,89 @@ with backoff.
 | Connections per hub | 1000 | Host; HTTP 503 |
 | Connection attempts per IP | 10 / 60 seconds | `RateLimiter`; HTTP 429 |
 | `connection_init` per principal | 10 / 60 seconds | `RateLimiter`, key `ws:init:<kind>:<id>`; close 1013 |
-| Replay page | 200 rows | Hub core |
+| Inbound frames per connection | 30 / 10 seconds | Hub core token bucket; close 1013 |
+| Aliased fields per subscription document | 50 | Hub core; subscription error |
+| Principal re-resolution | cached 60 seconds | Hub drain; revocation takes effect within one cache period |
+| Replay page | 200 rows | Hub core; replaying subscriptions are drained separately from live ones |
 
 `flying-mail client serve` does not proxy WebSockets, so the web client shows
 Offline there and continues to work with manual refresh.
+
+### MCP server
+
+`POST /mcp` serves MCP over Streamable HTTP as a stateless endpoint for protocol versions `2026-07-28`, `2025-11-25`, `2025-06-18` and `2025-03-26`. It accepts only `Authorization: Bearer <API key>`; cookies are ignored and OAuth is not supported. Responses are JSON only; the server does not use SSE.
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http flying-mail https://mail.tacoserve.online/mcp --header "Authorization: Bearer $FLYING_MAIL_MCP_KEY"
+```
+
+**Codex** (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.flying-mail]
+url = "https://mail.tacoserve.online/mcp"
+bearer_token_env_var = "FLYING_MAIL_MCP_KEY"
+```
+
+Check the configuration key names against the Codex configuration documentation for your Codex version.
+
+**Generic MCP client:** connect to `https://mail.tacoserve.online/mcp` with `Authorization: Bearer <API key>` and `Accept: application/json, text/event-stream`. Supported protocol versions are `2026-07-28`, `2025-11-25`, `2025-06-18` and `2025-03-26`. Legacy clients send `initialize`; modern clients may call `server/discover`.
+
+The tool catalogue is filtered by the key's capabilities; comma-separated capabilities mean any one is sufficient. Read-only and destructive values match the MCP tool annotations. USER_ADMIN tools appear only for USER_ADMIN keys. No MCP tool creates users, sends invitations or logs in.
+
+| Tool | Visible with | Read-only | Destructive |
+|------|--------------|-----------|------------|
+| `search_messages` | MAIL_READ | Yes | No |
+| `get_message` | MAIL_READ | Yes | No |
+| `get_thread` | MAIL_READ | Yes | No |
+| `list_mailboxes` | MAIL_READ or MAIL_SEND | Yes | No |
+| `send_message` | MAIL_SEND | No | Yes |
+| `reply_message` | MAIL_SEND | No | Yes |
+| `forward_message` | MAIL_SEND | No | Yes |
+| `list_drafts` | MAIL_READ | Yes | No |
+| `save_draft` | MAIL_SEND | No | No |
+| `update_draft` | MAIL_SEND | No | Yes |
+| `send_draft` | MAIL_SEND | No | Yes |
+| `delete_draft` | MAIL_SEND | No | Yes |
+| `upload_attachment` | MAIL_SEND | No | No |
+| `get_attachment` | MAIL_READ | No | No |
+| `mark_read` | MAIL_MANAGE | No | No |
+| `mark_unread` | MAIL_MANAGE | No | No |
+| `list_tags` | MAIL_READ or MAIL_MANAGE | Yes | No |
+| `tag_messages` | MAIL_MANAGE | No | No |
+| `untag_messages` | MAIL_MANAGE | No | No |
+| `move_to_trash` | MAIL_MANAGE | No | Yes |
+| `mark_spam` | MAIL_MANAGE | No | No |
+| `mark_not_spam` | MAIL_MANAGE | No | No |
+| `list_users` | USER_ADMIN | Yes | No |
+| `set_user_role` | USER_ADMIN | No | Yes |
+| `set_user_active` | USER_ADMIN | No | Yes |
+| `add_mail_permission` | USER_ADMIN | No | No |
+| `remove_mail_permission` | USER_ADMIN | No | Yes |
+
+Mail content is returned only in `untrusted_content` fields with a fixed notice. HTML is converted to text by default, and bodies are capped with truncation markers.
+
+For least privilege, issue one key per agent. Grant `MAIL_READ` and `MAIL_MANAGE` only for the needed domain or address, and `MAIL_SEND` only for the exact `from` addresses. Add `FILE_LINK` only when large attachments are needed. Do not grant `KEY_ADMIN`, `DOMAIN_ADMIN` or `USER_ADMIN` unless key, domain or user administration is the agent's purpose. Set `expiresAt`; keep the key in kinko or an environment variable, never in a committed file. For example, an admin can create a scoped key with the existing `createApiKey` mutation (the secret is returned once):
+
+```graphql
+mutation {
+  createApiKey(input: {
+    name: "MCP support agent"
+    expiresAt: "<expiry-timestamp>"
+    scopes: [
+      { capability: MAIL_READ, domainId: "<domain-id>", addressPattern: "support@example.com" }
+      { capability: MAIL_SEND, domainId: "<domain-id>", addressPattern: "support@example.com" }
+    ]
+  }) {
+    secret
+    apiKey { id name keyPrefix }
+  }
+}
+```
+
+The MCP endpoint allows 120 requests per 60 seconds per key and per IP. Request bodies are limited to 7 MiB; attachment uploads are limited to 5 MiB. Attachments up to 256 KiB can be returned inline; larger attachments use single-download links requiring `FILE_LINK`.
 
 ## Deploying
 
@@ -361,6 +440,15 @@ The operator runbook for agents and humans is the
 available to Claude Code via `.claude/skills` and to Codex via `.codex/skills`.
 It covers routine deploys, post-deploy smoke checks, domain provisioning,
 rollback and data reset.
+
+Cost and abuse ceilings are configured in `apps/api/wrangler.toml`:
+`FLYING_MAIL_MAX_SENDS_PER_DOMAIN_PER_DAY` (rolling 24-hour outbound cap per
+sending domain, default 1000) on top of the per-credential
+`AUTH_RATE_LIMITER` window that also gates sends, staged attachment uploads
+and anonymous file-link downloads; `FLYING_MAIL_FILE_LINK_MAX_TTL`; and
+`FLYING_MAIL_EVENT_RETENTION_SECONDS`. GraphQL requests are limited to 1 MiB
+bodies, depth 12, 2000 selections and 50 aliases; mutation id lists to 100
+ids; external mailbox fetches to 200 messages per run and 25 MiB per message.
 
 Follow the first-deploy procedure in
 [`design-docs/specs/design-security-model.md`](design-docs/specs/design-security-model.md):
@@ -371,7 +459,9 @@ Follow the first-deploy procedure in
 3. Create a Turnstile widget for `mail.tacoserve.online` and set its site key
    as `FLYING_MAIL_TURNSTILE_SITE_KEY` in `wrangler.toml` before deploying
    the Turnstile secret.
-4. Run `mise run cf-deploy`. The Worker uses the custom domain
+4. Run `mise run cf-deploy` to lint, test, build and list the remote
+   migration state, then `FLYING_MAIL_DEPLOY_CONFIRM=yes mise run cf-deploy`
+   to apply migrations and deploy. The Worker uses the custom domain
    `mail.tacoserve.online`; `workers_dev` and `preview_urls` are disabled.
    A **Workers Paid plan** is required.
 5. Put `FLYING_MAIL_BOOTSTRAP_TOKEN` and

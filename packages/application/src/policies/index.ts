@@ -1,5 +1,8 @@
 export {
   authorizesAnyAddress,
+  authorizesAnyMailManage,
+  authorizesAnyMailSend,
+  authorizesCapabilityAnywhere,
   authorizesContactCapability,
   authorizesContactRead,
   authorizesContactWrite,
@@ -22,6 +25,7 @@ export {
   requireUserViewer,
   requireViewer,
   scopedDomainIds,
+  viewerHoldsCapability,
 } from "./authorization";
 export {
   describeViewer,

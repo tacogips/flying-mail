@@ -1,3 +1,4 @@
+import { normalizeAttachmentContentType } from "@flying-mail/domain/entities/attachment";
 import type {
   MimeParser,
   ParsedMime,
@@ -16,24 +17,59 @@ import PostalMime, {
 const DEFAULT_MAX_NESTING_DEPTH = 32;
 const DEFAULT_MAX_HEADERS_SIZE = 1024 * 1024;
 
+/** RFC 5322 caps a header line at 998 characters; no real id gets near it. */
+const MAX_MESSAGE_ID_LENGTH = 998;
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the point
+const UNSAFE_ID_CHARS = /[\s\x00-\x1f\x7f]/;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the point
+const CONTROL_CHAR_RUNS = /[\x00-\x1f\x7f]+/g;
+
+/** Replaces control characters (CR/LF included) in a parsed display string.
+ *
+ * postal-mime RFC 2047-decodes subjects and display names, so an encoded
+ * word can decode to a CRLF. Nothing downstream should ever see one in a
+ * single-line field, so each run becomes one space. */
+function stripControlChars(value: string): string {
+  return value.replace(CONTROL_CHAR_RUNS, " ").trim();
+}
+
 /** Strips the angle brackets RFC 5322 wraps `Message-ID`, `In-Reply-To` and
  * `References` values in, so stored ids compare directly against each other
- * without every call site re-trimming. */
+ * without every call site re-trimming.
+ *
+ * Returns `null` for an id carrying whitespace or control characters, or
+ * longer than a header line may be. postal-mime RFC 2047-decodes these
+ * headers, so a hostile `=?utf-8?B?...?=` can decode to an id containing
+ * CRLF; ingest stores ids and replies copy them into outbound headers, so
+ * such an id must never get in. */
 export function normalizeMessageId(value: string | undefined): string | null {
   if (value === undefined) {
     return null;
   }
   const trimmed = value.trim().replace(/^<|>$/g, "").trim();
-  return trimmed.length === 0 ? null : trimmed;
+  if (
+    trimmed.length === 0 ||
+    trimmed.length > MAX_MESSAGE_ID_LENGTH ||
+    UNSAFE_ID_CHARS.test(trimmed)
+  ) {
+    return null;
+  }
+  return trimmed;
 }
 
-/** `References` arrives as one whitespace-separated string. */
+/** `References` (and a multi-id `In-Reply-To`) arrives as one string of
+ * whitespace-separated, bracketed ids. Bracketed ids are extracted whole, so
+ * a hostile id with whitespace inside its brackets is dropped as one entry
+ * rather than split into plausible-looking fragments. */
 export function splitReferences(value: string | undefined): readonly string[] {
   if (value === undefined) {
     return [];
   }
-  return value
-    .split(/\s+/)
+  const candidates = value.includes("<")
+    ? [...value.matchAll(/<([^<>]*)>/g)].map((match) => match[1] ?? "")
+    : value.split(/\s+/);
+  return candidates
     .map((entry) => normalizeMessageId(entry))
     .filter((entry): entry is string => entry !== null);
 }
@@ -45,23 +81,22 @@ function isMailbox(address: Address): address is Mailbox {
 /** Flattens group syntax (`Team: a@x.com, b@x.com;`) down to its member
  * mailboxes. A group has no address of its own, so keeping it would produce
  * a recipient row with nothing to deliver to or authorize against. */
+function toParsedAddress(address: string, name: string): ParsedMimeAddress {
+  const cleanName = stripControlChars(name);
+  return { address, name: cleanName.length === 0 ? null : cleanName };
+}
+
 function flattenAddresses(
   addresses: readonly Address[] | undefined,
 ): readonly ParsedMimeAddress[] {
   const flattened: ParsedMimeAddress[] = [];
   for (const address of addresses ?? []) {
     if (isMailbox(address)) {
-      flattened.push({
-        address: address.address,
-        name: address.name.length === 0 ? null : address.name,
-      });
+      flattened.push(toParsedAddress(address.address, address.name));
       continue;
     }
     for (const member of address.group) {
-      flattened.push({
-        address: member.address,
-        name: member.name.length === 0 ? null : member.name,
-      });
+      flattened.push(toParsedAddress(member.address, member.name));
     }
   }
   return flattened;
@@ -86,7 +121,9 @@ function toAttachment(attachment: PostalAttachment): ParsedMimeAttachment {
   const contentId = normalizeMessageId(attachment.contentId);
   return {
     fileName: attachment.filename,
-    contentType: attachment.mimeType,
+    // Inbound types are arbitrary; a malformed one degrades rather than
+    // making ingest throw.
+    contentType: normalizeAttachmentContentType(attachment.mimeType),
     content: toBytes(attachment.content),
     contentId,
     // An attachment with a `Content-ID` is referenced by a `cid:` URL from
@@ -136,9 +173,11 @@ export function createPostalMimeParser(options?: {
         cc: flattenAddresses(email.cc),
         bcc: flattenAddresses(email.bcc),
         replyTo: flattenAddresses(email.replyTo),
-        subject: email.subject ?? null,
+        subject:
+          email.subject === undefined ? null : stripControlChars(email.subject),
         messageId: normalizeMessageId(email.messageId),
-        inReplyTo: normalizeMessageId(email.inReplyTo),
+        // `In-Reply-To` may list several ids; the first is the direct parent.
+        inReplyTo: splitReferences(email.inReplyTo)[0] ?? null,
         references: splitReferences(email.references),
         date: email.date ?? null,
         text: email.text ?? null,

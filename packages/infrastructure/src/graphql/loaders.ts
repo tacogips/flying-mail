@@ -91,6 +91,7 @@ export interface RequestLoaders {
   readonly domainById: BatchLoader<DomainId, MailDomain | null>;
   readonly scopesByApiKey: BatchLoader<ApiKeyId, readonly ApiKeyScope[]>;
   readonly messageCountByTag: BatchLoader<TagId, number>;
+  readonly messageCountByDomain: BatchLoader<DomainId, number>;
   readonly permissionsByUser: BatchLoader<
     UserId,
     readonly UserMailPermission[]
@@ -207,6 +208,24 @@ export function createRequestLoaders(
 
     messageCountByTag: createBatchLoader<TagId, number>(
       (ids) => deps.tagRepository.countMessages(ids),
+      () => 0,
+    ),
+
+    // The domain repository has no batch count, so this issues one count
+    // per *distinct* domain id. The loader's per-request memo is what
+    // matters here: `a: messageCount b: messageCount ...` aliases (or a
+    // list repeating the same domain) cost one query, not one per field.
+    messageCountByDomain: createBatchLoader<DomainId, number>(
+      async (ids) => {
+        const distinct = [...new Set(ids)];
+        const entries = await Promise.all(
+          distinct.map(
+            async (id) =>
+              [id, await deps.mailDomainRepository.countMessages(id)] as const,
+          ),
+        );
+        return new Map(entries);
+      },
       () => 0,
     ),
 

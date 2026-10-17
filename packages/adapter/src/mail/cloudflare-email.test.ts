@@ -1,5 +1,6 @@
 import type { OutboundMail } from "@flying-mail/application/ports/mail-sender";
 import { describe, expect, test } from "vitest";
+import { HeaderInjectionError } from "../mime/header-safety";
 import {
   type CloudflareEmailMessage,
   type CloudflareEmailSendResult,
@@ -238,5 +239,33 @@ describe("createUnavailableMailSender", () => {
     await expect(
       createUnavailableMailSender().send(mail),
     ).rejects.toBeInstanceOf(MailDeliveryError);
+  });
+});
+
+describe("header injection guards", () => {
+  test.each([
+    ["inReplyTo", { inReplyTo: "p@x.com\r\nBcc: evil@x.com" }],
+    ["references", { references: ["ok@x.com", "r\nBcc: evil@x.com"] }],
+    ["a custom header value", { headers: new Map([["X-A", "v\r\nBcc: e"]]) }],
+    [
+      "an attachment content type",
+      {
+        attachments: [
+          {
+            fileName: "a.txt",
+            contentType: "text/plain\r\nBcc: e",
+            content: new Uint8Array([1]),
+            inline: false,
+            contentId: null,
+          },
+        ],
+      },
+    ],
+  ])("refuses CR/LF in %s without calling the binding", async (_l, extra) => {
+    const { binding, sent } = recordingBinding();
+    await expect(
+      createCloudflareMailSender(binding).send({ ...mail, ...extra }),
+    ).rejects.toBeInstanceOf(HeaderInjectionError);
+    expect(sent).toHaveLength(0);
   });
 });

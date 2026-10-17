@@ -1,7 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { ValidationError } from "../errors";
 import { createExternalAccountId, createMessageId } from "../value-objects/ids";
-import { createExternalMessageState } from "./external-message-state";
+import {
+  createExternalMessageState,
+  createSkippedExternalMessageState,
+  ExternalMessageSkipReason,
+} from "./external-message-state";
 
 const NOW = "2026-08-24T00:00:00.000Z";
 
@@ -33,6 +37,35 @@ describe("createExternalMessageState", () => {
         accountId: createExternalAccountId("ext-1"),
         remoteId: "   ",
         messageId: createMessageId("msg-1"),
+        fetchedAt: NOW,
+      }),
+    ).toThrow(ValidationError);
+  });
+});
+
+describe("createSkippedExternalMessageState", () => {
+  test("records a skip with no message", () => {
+    const state = createSkippedExternalMessageState({
+      accountId: createExternalAccountId("ext-1"),
+      remoteId: " uidl-big ",
+      skipReason: ExternalMessageSkipReason.TooLarge,
+      fetchedAt: NOW,
+    });
+    expect(state).toEqual({
+      accountId: "ext-1",
+      remoteId: "uidl-big",
+      messageId: null,
+      fetchedAt: NOW,
+      skipReason: "TOO_LARGE",
+    });
+  });
+
+  test("rejects an empty remoteId", () => {
+    expect(() =>
+      createSkippedExternalMessageState({
+        accountId: createExternalAccountId("ext-1"),
+        remoteId: "",
+        skipReason: ExternalMessageSkipReason.TooLarge,
         fetchedAt: NOW,
       }),
     ).toThrow(ValidationError);

@@ -12,6 +12,7 @@ import {
 } from "@flying-mail/domain/value-objects/ids";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createRealtimeHub } from "./hub";
+import { PRINCIPAL_CACHE_TTL_MS } from "./protocol";
 import {
   createRealtimeTestBundle,
   messagesOfType,
@@ -401,8 +402,9 @@ describe("mail event drain", () => {
     expect(byId("b")).toEqual([DOMAIN_B]);
   });
 
-  test("rechecks permission for each pass and closes a revoked principal", async () => {
-    const bundle = createRealtimeTestBundle();
+  test("rechecks permission once the principal cache expires and closes a revoked principal", async () => {
+    let clock = Date.now();
+    const bundle = createRealtimeTestBundle({ now: () => clock });
     const pair = await connect(bundle);
     await subscribe(bundle, pair.connection, "s", {});
     await appendEvents(bundle, 1, { address: "readable@example.test" });
@@ -415,10 +417,12 @@ describe("mail event drain", () => {
       },
     ]);
     bundle.setViewer(adminViewer("usr-admin", permission));
+    clock += PRINCIPAL_CACHE_TTL_MS;
     await appendEvents(bundle, 1, { address: "readable@example.test" });
     await bundle.hub.requestDrain();
     expect(nextCursors(pair.socket, "s")).toEqual([`${EPOCH}.0`, `${EPOCH}.1`]);
     bundle.setViewer(null);
+    clock += PRINCIPAL_CACHE_TTL_MS;
     await appendEvents(bundle, 1);
     await bundle.hub.requestDrain();
     expect(pair.socket.closes.at(-1)?.code).toBe(4401);

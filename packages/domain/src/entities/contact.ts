@@ -102,6 +102,13 @@ export const MAX_CONTACT_LABEL_LENGTH = 40;
 // A hostile CardDAV server's vCard bomb must not become a megabyte row: the
 // same cap applies to every child list (emails/phones/postalAddresses/urls).
 export const MAX_CONTACT_LIST_LENGTH = 32;
+/** UTF-8 byte cap on the opaque `extraVcardLines` payload. A hostile CardDAV
+ * server can attach arbitrarily large `PHOTO` or `X-*` properties, and the
+ * payload is stored on the contact row. */
+export const MAX_CONTACT_EXTRA_VCARD_BYTES = 64 * 1024;
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control characters is the point
+const UNSAFE_LABEL_CHARS = /[\x00-\x1f\x7f"]/g;
 
 function requireText(value: string, field: string, maxLength: number): string {
   const trimmed = value.trim();
@@ -141,7 +148,48 @@ function normalizeLabel(
   value: string | null | undefined,
   field: string,
 ): string | null {
-  return optionalText(value, field, MAX_CONTACT_LABEL_LENGTH);
+  // A label is emitted as a vCard `TYPE=` parameter value, so a control
+  // character (CR/LF would start a new content line) or a double quote
+  // (which would break out of a quoted parameter) is removed up front.
+  const stripped = value?.replace(UNSAFE_LABEL_CHARS, "");
+  return optionalText(stripped, field, MAX_CONTACT_LABEL_LENGTH);
+}
+
+/** Keeps `extraVcardLines` within {@link MAX_CONTACT_EXTRA_VCARD_BYTES} by
+ * dropping whole logical lines from the first one that does not fit. A
+ * logical line is a content line plus its folded continuation lines (those
+ * starting with a space or tab), so a property is never cut in half. Content
+ * under the cap is returned untouched, and empty content becomes `null`. */
+function capExtraVcardLines(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const encoder = new TextEncoder();
+  if (encoder.encode(value).byteLength <= MAX_CONTACT_EXTRA_VCARD_BYTES) {
+    return value;
+  }
+  // Physical lines, each keeping its own terminator.
+  const physical = value.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+  const logical: string[] = [];
+  for (const line of physical) {
+    const previous = logical.length - 1;
+    if ((line.startsWith(" ") || line.startsWith("\t")) && previous >= 0) {
+      logical[previous] += line;
+    } else {
+      logical.push(line);
+    }
+  }
+  let kept = "";
+  let bytes = 0;
+  for (const line of logical) {
+    const lineBytes = encoder.encode(line).byteLength;
+    if (bytes + lineBytes > MAX_CONTACT_EXTRA_VCARD_BYTES) {
+      break;
+    }
+    kept += line;
+    bytes += lineBytes;
+  }
+  return kept.length === 0 ? null : kept;
 }
 
 function requireListWithinCap<T>(list: readonly T[], field: string): void {
@@ -279,9 +327,9 @@ export function createContact(input: CreateContactInput): Contact {
       input.birthday === null || input.birthday === undefined
         ? null
         : createIsoDate(input.birthday, "birthday"),
-    // Opaque fidelity payload: passed through verbatim, never trimmed or
-    // otherwise interpreted here (see the field doc on `Contact`).
-    extraVcardLines: input.extraVcardLines ?? null,
+    // Opaque fidelity payload: never trimmed or otherwise interpreted here
+    // (see the field doc on `Contact`), only bounded in total size.
+    extraVcardLines: capExtraVcardLines(input.extraVcardLines),
     createdAt: input.createdAt,
     updatedAt: input.updatedAt ?? input.createdAt,
   };

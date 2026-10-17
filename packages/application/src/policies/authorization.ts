@@ -47,6 +47,19 @@ export function hasAnyMailRead(viewer: Viewer): boolean {
   );
 }
 
+/** Whether an API-key viewer's scopes contain this capability. This is a
+ * presence check for MCP tool visibility, not an authorization grant. USER
+ * viewers always return false because MCP accepts API keys only. */
+export function viewerHoldsCapability(
+  viewer: Viewer,
+  capability: Capability,
+): boolean {
+  return (
+    viewer.kind === "API_KEY" &&
+    viewer.scopes.some((scope) => scope.capability === capability)
+  );
+}
+
 /** Non-throwing form of {@link requireGlobalCapability}. USER_ADMIN is
  * excluded because liveness needs repository access; only
  * `requireUserAdministrator` may accept it. */
@@ -236,6 +249,40 @@ export function authorizesAnyAddress(
   return addresses.some((address) =>
     scopesAuthorize(viewer.scopes, { capability, domainId, address }),
   );
+}
+
+/** Whether the viewer holds a per-address `capability` somewhere at all,
+ * with no particular address in play -- for instance-wide mail resources
+ * such as tags or staged uploads. An ADMIN user always does; a MEMBER needs
+ * at least one ALLOW rule; a VIEWER never holds a capability its role
+ * cannot carry (`MAIL_SEND`, `MAIL_MANAGE`); an API key needs a scope for
+ * the capability. A global capability is never held "anywhere". */
+export function authorizesCapabilityAnywhere(
+  viewer: Viewer,
+  capability: Capability,
+): boolean {
+  if (isGlobalCapability(capability)) {
+    return false;
+  }
+  if (viewer.kind === "USER") {
+    if (viewer.role === UserRole.Admin) {
+      return true;
+    }
+    return mailAuthorizationRules(viewer, capability).some(
+      (rule) => rule.effect === "ALLOW",
+    );
+  }
+  return viewer.scopes.some((scope) => scope.capability === capability);
+}
+
+/** `MAIL_MANAGE` held somewhere; see {@link authorizesCapabilityAnywhere}. */
+export function authorizesAnyMailManage(viewer: Viewer): boolean {
+  return authorizesCapabilityAnywhere(viewer, Capability.MailManage);
+}
+
+/** `MAIL_SEND` held somewhere; see {@link authorizesCapabilityAnywhere}. */
+export function authorizesAnyMailSend(viewer: Viewer): boolean {
+  return authorizesCapabilityAnywhere(viewer, Capability.MailSend);
 }
 
 /** Throwing per-address check, for write operations. Reads must **not** use

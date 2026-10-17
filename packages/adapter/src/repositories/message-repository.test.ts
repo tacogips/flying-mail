@@ -32,7 +32,7 @@ import {
   AttachmentKind,
   createAttachment,
 } from "@flying-mail/domain/entities/attachment";
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { createMessageRepository } from "./message-repository";
 import {
   createMigratedDatabase,
@@ -203,8 +203,20 @@ describe("messageRepository", () => {
         "msg-2",
         "msg-1",
       ]);
-      expect(page.totalCount).toBe(4);
+      expect(await repository.count(UNRESTRICTED)).toBe(4);
       expect(page.nextCursor).toBeNull();
+    });
+
+    test("listing issues one page query and never a COUNT", async () => {
+      const querySpy = vi.spyOn(db, "query");
+      await repository.list(UNRESTRICTED, 2, null);
+      expect(querySpy).toHaveBeenCalledTimes(1);
+      expect(String(querySpy.mock.calls[0]?.[0])).not.toMatch(/COUNT\(/i);
+
+      querySpy.mockClear();
+      expect(await repository.count(UNRESTRICTED)).toBe(4);
+      expect(querySpy).toHaveBeenCalledTimes(1);
+      expect(String(querySpy.mock.calls[0]?.[0])).toMatch(/COUNT\(\*\)/i);
     });
 
     test("paginates across a page boundary without gaps or repeats", async () => {
@@ -259,57 +271,39 @@ describe("messageRepository", () => {
     });
 
     test("filters by a domain wildcard pattern", async () => {
-      const page = await repository.list(
-        {
-          allowedPatterns: [createAddressPattern("*@example.com")],
-          mailPermissionFilter: null,
-        },
-        10,
-        null,
-      );
-      expect(page.totalCount).toBe(4);
+      const filter = {
+        allowedPatterns: [createAddressPattern("*@example.com")],
+        mailPermissionFilter: null,
+      };
+      expect((await repository.list(filter, 10, null)).nodes).toHaveLength(4);
+      expect(await repository.count(filter)).toBe(4);
     });
 
     test("an empty allowlist matches nothing", async () => {
-      const page = await repository.list(
-        { allowedPatterns: [], mailPermissionFilter: null },
-        10,
-        null,
-      );
+      const filter = { allowedPatterns: [], mailPermissionFilter: null };
+      const page = await repository.list(filter, 10, null);
       expect(page.nodes).toEqual([]);
-      expect(page.totalCount).toBe(0);
+      expect(await repository.count(filter)).toBe(0);
     });
 
     test("a match-all pattern imposes no restriction", async () => {
-      const page = await repository.list(
-        {
-          allowedPatterns: [MATCH_ALL_ADDRESSES],
-          mailPermissionFilter: null,
-        },
-        10,
-        null,
-      );
-      expect(page.totalCount).toBe(4);
+      const filter = {
+        allowedPatterns: [MATCH_ALL_ADDRESSES],
+        mailPermissionFilter: null,
+      };
+      expect((await repository.list(filter, 10, null)).nodes).toHaveLength(4);
+      expect(await repository.count(filter)).toBe(4);
     });
 
     test("filters by domain, direction and toAddress", async () => {
       expect(
-        (
-          await repository.list(
-            { ...UNRESTRICTED, domainIds: [otherDomainId] },
-            10,
-            null,
-          )
-        ).totalCount,
+        await repository.count({ ...UNRESTRICTED, domainIds: [otherDomainId] }),
       ).toBe(0);
       expect(
-        (
-          await repository.list(
-            { ...UNRESTRICTED, direction: MessageDirection.Outbound },
-            10,
-            null,
-          )
-        ).totalCount,
+        await repository.count({
+          ...UNRESTRICTED,
+          direction: MessageDirection.Outbound,
+        }),
       ).toBe(0);
       expect(
         (
@@ -341,16 +335,10 @@ describe("messageRepository", () => {
         ).nodes.map((message) => message.id),
       ).toEqual(["msg-2"]);
       expect(
-        (
-          await repository.list(
-            {
-              ...UNRESTRICTED,
-              excludeTagIds: [createTagId(SYSTEM_TAG_IDS.trash)],
-            },
-            10,
-            null,
-          )
-        ).totalCount,
+        await repository.count({
+          ...UNRESTRICTED,
+          excludeTagIds: [createTagId(SYSTEM_TAG_IDS.trash)],
+        }),
       ).toBe(3);
     });
 
@@ -438,13 +426,7 @@ describe("messageRepository", () => {
       ).toEqual(["msg-cc"]);
       // ...the without-cc filter does not.
       expect(
-        (
-          await repository.list(
-            { ...UNRESTRICTED, toAddress: copied },
-            10,
-            null,
-          )
-        ).totalCount,
+        await repository.count({ ...UNRESTRICTED, toAddress: copied }),
       ).toBe(0);
     });
 
@@ -501,13 +483,10 @@ describe("messageRepository", () => {
         ).nodes.map((message) => message.id),
       ).toEqual(["msg-pdf"]);
       expect(
-        (
-          await repository.list(
-            { ...UNRESTRICTED, attachmentKinds: [AttachmentKind.Image] },
-            10,
-            null,
-          )
-        ).totalCount,
+        await repository.count({
+          ...UNRESTRICTED,
+          attachmentKinds: [AttachmentKind.Image],
+        }),
       ).toBe(0);
     });
 
@@ -580,15 +559,12 @@ describe("messageRepository", () => {
     });
 
     test("NOT_FETCHED matches messages with no state row at all", async () => {
-      const page = await repository.list(
-        {
-          ...UNRESTRICTED,
-          fetchStatus: { apiKeyId, status: FetchStatus.NotFetched },
-        },
-        10,
-        null,
-      );
-      expect(page.totalCount).toBe(2);
+      const filter = {
+        ...UNRESTRICTED,
+        fetchStatus: { apiKeyId, status: FetchStatus.NotFetched },
+      };
+      expect((await repository.list(filter, 10, null)).nodes).toHaveLength(2);
+      expect(await repository.count(filter)).toBe(2);
     });
 
     test("acknowledging moves a message between the two queues", async () => {
@@ -628,19 +604,13 @@ describe("messageRepository", () => {
         markFetched(null, createMessageId("msg-2"), apiKeyId, NOW),
       ]);
       expect(
-        (
-          await repository.list(
-            {
-              ...UNRESTRICTED,
-              fetchStatus: {
-                apiKeyId: otherKeyId,
-                status: FetchStatus.NotFetched,
-              },
-            },
-            10,
-            null,
-          )
-        ).totalCount,
+        await repository.count({
+          ...UNRESTRICTED,
+          fetchStatus: {
+            apiKeyId: otherKeyId,
+            status: FetchStatus.NotFetched,
+          },
+        }),
       ).toBe(2);
     });
 
@@ -655,16 +625,10 @@ describe("messageRepository", () => {
         },
       ]);
       expect(
-        (
-          await repository.list(
-            {
-              ...UNRESTRICTED,
-              fetchStatus: { apiKeyId, status: FetchStatus.NotFetched },
-            },
-            10,
-            null,
-          )
-        ).totalCount,
+        await repository.count({
+          ...UNRESTRICTED,
+          fetchStatus: { apiKeyId, status: FetchStatus.NotFetched },
+        }),
       ).toBe(2);
     });
 

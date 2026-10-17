@@ -21,6 +21,9 @@ export type AuthOperation =
   | "verifyEmailAuthToken"
   | "bootstrapAdmin";
 
+const FAIL_CLOSED_AUTH_OPERATIONS: ReadonlySet<AuthOperation> =
+  new Set<AuthOperation>(["bootstrapAdmin", "verifyEmailAuthToken"]);
+
 export function requireAdminUser(
   viewer: Viewer,
 ): asserts viewer is Extract<Viewer, { kind: "USER" }> {
@@ -93,9 +96,19 @@ export async function enforceAuthRateLimit(
   if (deps.rateLimiter === null) {
     return;
   }
-  const allowed = await deps.rateLimiter.limit(
-    `auth:${operation}:${clientIp ?? "unknown"}`,
-  );
+  const key = `auth:${operation}:${clientIp ?? "unknown"}`;
+  let allowed: boolean;
+  try {
+    allowed = await deps.rateLimiter.limit(key);
+  } catch (error) {
+    // Operations that mint a session or the first admin must not become
+    // unthrottled because the limiter is broken: fail closed for them. Every
+    // other operation fails open, so an outage cannot lock users out.
+    if (FAIL_CLOSED_AUTH_OPERATIONS.has(operation)) {
+      throw new RateLimitedError("Too many requests; try again later", error);
+    }
+    return;
+  }
   if (!allowed) {
     throw new RateLimitedError("Too many requests; try again later");
   }

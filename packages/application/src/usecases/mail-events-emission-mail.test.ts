@@ -288,7 +288,7 @@ describe("mail event emission for ingest, send and drafts", () => {
     expect(fake.fakeMailEventNotifier.notifyCount).toBe(2);
   });
 
-  test("sendDraft emits MESSAGE_SENT and deleteDraft captures pre-delete addresses", async () => {
+  test("sendDraft emits MESSAGE_SENT and deleteDraft emits only the sender address", async () => {
     const draft = await createSaveDraftUseCase(fake.deps)(adminViewer(), {
       from: "support@example.com",
       to: ["customer@other.com"],
@@ -320,7 +320,8 @@ describe("mail event emission for ingest, send and drafts", () => {
     expect(fake.fakeMailEventLog.records().at(-1)).toMatchObject({
       type: MailEventType.DraftDeleted,
       messageId: deletable.id,
-      addresses: ["delete-me@other.com", "support@example.com"],
+      // Draft events carry the sender only; recipients stay private.
+      addresses: ["support@example.com"],
     });
   });
 

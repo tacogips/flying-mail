@@ -241,6 +241,75 @@ describe("mailDomainRepository", () => {
     ).toBe(true);
   });
 
+  test("header recipients and spoofed inbound senders do not make a local part known", async () => {
+    await repository.save(verifyMailDomain(domain(), NOW));
+    const messages = createMessageRepository(db);
+    // An inbound message from an attacker that Cc's / Bcc's / To's arbitrary
+    // local parts and claims a local part of ours as its sender.
+    const inbound = createInboundMessage({
+      id: createMessageId("msg-spoof"),
+      domainId,
+      threadId: createThreadId("thr-spoof"),
+      rfcMessageId: "spoof@other.com",
+      inReplyTo: null,
+      references: [],
+      subject: "Probe",
+      fromAddress: createEmailAddress("ceo@example.com"),
+      fromName: null,
+      textBody: "body",
+      htmlBody: null,
+      rawKey: null,
+      rawSize: 0,
+      occurredAt: NOW,
+      createdAt: NOW,
+      spamScore: null,
+    });
+    await messages.insertWithRelations({
+      message: inbound,
+      recipients: [
+        {
+          kind: RecipientKind.Envelope,
+          address: createEmailAddress("support@example.com"),
+          name: null,
+          position: 0,
+        },
+        {
+          kind: RecipientKind.To,
+          address: createEmailAddress("to-header@example.com"),
+          name: null,
+          position: 0,
+        },
+        {
+          kind: RecipientKind.Cc,
+          address: createEmailAddress("cc-header@example.com"),
+          name: null,
+          position: 0,
+        },
+        {
+          kind: RecipientKind.Bcc,
+          address: createEmailAddress("bcc-header@example.com"),
+          name: null,
+          position: 0,
+        },
+      ],
+      attachments: [],
+      tagIds: [],
+      taggedAt: NOW,
+    });
+
+    expect(
+      await repository.hasKnownLocalPart(domainId, "support@example.com"),
+    ).toBe(true);
+    for (const address of [
+      "to-header@example.com",
+      "cc-header@example.com",
+      "bcc-header@example.com",
+      "ceo@example.com",
+    ]) {
+      expect(await repository.hasKnownLocalPart(domainId, address)).toBe(false);
+    }
+  });
+
   test("delete removes the row", async () => {
     await repository.save(domain());
     await repository.delete(domainId);
@@ -389,6 +458,40 @@ describe("apiKeyRepository", () => {
     await repository.save(key());
     expect(await repository.findByKeyHash("hash-1")).toEqual(key());
     expect(await repository.findByKeyHash("nope")).toBeNull();
+  });
+
+  test("lists the keys a user created, revoked ones included", async () => {
+    const db = await createMigratedDatabase();
+    const users = createUserRepository(db);
+    const keys = createApiKeyRepository(db);
+    for (const id of ["usr-a", "usr-b"]) {
+      await users.save(
+        createUser({
+          id: createUserId(id),
+          email: createEmailAddress(`${id}@example.com`),
+          name: id,
+          role: UserRole.Admin,
+          createdAt: NOW,
+        }),
+      );
+    }
+    const make = (id: string, creator: string | null) => ({
+      ...key(),
+      id: createApiKeyId(id),
+      keyHash: `hash-${id}`,
+      keyPrefix: `ybm_${id}`,
+      createdByUserId: creator === null ? null : createUserId(creator),
+    });
+    await keys.save(make("k1", "usr-a"));
+    await keys.save(
+      revokeApiKey(make("k2", "usr-a"), "2026-08-23T01:00:00.000Z"),
+    );
+    await keys.save(make("k3", "usr-b"));
+    await keys.save(make("k4", null));
+
+    const listed = await keys.listByCreator(createUserId("usr-a"));
+    expect(listed.map((entry) => entry.id).sort()).toEqual(["k1", "k2"]);
+    expect(await keys.listByCreator(createUserId("usr-none"))).toEqual([]);
   });
 
   test("returns revoked keys too, leaving the usability check to the caller", async () => {

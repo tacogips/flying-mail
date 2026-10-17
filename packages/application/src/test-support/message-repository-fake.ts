@@ -6,6 +6,7 @@ import {
 import {
   MailStatus,
   type Message,
+  MessageDirection,
   type MessageRecipient,
   RecipientKind,
 } from "@flying-mail/domain/entities/message";
@@ -472,6 +473,16 @@ export function fakeMessageRepository(
       ]);
     },
 
+    async countOutboundSince(domainId, since) {
+      return [...stores.messages.values()].filter(
+        (message) =>
+          message.direction === MessageDirection.Outbound &&
+          message.status !== MailStatus.Draft &&
+          message.domainId === domainId &&
+          message.occurredAt >= since,
+      ).length;
+    },
+
     async saveIfDraft(message) {
       const existing = stores.messages.get(message.id);
       if (existing?.status !== MailStatus.Draft) {
@@ -552,8 +563,13 @@ export function fakeMessageRepository(
       return {
         nodes,
         nextCursor: hasMore && last !== undefined ? encodeCursor(last) : null,
-        totalCount: matching.length,
       };
+    },
+
+    async count(filter) {
+      return [...stores.messages.values()].filter((message) =>
+        matchesFilter(stores, message, filter),
+      ).length;
     },
 
     async listByThread(threadId: ThreadId) {

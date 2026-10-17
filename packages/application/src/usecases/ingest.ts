@@ -571,6 +571,12 @@ export function createReceiveMessageUseCase(
     const from = headerFromAddress(parsed, envelopeFrom);
     const bodies = truncateBodies(parsed);
 
+    // Set when this Message-ID is already stored with *different* content.
+    // That copy is neither merged into the stored message (a forged mail
+    // could otherwise graft recipients onto, or masquerade as, someone
+    // else's message) nor dropped (a second recipient's delivery would be
+    // lost): it is kept as its own message without a Message-ID.
+    let conflictingMessageId = false;
     if (parsed.messageId !== null) {
       const existing = await deps.messageRepository.findInboundByRfcMessageId(
         parsed.messageId,
@@ -588,9 +594,10 @@ export function createReceiveMessageUseCase(
               { type: MailEventType.MessageReceived, message: existing },
             ]);
           }
+          await deleteBlobsBestEffort(deps, [rawKey]);
+          return { kind: "DUPLICATE", message: existing };
         }
-        await deleteBlobsBestEffort(deps, [rawKey]);
-        return { kind: "DUPLICATE", message: existing };
+        conflictingMessageId = true;
       }
     }
 
@@ -624,7 +631,7 @@ export function createReceiveMessageUseCase(
       id: messageId,
       domainId: resolved.domain.id,
       threadId,
-      rfcMessageId: parsed.messageId,
+      rfcMessageId: conflictingMessageId ? null : parsed.messageId,
       inReplyTo: parsed.inReplyTo,
       references: parsed.references,
       replyTo:
@@ -687,18 +694,20 @@ export function createReceiveMessageUseCase(
           })
         : undefined;
 
+    const insertInput = {
+      message,
+      recipients: collectHeaderRecipients(parsed, resolved.address),
+      attachments,
+      tagIds: ruleOutcome.tagIds,
+      taggedAt: now,
+      ...(spamMark === undefined ? {} : { spam: spamMark }),
+      ...(input.extraStatements === undefined
+        ? {}
+        : { extraStatements: input.extraStatements }),
+    };
+    let storedMessage: Message = message;
     try {
-      await deps.messageRepository.insertWithRelations({
-        message,
-        recipients: collectHeaderRecipients(parsed, resolved.address),
-        attachments,
-        tagIds: ruleOutcome.tagIds,
-        taggedAt: now,
-        ...(spamMark === undefined ? {} : { spam: spamMark }),
-        ...(input.extraStatements === undefined
-          ? {}
-          : { extraStatements: input.extraStatements }),
-      });
+      await deps.messageRepository.insertWithRelations(insertInput);
     } catch (error) {
       if (
         !(error instanceof DuplicateMessageError) ||
@@ -706,18 +715,20 @@ export function createReceiveMessageUseCase(
       ) {
         throw error;
       }
-      await deleteBlobsBestEffort(deps, [
+      const blobKeys = [
         rawKey,
         ...attachments.map((attachment) => attachment.blobKey),
-      ]);
+      ];
       const existing = await deps.messageRepository.findInboundByRfcMessageId(
         parsed.messageId,
         resolved.domain.id,
       );
       if (existing === null) {
+        await deleteBlobsBestEffort(deps, blobKeys);
         throw error;
       }
       if (await hasSameRawMessage(deps, existing, rawBytes)) {
+        await deleteBlobsBestEffort(deps, blobKeys);
         const added = await addEnvelopeRecipientIfNew(
           deps,
           existing,
@@ -728,14 +739,23 @@ export function createReceiveMessageUseCase(
             { type: MailEventType.MessageReceived, message: existing },
           ]);
         }
+        return { kind: "DUPLICATE", message: existing };
       }
-      return { kind: "DUPLICATE", message: existing };
+      // Lost an insert race to a message with different content: keep this
+      // copy under its own id, without the contested Message-ID. The failed
+      // batch was atomic, so nothing of it (including any extra statements)
+      // was written and is safe to write again.
+      storedMessage = { ...message, rfcMessageId: null };
+      await deps.messageRepository.insertWithRelations({
+        ...insertInput,
+        message: storedMessage,
+      });
     }
 
     await recordMailEvents(deps, [
-      { type: MailEventType.MessageReceived, message },
+      { type: MailEventType.MessageReceived, message: storedMessage },
     ]);
-    return { kind: "STORED", message };
+    return { kind: "STORED", message: storedMessage };
   };
 }
 

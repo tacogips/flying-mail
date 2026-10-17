@@ -1,7 +1,7 @@
 import { Capability } from "@flying-mail/domain/entities/api-key";
 import type { AttachmentKind } from "@flying-mail/domain/entities/attachment";
-import type { MailStatus } from "@flying-mail/domain/entities/message";
 import {
+  MailStatus,
   markMessageRead,
   type Message,
   type MessageDirection,
@@ -19,8 +19,10 @@ import type {
   ThreadId,
 } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
-import { BadUserInputError } from "../errors";
+import { BadUserInputError, ServiceUnavailableError } from "../errors";
 import { deleteUnreferencedBlobs } from "./attachment-blobs";
+import { hasDraftAuthority } from "./draft-authority";
+import { assertIdCountWithinLimit } from "./id-limits";
 import { collectMailEventAddresses, recordMailEvents } from "./mail-events";
 import {
   authorizesAnyAddress,
@@ -80,6 +82,13 @@ export interface ListMessagesInput {
   readonly after?: string | null;
 }
 
+/** A page of messages plus a deferred total. The count scans every row
+ * matching the filter, so it only runs if `loadTotalCount` is called, and at
+ * most once per result. */
+export interface MessageListResult extends MessagePage {
+  readonly loadTotalCount: () => Promise<number>;
+}
+
 export interface ThreadView {
   readonly id: ThreadId;
   readonly subject: string;
@@ -133,6 +142,10 @@ export async function loadReadableMessage(
   if (message === null) {
     return null;
   }
+  // An unsent draft is private to its author, whoever it is addressed to.
+  if (message.status === MailStatus.Draft) {
+    return hasDraftAuthority(viewer, message) ? message : null;
+  }
   const addresses = await messageAddresses(deps, message);
   return authorizesAnyAddress(viewer, capability, message.domainId, addresses)
     ? message
@@ -155,6 +168,9 @@ export async function loadReadableMessages(
     messages.map((message) => message.id),
   );
   return messages.filter((message) => {
+    if (message.status === MailStatus.Draft) {
+      return hasDraftAuthority(viewer, message);
+    }
     const recipients = recipientsByMessage.get(message.id) ?? [];
     const addresses = [
       message.fromAddress,
@@ -296,7 +312,7 @@ export async function buildMessageListFilter(
 
 export function createListMessagesUseCase(
   deps: AppDependencies,
-): (viewer: Viewer, input: ListMessagesInput) => Promise<MessagePage> {
+): (viewer: Viewer, input: ListMessagesInput) => Promise<MessageListResult> {
   return async (viewer, input) => {
     if (input.filter?.fetchStatus !== undefined && viewer.kind === "USER") {
       throw new BadUserInputError(
@@ -305,11 +321,26 @@ export function createListMessagesUseCase(
       );
     }
     const filter = await buildMessageListFilter(deps, viewer, input.filter);
-    return deps.messageRepository.list(
+    const page = await deps.messageRepository.list(
       filter,
       clampPageSize(input.first),
       input.after ?? null,
     );
+    // The repository matches drafts by any recipient, but a draft is private
+    // to its author: drop the ones this viewer could not open directly.
+    const nodes = page.nodes.filter(
+      (message) =>
+        message.status !== MailStatus.Draft ||
+        hasDraftAuthority(viewer, message),
+    );
+    // The total is deliberately the raw filtered count, as before: it does
+    // not subtract drafts hidden from this viewer by the filter above.
+    let total: Promise<number> | undefined;
+    const loadTotalCount = (): Promise<number> => {
+      total ??= deps.messageRepository.count(filter);
+      return total;
+    };
+    return { ...page, nodes, loadTotalCount };
   };
 }
 
@@ -354,6 +385,7 @@ export function createMarkReadUseCase(
   read: boolean,
 ) => Promise<readonly Message[]> {
   return async (viewer, ids, read) => {
+    assertIdCountWithinLimit(ids, "ids");
     const messages = await loadReadableMessages(
       deps,
       viewer,
@@ -392,6 +424,7 @@ export function createDeleteMessagesUseCase(
   deps: AppDependencies,
 ): (viewer: Viewer, ids: readonly MessageId[]) => Promise<number> {
   return async (viewer, ids) => {
+    assertIdCountWithinLimit(ids, "ids");
     const messages = await loadReadableMessages(
       deps,
       viewer,
@@ -404,68 +437,58 @@ export function createDeleteMessagesUseCase(
     const trashTag = await deps.tagRepository.findBySystemSlug(
       SystemTagSlug.Trash,
     );
+    // Never fall back to a permanent delete: a missing Trash tag is a
+    // deployment fault, and losing mail silently is the worse outcome.
+    if (trashTag === null) {
+      throw new ServiceUnavailableError("The Trash system tag is missing");
+    }
     const allIds = messages.map((message) => message.id);
-    if (trashTag !== null) {
-      const tagged = await deps.messageRepository.listTagIds(allIds);
-      const toTrash = allIds.filter(
-        (id) => !(tagged.get(id) ?? []).includes(trashTag.id),
+    const tagged = await deps.messageRepository.listTagIds(allIds);
+    const toTrash = allIds.filter(
+      (id) => !(tagged.get(id) ?? []).includes(trashTag.id),
+    );
+    const toPurge = allIds.filter((id) => !toTrash.includes(id));
+    if (toTrash.length > 0) {
+      await deps.messageRepository.addTags(
+        toTrash,
+        [trashTag.id],
+        deps.clock.now().toISOString(),
       );
-      const toPurge = allIds.filter((id) => !toTrash.includes(id));
-      if (toTrash.length > 0) {
-        await deps.messageRepository.addTags(
-          toTrash,
-          [trashTag.id],
-          deps.clock.now().toISOString(),
-        );
-      }
-      if (toPurge.length === 0) {
-        await recordMailEvents(
-          deps,
-          messages
-            .filter((message) => toTrash.includes(message.id))
-            .map((message) => ({
-              type: MailEventType.MessageUpdated,
-              message,
-            })),
-        );
-        return toTrash.length;
-      }
-      // Fall through to permanently delete only the already-trashed set.
-      const trashedMessages = messages.filter((message) =>
-        toTrash.includes(message.id),
-      );
-      const purgedMessages = messages.filter((message) =>
-        toPurge.includes(message.id),
-      );
-      const addressesByMessage = await collectMailEventAddresses(
+    }
+    const trashedMessages = messages.filter((message) =>
+      toTrash.includes(message.id),
+    );
+    if (toPurge.length === 0) {
+      await recordMailEvents(
         deps,
-        purgedMessages,
-      );
-      const removed = await hardDeleteMessages(deps, purgedMessages);
-      await recordMailEvents(deps, [
-        ...trashedMessages.map((message) => ({
+        trashedMessages.map((message) => ({
           type: MailEventType.MessageUpdated,
           message,
         })),
-        ...purgedMessages.map((message) => ({
-          type: MailEventType.MessageDeleted,
-          message,
-          addresses: addressesByMessage.get(message.id) ?? [],
-        })),
-      ]);
-      return toTrash.length + removed;
+      );
+      return toTrash.length;
     }
-    const addressesByMessage = await collectMailEventAddresses(deps, messages);
-    const removed = await hardDeleteMessages(deps, messages);
-    await recordMailEvents(
+    // Permanently delete only the already-trashed set.
+    const purgedMessages = messages.filter((message) =>
+      toPurge.includes(message.id),
+    );
+    const addressesByMessage = await collectMailEventAddresses(
       deps,
-      messages.map((message) => ({
+      purgedMessages,
+    );
+    const removed = await hardDeleteMessages(deps, purgedMessages);
+    await recordMailEvents(deps, [
+      ...trashedMessages.map((message) => ({
+        type: MailEventType.MessageUpdated,
+        message,
+      })),
+      ...purgedMessages.map((message) => ({
         type: MailEventType.MessageDeleted,
         message,
         addresses: addressesByMessage.get(message.id) ?? [],
       })),
-    );
-    return removed;
+    ]);
+    return toTrash.length + removed;
   };
 }
 

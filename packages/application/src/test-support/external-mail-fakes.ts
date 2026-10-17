@@ -8,6 +8,7 @@ import type {
   JmapCredentials,
   JmapFetchResult,
   Pop3Client,
+  SkippedRemoteMessage,
   Pop3Credentials,
   SmtpCredentials,
   SmtpEnvelope,
@@ -100,6 +101,7 @@ export function fakeExternalMessageStateRepository(
           state.remoteId,
           state.messageId,
           state.fetchedAt,
+          state.skipReason,
         ],
         apply: () => {
           stores.states.set(stateKey(state.accountId, state.remoteId), state);
@@ -111,7 +113,10 @@ export function fakeExternalMessageStateRepository(
 
 export interface JmapScript {
   readonly testConnectionError?: Error;
-  readonly fetchSinceResult?: JmapFetchResult;
+  /** `skipped` may be omitted; it defaults to none. */
+  readonly fetchSinceResult?: Omit<JmapFetchResult, "skipped"> & {
+    readonly skipped?: readonly SkippedRemoteMessage[];
+  };
   readonly fetchSinceError?: Error;
 }
 
@@ -148,7 +153,10 @@ export function scriptedJmapClient(
       if (script.fetchSinceError !== undefined) {
         throw script.fetchSinceError;
       }
-      return script.fetchSinceResult ?? { messages: [], hasMore: false };
+      const scripted = script.fetchSinceResult;
+      return scripted === undefined
+        ? { messages: [], hasMore: false, skipped: [] }
+        : { ...scripted, skipped: scripted.skipped ?? [] };
     },
   };
 }
@@ -161,6 +169,9 @@ export interface Pop3Script {
    * entry falls back to an empty message. */
   readonly messagesByUidl?: ReadonlyMap<string, Uint8Array>;
   readonly fetchByUidlError?: Error;
+  /** UIDLs the scripted client reports as skipped (too large) instead of
+   * returning their bytes. */
+  readonly skippedUidls?: ReadonlyMap<string, number>;
 }
 
 export interface ScriptedPop3Client extends Pop3Client {
@@ -195,16 +206,30 @@ export function scriptedPop3Client(
       }
       return script.uidls ?? [];
     },
-    async fetchByUidl(_credentials, uidls) {
+    async fetchByUidl(credentials, uidls) {
+      return (await this.fetchByUidlDetailed(credentials, uidls)).messages;
+    },
+    async fetchByUidlDetailed(_credentials, uidls) {
       fetchByUidlCalls.push(uidls);
       if (script.fetchByUidlError !== undefined) {
         throw script.fetchByUidlError;
       }
       const byUidl = script.messagesByUidl ?? new Map<string, Uint8Array>();
-      return uidls.map((remoteId) => ({
-        remoteId,
-        raw: byUidl.get(remoteId) ?? new Uint8Array(),
-      }));
+      const skippedUidls = script.skippedUidls ?? new Map<string, number>();
+      const messages = uidls
+        .filter((remoteId) => !skippedUidls.has(remoteId))
+        .map((remoteId) => ({
+          remoteId,
+          raw: byUidl.get(remoteId) ?? new Uint8Array(),
+        }));
+      const skipped: SkippedRemoteMessage[] = uidls
+        .filter((remoteId) => skippedUidls.has(remoteId))
+        .map((remoteId) => ({
+          remoteId,
+          reason: "TOO_LARGE" as const,
+          size: skippedUidls.get(remoteId) ?? null,
+        }));
+      return { messages, skipped };
     },
   };
 }

@@ -20,8 +20,23 @@ describe("normalizeMessageId", () => {
     expect(normalizeMessageId(input)).toBe(expected);
   });
 
-  test.each([undefined, "", "  ", "<>"])("returns null for %j", (input) => {
+  test.each([
+    undefined,
+    "",
+    "  ",
+    "<>",
+    "<a b@example.com>",
+    "<a\r\nBcc: x@y.com>",
+    "<a\u0000b@example.com>",
+    "<a\u007fb@example.com>",
+    `<${"a".repeat(999)}>`,
+  ])("returns null for %j", (input) => {
     expect(normalizeMessageId(input)).toBeNull();
+  });
+
+  test("keeps an id of exactly the maximum length", () => {
+    const id = "a".repeat(998);
+    expect(normalizeMessageId(`<${id}>`)).toBe(id);
   });
 });
 
@@ -36,6 +51,17 @@ describe("splitReferences", () => {
 
   test("returns an empty array for an absent header", () => {
     expect(splitReferences(undefined)).toEqual([]);
+  });
+
+  test("drops a bracketed id containing whitespace as one entry", () => {
+    expect(splitReferences("<a@x.com> <b\r\nBcc: y@z.com> <c@x.com>")).toEqual([
+      "a@x.com",
+      "c@x.com",
+    ]);
+  });
+
+  test("accepts bare ids when no brackets are present", () => {
+    expect(splitReferences("a@x.com b@x.com")).toEqual(["a@x.com", "b@x.com"]);
   });
 });
 
@@ -251,5 +277,74 @@ describe("createPostalMimeParser", () => {
     expect(parsed.from).toBeNull();
     expect(parsed.messageId).toBeNull();
     expect(parsed.attachments).toEqual([]);
+  });
+
+  describe("hostile encoded headers", () => {
+    function b64Word(decoded: string): string {
+      return `=?utf-8?B?${Buffer.from(decoded).toString("base64")}?=`;
+    }
+
+    test("drops message ids whose RFC 2047 decoding contains CRLF", async () => {
+      const parsed = await parser.parse(
+        eml([
+          "From: eve@example.com",
+          "To: bob@example.net",
+          "Subject: Hi",
+          `Message-ID: <${b64Word("a@b.com>\r\nBcc: evil@x.com\r\nX: <c")}@x.com>`,
+          `In-Reply-To: <${b64Word("p\r\nBcc: evil@x.com")}@x.com>`,
+          `References: <ok@x.com> <${b64Word("r\r\nBcc: evil@x.com")}@x.com> <ok2@x.com>`,
+          "",
+          "body",
+          "",
+        ]),
+      );
+      expect(parsed.messageId).toBeNull();
+      expect(parsed.inReplyTo).toBeNull();
+      expect(parsed.references).toEqual(["ok@x.com", "ok2@x.com"]);
+    });
+
+    test("strips control characters from the subject and display names", async () => {
+      const parsed = await parser.parse(
+        eml([
+          `From: ${b64Word("Eve\r\nBcc: x@y.com")} <eve@example.com>`,
+          `To: ${b64Word("Bob\u0000\u0007")} <bob@example.net>`,
+          `Subject: ${b64Word("Hi\r\nBcc: x@y.com")}`,
+          "",
+          "body",
+          "",
+        ]),
+      );
+      expect(parsed.subject).toBe("Hi Bcc: x@y.com");
+      expect(parsed.from?.name).toBe("Eve Bcc: x@y.com");
+      expect(parsed.to[0]?.name).toBe("Bob");
+    });
+
+    test("replaces a malformed attachment content type with octet-stream", async () => {
+      const parsed = await parser.parse(
+        eml([
+          "From: eve@example.com",
+          "To: bob@example.net",
+          "Subject: Att",
+          "MIME-Version: 1.0",
+          'Content-Type: multipart/mixed; boundary="b"',
+          "",
+          "--b",
+          "Content-Type: text/plain",
+          "",
+          "hi",
+          "--b",
+          "Content-Type: not a media type",
+          'Content-Disposition: attachment; filename="x.bin"',
+          "",
+          "data",
+          "--b--",
+          "",
+        ]),
+      );
+      expect(parsed.attachments).toHaveLength(1);
+      expect(parsed.attachments[0]?.contentType).toBe(
+        "application/octet-stream",
+      );
+    });
   });
 });

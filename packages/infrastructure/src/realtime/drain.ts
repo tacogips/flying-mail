@@ -4,6 +4,7 @@ import {
 } from "@flying-mail/application/policies/authorization";
 import type { AppDependencies } from "@flying-mail/application/dependencies";
 import type { UseCases } from "@flying-mail/application/usecases";
+import type { MailEventLogState } from "@flying-mail/application/ports/mail-event-log";
 import { Capability } from "@flying-mail/domain/entities/api-key";
 import { formatMailEventCursor } from "@flying-mail/domain/value-objects/mail-event-cursor";
 import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
@@ -12,7 +13,7 @@ import type { SubscriptionExecutor, PreparedSubscription } from "./executor";
 import type { ConnectionState, HubConnection, RealtimeHost } from "./host";
 import type { MailEventPayload } from "./mail-event-payload";
 import { graphqlError, matchesScope } from "./drain-helpers";
-import { CloseCode, REPLAY_PAGE } from "./protocol";
+import { CloseCode, PRINCIPAL_CACHE_TTL_MS, REPLAY_PAGE } from "./protocol";
 
 interface DrainOptions {
   readonly host: RealtimeHost;
@@ -40,6 +41,15 @@ interface ActiveState {
 interface PrincipalResult {
   readonly viewer: Awaited<ReturnType<UseCases["resolveViewerFromTokenHash"]>>;
   readonly closeCode: number | null;
+}
+
+interface CachedPrincipal {
+  readonly result: PrincipalResult;
+  readonly expiresAt: number;
+}
+
+interface SubscriptionEntry extends ActiveState {
+  readonly subscription: ConnectionState["subscriptions"][number];
 }
 
 function safeSend(
@@ -82,6 +92,10 @@ function readableAddresses(
 
 export function createDrain(options: DrainOptions): DrainController {
   const preparedBySubscription = new Map<string, PreparedSubscription>();
+  // Principal resolutions are reused for PRINCIPAL_CACHE_TTL_MS so repeated
+  // passes (alarm plus notifications) do not hit storage for every principal.
+  // Revocation is therefore noticed within one TTL.
+  const principalCache = new Map<string, CachedPrincipal>();
   let running: Promise<void> | null = null;
   let dirty = false;
 
@@ -157,15 +171,26 @@ export function createDrain(options: DrainOptions): DrainController {
     active: readonly ActiveState[],
   ): Promise<Map<string, PrincipalResult>> {
     const results = new Map<string, PrincipalResult>();
+    const now = options.host.now();
+    const activeHashes = new Set<string>();
     for (const { state } of active) {
-      const principal = state.principal;
-      if (principal === null || results.has(principal.tokenHash)) continue;
+      if (state.principal !== null) activeHashes.add(state.principal.tokenHash);
+    }
+    for (const tokenHash of principalCache.keys()) {
+      if (!activeHashes.has(tokenHash)) principalCache.delete(tokenHash);
+    }
+    for (const tokenHash of activeHashes) {
+      const cached = principalCache.get(tokenHash);
+      if (cached !== undefined && now < cached.expiresAt) {
+        results.set(tokenHash, cached.result);
+        continue;
+      }
       try {
         const viewer = await options.usecases.resolveViewerFromTokenHash(
-          principal.tokenHash,
+          tokenHash,
           { recordUsage: false },
         );
-        results.set(principal.tokenHash, {
+        const result: PrincipalResult = {
           viewer,
           closeCode:
             viewer === null
@@ -173,9 +198,15 @@ export function createDrain(options: DrainOptions): DrainController {
               : hasAnyMailRead(viewer)
                 ? null
                 : CloseCode.Forbidden,
+        };
+        results.set(tokenHash, result);
+        principalCache.set(tokenHash, {
+          result,
+          expiresAt: now + PRINCIPAL_CACHE_TTL_MS,
         });
       } catch {
-        results.set(principal.tokenHash, {
+        // Failures are not cached; the connection is dropped by this pass.
+        results.set(tokenHash, {
           viewer: null,
           closeCode: CloseCode.Unauthorized,
         });
@@ -184,43 +215,21 @@ export function createDrain(options: DrainOptions): DrainController {
     return results;
   }
 
-  async function pass(): Promise<{
-    readonly rowCount: number;
-    readonly hadSubscriptions: boolean;
-  }> {
-    const active = await loadActiveStates();
-    const principalResults = await resolvePrincipals(active);
-    const valid: ActiveState[] = [];
-    for (const entry of active) {
-      const principal = entry.state.principal;
-      if (principal === null) continue;
-      const result = principalResults.get(principal.tokenHash);
-      if (result?.closeCode !== null && result?.closeCode !== undefined) {
-        await options.dropConnection(
-          entry.connection,
-          entry.state,
-          result.closeCode,
-        );
-      } else if (result?.viewer !== null && result?.viewer !== undefined) {
-        valid.push(entry);
-      }
-    }
-    const subscriptions = valid.flatMap(({ connection, state }) =>
-      state.subscriptions.map((subscription) => ({
-        connection,
-        state,
-        subscription,
-      })),
-    );
-    if (subscriptions.length === 0)
-      return { rowCount: 0, hadSubscriptions: false };
-
+  /**
+   * Delivers log rows to one bucket of subscriptions, reading from the lowest
+   * cursor in that bucket. Returns the number of rows read; a full page means
+   * the bucket has not reached the head of the log yet.
+   */
+  async function serveBucket(
+    subscriptions: readonly SubscriptionEntry[],
+    principalResults: ReadonlyMap<string, PrincipalResult>,
+    logState: MailEventLogState,
+    dirtyStates: Map<string, ActiveState>,
+  ): Promise<number> {
     const from = Math.min(
       ...subscriptions.map(({ subscription }) => subscription.lastSeq),
     );
     const rows = await options.deps.mailEventLog.listAfter(from, REPLAY_PAGE);
-    const logState = await options.deps.mailEventLog.state();
-    const dirtyStates = new Map<string, ActiveState>();
 
     for (const { connection, state, subscription } of subscriptions) {
       if (!hasSubscription(state, subscription)) continue;
@@ -346,18 +355,75 @@ export function createDrain(options: DrainOptions): DrainController {
         dirtyStates.set(state.connId, { connection, state });
       }
     }
+    return rows.length;
+  }
+
+  async function pass(): Promise<{
+    readonly more: boolean;
+    readonly hadSubscriptions: boolean;
+  }> {
+    const active = await loadActiveStates();
+    const principalResults = await resolvePrincipals(active);
+    const valid: ActiveState[] = [];
+    for (const entry of active) {
+      const principal = entry.state.principal;
+      if (principal === null) continue;
+      const result = principalResults.get(principal.tokenHash);
+      if (result?.closeCode !== null && result?.closeCode !== undefined) {
+        await options.dropConnection(
+          entry.connection,
+          entry.state,
+          result.closeCode,
+        );
+      } else if (result?.viewer !== null && result?.viewer !== undefined) {
+        valid.push(entry);
+      }
+    }
+    const subscriptions = valid.flatMap(({ connection, state }) =>
+      state.subscriptions.map((subscription) => ({
+        connection,
+        state,
+        subscription,
+      })),
+    );
+    if (subscriptions.length === 0)
+      return { more: false, hadSubscriptions: false };
+
+    // A subscription replaying old history must not delay subscriptions that
+    // are at (or near) the head. Each bucket reads from its own lowest cursor,
+    // so a lagging bucket costs at most one extra page per pass.
+    const logState = await options.deps.mailEventLog.state();
+    const replayFloor = logState.headSeq - REPLAY_PAGE;
+    const nearHead = subscriptions.filter(
+      ({ subscription }) => subscription.lastSeq >= replayFloor,
+    );
+    const lagging = subscriptions.filter(
+      ({ subscription }) => subscription.lastSeq < replayFloor,
+    );
+    const dirtyStates = new Map<string, ActiveState>();
+    let more = false;
+    for (const bucket of [nearHead, lagging]) {
+      if (bucket.length === 0) continue;
+      const rowCount = await serveBucket(
+        bucket,
+        principalResults,
+        logState,
+        dirtyStates,
+      );
+      if (rowCount >= REPLAY_PAGE) more = true;
+    }
 
     for (const { connection, state } of dirtyStates.values()) {
       if (isCurrent(state)) await options.host.saveState(connection, state);
     }
-    return { rowCount: rows.length, hadSubscriptions: true };
+    return { more, hadSubscriptions: true };
   }
 
   async function drainLoop(): Promise<void> {
     do {
       dirty = false;
       const result = await pass();
-      if (result.rowCount === REPLAY_PAGE) dirty = true;
+      if (result.more) dirty = true;
       if (!result.hadSubscriptions) return;
     } while (dirty);
   }

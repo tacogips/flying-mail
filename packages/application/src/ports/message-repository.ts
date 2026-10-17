@@ -94,7 +94,6 @@ export interface MessagePage {
   readonly nodes: readonly Message[];
   /** `null` once the result set is exhausted. */
   readonly nextCursor: string | null;
-  readonly totalCount: number;
 }
 
 export interface AddressActivity {
@@ -141,6 +140,9 @@ export interface MessageRepository {
     messageId: MessageId,
     address: EmailAddress,
   ): Promise<void>;
+  /** Counts non-draft outbound messages of `domainId` created at or after
+   * `since` (ISO-8601). Backs the per-domain daily send budget. */
+  countOutboundSince(domainId: DomainId, since: string): Promise<number>;
   saveIfDraft(message: Message): Promise<boolean>;
   deleteDraftIfDraft(id: MessageId): Promise<boolean>;
   countAttachmentsByBlobKeys(
@@ -151,11 +153,16 @@ export interface MessageRepository {
   findThreadIdByReferences(
     references: readonly string[],
   ): Promise<ThreadId | null>;
+  /** One page of matches. Deliberately does not count the full result set:
+   * the count scans every matching row, so callers that want it ask via
+   * {@link MessageRepository.count}. */
   list(
     filter: MessageListFilter,
     limit: number,
     cursor: string | null,
   ): Promise<MessagePage>;
+  /** Number of messages matching `filter`, ignoring paging. */
+  count(filter: MessageListFilter): Promise<number>;
   listByThread(threadId: ThreadId): Promise<readonly Message[]>;
   /** Single-`batch()` insert of the message plus its recipients,
    * attachments and tag rows. */

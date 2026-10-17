@@ -152,7 +152,7 @@ export function createRequestEmailAuthUseCase(
       });
       await deps.emailAuthChallengeRepository.save(challenge);
 
-      const url = `${mail.origin}/auth/verify?token=${encodeURIComponent(token)}`;
+      const url = `${mail.origin}/auth/verify#token=${encodeURIComponent(token)}`;
       await deps.mailSender.send({
         from: mail.from,
         to: [email],

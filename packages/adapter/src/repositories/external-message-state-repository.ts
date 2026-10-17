@@ -3,17 +3,22 @@ import type {
   SqlDatabase,
   SqlStatement,
 } from "@flying-mail/application/ports/sql-database";
-import type { ExternalMessageState } from "@flying-mail/domain/entities/external-message-state";
+import {
+  type ExternalMessageState,
+  ExternalMessageSkipReason,
+} from "@flying-mail/domain/entities/external-message-state";
 import {
   createExternalAccountId,
   createMessageId,
 } from "@flying-mail/domain/value-objects/ids";
+import { assertEnumValue } from "./sql-helpers";
 
 interface ExternalMessageStateRow {
   readonly account_id: string;
   readonly remote_id: string;
-  readonly message_id: string;
+  readonly message_id: string | null;
   readonly fetched_at: string;
+  readonly skip_reason: string | null;
 }
 
 function rowToExternalMessageState(
@@ -22,24 +27,39 @@ function rowToExternalMessageState(
   return {
     accountId: createExternalAccountId(row.account_id),
     remoteId: row.remote_id,
-    messageId: createMessageId(row.message_id),
+    messageId: row.message_id === null ? null : createMessageId(row.message_id),
     fetchedAt: row.fetched_at,
+    skipReason:
+      row.skip_reason === null
+        ? null
+        : assertEnumValue(
+            ExternalMessageSkipReason,
+            row.skip_reason,
+            "external message skip reason",
+          ),
   };
 }
 
 const UPSERT_SQL = `INSERT INTO external_message_states
-  (account_id, remote_id, message_id, fetched_at)
-  VALUES (?, ?, ?, ?)
+  (account_id, remote_id, message_id, fetched_at, skip_reason)
+  VALUES (?, ?, ?, ?, ?)
   ON CONFLICT(account_id, remote_id) DO UPDATE SET
     message_id = excluded.message_id,
-    fetched_at = excluded.fetched_at`;
+    fetched_at = excluded.fetched_at,
+    skip_reason = excluded.skip_reason`;
 
 /** The one place the upsert statement is built, so `save()` and
  * `buildSaveStatement()` can never drift apart. */
 function saveStatement(state: ExternalMessageState): SqlStatement {
   return {
     sql: UPSERT_SQL,
-    params: [state.accountId, state.remoteId, state.messageId, state.fetchedAt],
+    params: [
+      state.accountId,
+      state.remoteId,
+      state.messageId,
+      state.fetchedAt,
+      state.skipReason,
+    ],
   };
 }
 

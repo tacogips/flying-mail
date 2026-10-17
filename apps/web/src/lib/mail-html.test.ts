@@ -7,6 +7,38 @@ import {
   sanitizeMailHtml,
 } from "./mail-html";
 
+describe("sanitizeMailHtml anchors", () => {
+  test.each([
+    "https://example.com/a",
+    "http://example.com/a",
+    "mailto:a@example.com",
+    "tel:+15551234",
+    "HTTPS://EXAMPLE.COM",
+  ])("keeps href %s", (href) => {
+    const html = sanitizeMailHtml(`<a href="${href}">x</a>`);
+    expect(html).toContain("href=");
+  });
+
+  test.each([
+    ["cid:", "cid:logo@example"],
+    ["data:image", "data:image/png;base64,AAAA"],
+    ["javascript:", "javascript:alert(1)"],
+    ["a relative path", "/settings"],
+    ["a protocol-relative url", "//evil.example/x"],
+    ["a fragment", "#top"],
+  ])("removes href with %s", (_label, href) => {
+    const html = sanitizeMailHtml(`<a href="${href}">x</a>`);
+    expect(html).not.toContain("href=");
+    expect(html).toContain(">x</a>");
+  });
+
+  test("still marks remaining anchors as opening away safely", () => {
+    const html = sanitizeMailHtml('<a href="https://example.com">x</a>');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain("noopener noreferrer");
+  });
+});
+
 describe("sanitizeMailHtml", () => {
   test("keeps ordinary formatting", () => {
     const html = sanitizeMailHtml(

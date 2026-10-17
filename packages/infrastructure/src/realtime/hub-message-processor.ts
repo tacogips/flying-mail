@@ -1,5 +1,11 @@
 import type { ConnectionState, HubConnection, RealtimeHost } from "./host";
-import { CloseCode, MAX_SUBSCRIPTIONS, parseClientMessage } from "./protocol";
+import { createFrameRateLimiter } from "./frame-rate-limiter";
+import {
+  ACTIVITY_PERSIST_INTERVAL_MS,
+  CloseCode,
+  MAX_SUBSCRIPTIONS,
+  parseClientMessage,
+} from "./protocol";
 import type { SubscriptionHandlerOptions } from "./host";
 
 export interface MessageReservation {
@@ -24,6 +30,11 @@ export interface HubMessageProcessorOptions {
     payload: unknown,
   ) => Promise<void>;
   readonly forget: (connId: string, subscriptionId?: string) => void;
+  /**
+   * Returns the lastMessageAt value last written to storage for the state, or
+   * negative infinity when it has never been persisted by this hub instance.
+   */
+  readonly persistedActivityAt: (state: ConnectionState) => number;
 }
 
 export function createHubMessageProcessor(
@@ -33,10 +44,37 @@ export function createHubMessageProcessor(
   data: string | ArrayBuffer,
   reservation: MessageReservation,
 ) => Promise<void> {
+  const frames = createFrameRateLimiter();
+
+  // Frames that change persisted state (connection_init, subscribe, complete)
+  // are saved by their own handlers, so lastMessageAt rides along with those
+  // writes. Other frames (ping, pong) only update memory, plus one write per
+  // ACTIVITY_PERSIST_INTERVAL_MS so a rehydrated hub does not see stale
+  // activity and idle-close a connection that is still talking.
+  async function persistActivityIfDue(
+    conn: HubConnection,
+    state: ConnectionState,
+    now: number,
+  ): Promise<void> {
+    if (now - options.persistedActivityAt(state) < ACTIVITY_PERSIST_INTERVAL_MS)
+      return;
+    await options.save(conn, state);
+  }
+
   return async (conn, data, reservation) => {
     const state = options.getState(conn);
     if (state === null) return;
-    state.lastMessageAt = options.host.now();
+    const now = options.host.now();
+    state.lastMessageAt = now;
+    if (!frames.consume(state, now)) {
+      await options.closeWith(
+        conn,
+        state,
+        CloseCode.RateLimited,
+        "Too many messages",
+      );
+      return;
+    }
     const parsed = parseClientMessage(data);
     if (!parsed.ok) {
       await options.closeWith(
@@ -48,7 +86,6 @@ export function createHubMessageProcessor(
       return;
     }
     if (options.getState(conn) !== state) return;
-    await options.host.saveState(conn, state);
     switch (parsed.message.type) {
       case "connection_init":
         await options.init(
@@ -126,8 +163,10 @@ export function createHubMessageProcessor(
         } catch {
           // A concurrent socket close is harmless.
         }
+        await persistActivityIfDue(conn, state, now);
         return;
       case "pong":
+        await persistActivityIfDue(conn, state, now);
         return;
       default:
         await options.closeWith(

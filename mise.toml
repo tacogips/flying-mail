@@ -73,12 +73,22 @@ description = "Run wrangler dev (Workers runtime with local D1/R2 simulators)"
 run = "bun run --cwd apps/api cf:dev"
 
 [tasks.cf-deploy]
-description = "Build the web client, apply remote migrations, and deploy"
-depends = ["build-web"]
-run = [
-  "bun run --cwd apps/api migrate:remote",
-  "bun run --cwd apps/api cf:deploy",
-]
+description = "Lint, test, build the web client, show pending remote migrations, then (with FLYING_MAIL_DEPLOY_CONFIRM=yes) apply them and deploy"
+depends = ["lint", "test", "build-web"]
+run = '''
+set -euo pipefail
+echo "== Remote D1 migration state (mailcal-db) =="
+bun run --cwd apps/api migrate:list
+echo
+if [ "${FLYING_MAIL_DEPLOY_CONFIRM:-}" != "yes" ]; then
+  echo "Refusing to apply remote migrations and deploy without confirmation."
+  echo "Review the pending migrations above, then re-run with:"
+  echo "  FLYING_MAIL_DEPLOY_CONFIRM=yes mise run cf-deploy"
+  exit 1
+fi
+bun run --cwd apps/api migrate:remote
+bun run --cwd apps/api cf:deploy
+'''
 
 [tasks.bootstrap-admin]
 description = "Create the first admin on an empty deployment (run under kinko exec; needs FLYING_MAIL_BOOTSTRAP_TOKEN and FLYING_MAIL_ENDPOINT)"

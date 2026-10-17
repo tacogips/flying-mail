@@ -26,7 +26,7 @@ import {
   createThreadId,
 } from "@flying-mail/domain/value-objects/ids";
 import type { GraphQLEnumType, GraphQLObjectType } from "graphql";
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
   createGraphQLHarness,
   errorCodes,
@@ -267,6 +267,56 @@ describe("graphql schema", () => {
     expect(node?.attachments[0]?.url).toBe("/api/attachments/att-msg-1");
     expect(node?.isSpam).toBe(false);
     expect(node?.domain.name).toBe("example.com");
+  });
+
+  test("messages only runs the count query when totalCount is selected", async () => {
+    const messagesOf = <T>(result: {
+      data?: Record<string, unknown> | null;
+    }): T => {
+      const value = result.data?.["messages"];
+      expect(value).toBeDefined();
+      return value as T;
+    };
+    seedMessage(harness.fake, { id: "msg-1", to: "support@example.com" });
+    seedMessage(harness.fake, { id: "msg-2", to: "support@example.com" });
+    const countSpy = vi.spyOn(harness.deps.messageRepository, "count");
+
+    const withoutCount = await harness.run(
+      "{ messages(first: 1) { nodes { id } nextCursor } }",
+      adminViewer(),
+    );
+    expect(withoutCount.errors).toBeUndefined();
+    expect(
+      messagesOf<{ nextCursor: string | null }>(withoutCount).nextCursor,
+    ).not.toBeNull();
+    expect(countSpy).not.toHaveBeenCalled();
+
+    const skipped = await harness.run(
+      `query ($skip: Boolean!) {
+         messages(first: 1) { nodes { id } totalCount @skip(if: $skip) }
+       }`,
+      adminViewer(),
+      { skip: true },
+    );
+    expect(skipped.errors).toBeUndefined();
+    expect(countSpy).not.toHaveBeenCalled();
+
+    const direct = await harness.run(
+      "{ messages(first: 1) { totalCount } }",
+      adminViewer(),
+    );
+    expect(direct.errors).toBeUndefined();
+    expect(messagesOf<{ totalCount: number }>(direct).totalCount).toBe(2);
+    expect(countSpy).toHaveBeenCalledTimes(1);
+
+    const viaFragment = await harness.run(
+      `{ messages(first: 1) { ...Page } }
+       fragment Page on MessagePage { total: totalCount }`,
+      adminViewer(),
+    );
+    expect(viaFragment.errors).toBeUndefined();
+    expect(messagesOf<{ total: number }>(viaFragment).total).toBe(2);
+    expect(countSpy).toHaveBeenCalledTimes(2);
   });
 
   test("filters by attachment kind, presence, cc-recipient and body text", async () => {

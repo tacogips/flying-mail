@@ -185,16 +185,13 @@ describe("messageRepository: mailPermissionFilter (user mailbox rules)", () => {
   });
 
   test("a non-baseline filter with zero ALLOW rules returns an empty page", async () => {
-    const page = await repository.list(
-      {
-        allowedPatterns: null,
-        mailPermissionFilter: { baseline: false, rules: [] },
-      },
-      10,
-      null,
-    );
+    const filter = {
+      allowedPatterns: null,
+      mailPermissionFilter: { baseline: false, rules: [] },
+    };
+    const page = await repository.list(filter, 10, null);
     expect(page.nodes).toEqual([]);
-    expect(page.totalCount).toBe(0);
+    expect(await repository.count(filter)).toBe(0);
   });
 
   test("mailPermissionFilter: null behaves exactly as before (unrestricted)", async () => {

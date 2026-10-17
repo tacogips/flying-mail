@@ -1,6 +1,6 @@
 # MCP Server 08: Mail Management Tools (read state, tags, trash, spam)
 
-**Status**: Not Started
+**Status**: In Progress
 **Plan ID**: mcp-server-08-manage-tools
 **Wave**: 2 (phase 31)
 **Depends On**: mcp-server-01-application-usecases, mcp-server-03-protocol-core
@@ -118,8 +118,10 @@ Each test case is `situation -> expected outcome`.
 
 ## Done criteria
 
-- [ ] `MANAGE_TOOLS` has exactly the 7 tools, as specified.
-- [ ] Verification steps 1-4 pass, with logs recorded.
+- [x] `MANAGE_TOOLS` has exactly the 7 tools, as specified.
+- [ ] Verification steps 1-4 pass, with logs recorded. Steps 1, 3, and 4
+  pass; step 2 needs a rerun after the plan 09 owner finishes its test-file
+  edit because the current typecheck failure is in that separately owned file.
 
 ## Worker protocol
 
@@ -132,4 +134,31 @@ Each test case is `situation -> expected outcome`.
 
 ## Progress Log
 
-(empty)
+### Session: 2026-10-08
+
+**Tasks Completed**: Implemented all seven assigned tools and focused behavior
+tests; verified tool order, MAIL_MANAGE visibility, annotations, state changes,
+tag handling, safe repeat trash behavior, scope filtering, spam verdicts,
+argument limits, and hidden-tool behavior.
+
+**Verification**:
+- `bunx vitest run packages/infrastructure/src/mcp/tools/manage-tools.test.ts`
+  exited 0; 8/8 tests passed. Final-source log:
+  `/tmp/mcp-server-08-postcheck-unit-r2.log`.
+- `bunx biome check packages/infrastructure/src/mcp/tools/manage-tools.ts packages/infrastructure/src/mcp/tools/manage-tools.test.ts`
+  exited 0; 2 files checked, no fixes. Final-source log:
+  `/tmp/mcp-server-08-postcheck-biome-r2.log`.
+- `grep -n "deleteMessages" packages/infrastructure/src/mcp/tools/manage-tools.ts`
+  exited 1 with no output, as expected. Log: `/tmp/mcp-server-08-no-delete.log`.
+- `bun run typecheck` exited 2. The plan-local diagnostic was fixed; the
+  remaining diagnostic is `packages/infrastructure/src/mcp/tools/user-admin-tools.test.ts:78`
+  (readonly tuple passed to `unknown[]`), owned by plan 09. Log:
+  `/tmp/mcp-server-08-postcheck-typecheck-r2.log`. Rerun after that owner
+  reports completion.
+- An initial focused run exposed an incorrect assertion against `spamScore`;
+  the test now asserts the USER spam verdict row and its removal. The initial
+  complete log is `/tmp/mcp-server-08-unit.log`; the corrected final-source
+  run is the passing log above.
+
+**Notes**: Source implementation and behavioral tests are complete. Overall
+plan verification remains In Progress pending the cross-plan typecheck rerun.

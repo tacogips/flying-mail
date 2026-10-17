@@ -65,6 +65,10 @@ FLYING_MAIL_SPAM_THRESHOLD = "0.6"
 
 # Hard cap, in seconds, on a file link's requested ttlSeconds (7 days).
 FLYING_MAIL_FILE_LINK_MAX_TTL = "604800"
+# Rolling 24-hour cap on outbound messages per sending domain. Every send
+# also passes the per-principal AUTH_RATE_LIMITER window, so a leaked
+# credential cannot run up Email Sending charges. Raise it for busy domains.
+FLYING_MAIL_MAX_SENDS_PER_DOMAIN_PER_DAY = "1000"
 # Public site key for the Turnstile widget; fill in before putting the secret.
 # The build fails if the secret is set while this value is empty.
 FLYING_MAIL_TURNSTILE_SITE_KEY = "0x4AAAAAAFQRa9wv44nKmL-v"

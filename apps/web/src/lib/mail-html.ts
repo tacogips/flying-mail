@@ -166,6 +166,9 @@ export function normalizeContentId(value: string): string {
   return normalized;
 }
 
+/** Schemes an `<a href>` may keep after sanitizing. */
+const ANCHOR_HREF_PATTERN = /^(https?:|mailto:|tel:)/i;
+
 /** Sanitizes an HTML mail body.
  *
  * `ADD_ATTR` is not used to widen the allowlist: every attribute here is
@@ -192,6 +195,13 @@ export function sanitizeMailHtml(
       // the mailbox URL from a referer header.
       node.setAttribute("target", "_blank");
       node.setAttribute("rel", "noopener noreferrer nofollow");
+      // `cid:` and `data:image/` pass the shared URI allowlist because
+      // images need them, but as a link target they are navigations the
+      // reader never asked for. Anchors get the narrower set.
+      const href = node.getAttribute("href");
+      if (href !== null && !ANCHOR_HREF_PATTERN.test(href.trim())) {
+        node.removeAttribute("href");
+      }
     }
     if (node.tagName === "IMG") {
       const cidSrc = node.getAttribute("src");

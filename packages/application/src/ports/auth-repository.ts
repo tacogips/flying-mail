@@ -22,6 +22,12 @@ export interface UserRepository {
    * pair would let two concurrent bootstrap calls both pass the emptiness
    * check on a store with no interactive transactions. */
   createFirstUser(user: User): Promise<boolean>;
+  /** Applies a role change or deactivation of an active admin only while
+   * another active admin remains, in one conditional statement, and reports
+   * whether it was applied. The use case's own count is a pre-check for a
+   * clear message; this closes the race where two concurrent demotions each
+   * saw the other admin still active. */
+  saveUnlessLastActiveAdmin(user: User): Promise<boolean>;
 }
 
 export interface SessionRepository {

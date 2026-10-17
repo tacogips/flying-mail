@@ -10,6 +10,7 @@ import type { MessageId } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
 import { BadUserInputError } from "../errors";
 import type { Viewer } from "../policies/viewer";
+import { assertIdCountWithinLimit } from "./id-limits";
 import { loadReadableMessages } from "./messages";
 
 /** Fetch state is per API key, so two agents polling the same mailbox each
@@ -35,6 +36,7 @@ async function updateFetchStates(
   status: FetchStatus,
 ): Promise<readonly Message[]> {
   const keyViewer = requireApiKeyViewer(viewer);
+  assertIdCountWithinLimit(ids, "ids");
   const messages = await loadReadableMessages(
     deps,
     viewer,

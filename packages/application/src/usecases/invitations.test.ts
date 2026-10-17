@@ -80,7 +80,7 @@ describe("createUser invitations", () => {
       "You have been invited to flying-mail",
     );
     expect(fake.mailSender.sent[0]?.text).toMatch(
-      /^https:\/\/mail\.example\.com\/auth\/verify\?token=\S+$/m,
+      /^https:\/\/mail\.example\.com\/auth\/verify#token=\S+$/m,
     );
     const url = fake.mailSender.sent[0]?.text.match(/^https:\/\/\S+$/m)?.[0];
     expect(url).toBeDefined();

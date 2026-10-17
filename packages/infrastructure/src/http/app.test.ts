@@ -1,4 +1,6 @@
+import { RateLimiterUnavailableError } from "@flying-mail/application/ports/rate-limiter";
 import { Capability } from "@flying-mail/domain/entities/api-key";
+import { createFakeRateLimiter } from "@flying-mail/application/test-support/auth-hardening-fakes";
 import {
   createFakeDependencies,
   type FakeDependencies,
@@ -109,6 +111,7 @@ async function createHarness(): Promise<Harness> {
       scopes: [
         { capability: Capability.MailRead, domainId, addressPattern: "*" },
         { capability: Capability.FileLink, domainId, addressPattern: "*" },
+        { capability: Capability.MailSend, domainId, addressPattern: "*" },
       ],
       expiresAt: null,
     },
@@ -372,6 +375,186 @@ describe("app", () => {
     expect(response.status).toBe(200);
   });
 
+  describe("cross-origin reads", () => {
+    const cookie = () => `${SESSION_COOKIE_NAME}=${harness.sessionToken}`;
+    const graphqlGet = (headers: Record<string, string>) =>
+      new Request(
+        `${ORIGIN}/graphql?query=${encodeURIComponent("{ viewer { capabilities } }")}`,
+        { headers },
+      );
+
+    test("rejects a cookie-authenticated GET carrying a foreign Origin", async () => {
+      const graphql = await harness.app.request(
+        graphqlGet({ cookie: cookie(), origin: "https://evil.com" }),
+      );
+      expect(graphql.status).toBe(403);
+
+      const attachment = await harness.app.request(
+        new Request(`${ORIGIN}/api/attachments/${attachmentId}`, {
+          headers: { cookie: cookie(), origin: "https://evil.com" },
+        }),
+      );
+      expect(attachment.status).toBe(403);
+
+      const head = await harness.app.request(
+        new Request(`${ORIGIN}/api/attachments/${attachmentId}`, {
+          method: "HEAD",
+          headers: { cookie: cookie(), origin: "https://evil.com" },
+        }),
+      );
+      expect(head.status).toBe(403);
+    });
+
+    test("allows a cookie GET with a same-origin Origin", async () => {
+      const response = await harness.app.request(
+        graphqlGet({ cookie: cookie(), origin: ORIGIN }),
+      );
+      expect(response.status).toBe(200);
+    });
+
+    test("allows a cookie GET with no Origin, like a top-level navigation", async () => {
+      const response = await harness.app.request(
+        new Request(`${ORIGIN}/api/attachments/${attachmentId}`, {
+          headers: { cookie: cookie() },
+        }),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("hello");
+    });
+
+    test("a bearer GET with a foreign Origin is still allowed", async () => {
+      const response = await harness.app.request(
+        graphqlGet({
+          authorization: `Bearer ${harness.apiKeySecret}`,
+          origin: "https://evil.com",
+        }),
+      );
+      expect(response.status).toBe(200);
+    });
+
+    test("emits no CORS headers, even for a foreign Origin", async () => {
+      const simple = await harness.app.request(
+        graphqlRequest("{ viewer { capabilities } }", {
+          authorization: `Bearer ${harness.apiKeySecret}`,
+          origin: "https://evil.com",
+        }),
+      );
+      expect(simple.headers.get("access-control-allow-origin")).toBeNull();
+      expect(simple.headers.get("access-control-allow-credentials")).toBeNull();
+
+      const preflight = await harness.app.request(
+        new Request(`${ORIGIN}/graphql`, {
+          method: "OPTIONS",
+          headers: {
+            origin: "https://evil.com",
+            "access-control-request-method": "POST",
+          },
+        }),
+      );
+      expect(preflight.headers.get("access-control-allow-origin")).toBeNull();
+      expect(
+        preflight.headers.get("access-control-allow-credentials"),
+      ).toBeNull();
+    });
+  });
+
+  describe("graphql body limit", () => {
+    const OVERSIZE = 1_048_576 + 1;
+
+    function streamOf(totalBytes: number, chunkBytes = 64 * 1024) {
+      let sent = 0;
+      return new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (sent >= totalBytes) {
+            controller.close();
+            return;
+          }
+          const size = Math.min(chunkBytes, totalBytes - sent);
+          // Spaces are insignificant JSON whitespace, so the padded body
+          // below remains a valid document.
+          controller.enqueue(new Uint8Array(size).fill(0x20));
+          sent += size;
+        },
+      });
+    }
+
+    function streamedPost(prefix: string, padBytes: number, suffix: string) {
+      const encoder = new TextEncoder();
+      const padding = streamOf(padBytes);
+      const reader = padding.getReader();
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(prefix));
+        },
+        async pull(controller) {
+          const next = await reader.read();
+          if (next.done) {
+            controller.enqueue(encoder.encode(suffix));
+            controller.close();
+            return;
+          }
+          controller.enqueue(next.value);
+        },
+      });
+      return new Request(`${ORIGIN}/graphql`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+        duplex: "half",
+      } as RequestInit);
+    }
+
+    test("rejects a declared Content-Length over the cap with 413", async () => {
+      const response = await harness.app.request(
+        graphqlRequest("{ viewer { capabilities } }", {
+          "content-length": String(OVERSIZE),
+        }),
+      );
+      expect(response.status).toBe(413);
+      expect(await response.json()).toEqual({
+        error: "Request body too large",
+      });
+    });
+
+    test("accepts a declared Content-Length at the cap", async () => {
+      const response = await harness.app.request(
+        graphqlRequest("{ viewer { capabilities } }", {
+          "content-length": "1048576",
+        }),
+      );
+      expect(response.status).toBe(200);
+    });
+
+    test("aborts a streamed body with no Content-Length once over the cap", async () => {
+      const response = await harness.app.request(
+        streamedPost('{"query":"{ viewer { capabilities } }"}', OVERSIZE, ""),
+      );
+      expect(response.status).toBe(413);
+      expect(await response.json()).toEqual({
+        error: "Request body too large",
+      });
+    });
+
+    test("still serves a streamed body under the cap", async () => {
+      const response = await harness.app.request(
+        streamedPost('{"query":"{ viewer { capabilities } }"', 200_000, "}"),
+      );
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { data: { viewer: unknown } };
+      expect(body.data.viewer).toBeNull();
+    });
+
+    test("does not apply to GET requests", async () => {
+      const response = await harness.app.request(
+        new Request(
+          `${ORIGIN}/graphql?query=${encodeURIComponent("{ viewer { capabilities } }")}`,
+          { headers: { "content-length": String(OVERSIZE) } },
+        ),
+      );
+      expect(response.status).toBe(200);
+    });
+  });
+
   test("GraphQL responses are never cached", async () => {
     const response = await harness.app.request(
       graphqlRequest("{ viewer { capabilities } }"),
@@ -511,6 +694,35 @@ describe("app", () => {
       expect(body.url).toBe(`/api/attachments/${body.id}`);
     });
 
+    test("an upload from a key without MAIL_SEND is a 403", async () => {
+      const readOnly = await harness.usecases.createApiKey(
+        {
+          kind: "USER",
+          userId: createUserId("usr-1"),
+          role: UserRole.Admin,
+          permissions: [],
+          templatePermissions: [],
+        },
+        {
+          name: "read-only",
+          scopes: [
+            { capability: Capability.MailRead, domainId, addressPattern: "*" },
+          ],
+          expiresAt: null,
+        },
+      );
+      const form = new FormData();
+      form.set("file", new File(["data"], "notes.txt", { type: "text/plain" }));
+      const response = await harness.app.request(
+        new Request(`${ORIGIN}/api/attachments`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${readOnly.secret}` },
+          body: form,
+        }),
+      );
+      expect(response.status).toBe(403);
+    });
+
     test("a staged upload is not downloadable until it is sent", async () => {
       const form = new FormData();
       form.set("file", new File(["data"], "notes.txt", { type: "text/plain" }));
@@ -630,6 +842,97 @@ describe("app", () => {
         new Request(`${ORIGIN}/files/${token}`),
       );
       expect(response.status).toBe(404);
+    });
+
+    describe("hardening", () => {
+      const CLIENT_IP = "203.0.113.9";
+      const UNKNOWN_TOKEN = "A".repeat(43);
+
+      function appWithLimiter(deny: ReadonlySet<string> = new Set()) {
+        const { limiter, keys } = createFakeRateLimiter({ deny });
+        const app = createApp({
+          deps: { ...harness.fake.deps, rateLimiter: limiter },
+          usecases: harness.usecases,
+          graphiql: false,
+          resolveClientIp: () => CLIENT_IP,
+        });
+        return { app, keys };
+      }
+
+      test.each([
+        ["too short", "A".repeat(42)],
+        ["too long", "A".repeat(44)],
+        ["bad alphabet", `${"A".repeat(42)}!`],
+        ["padded base64", `${"A".repeat(42)}=`],
+      ])(
+        "rejects a %s token with the uniform 404 and no limiter call",
+        async (_label, token) => {
+          const { app, keys } = appWithLimiter();
+          const response = await app.request(
+            new Request(`${ORIGIN}/files/${encodeURIComponent(token)}`),
+          );
+          expect(response.status).toBe(404);
+          expect(await response.json()).toEqual({ error: "Not found" });
+          expect(keys).toEqual([]);
+        },
+      );
+
+      test("a well-formed unknown token is a 404 and is rate-limited by IP", async () => {
+        const { app, keys } = appWithLimiter();
+        const response = await app.request(
+          new Request(`${ORIGIN}/files/${UNKNOWN_TOKEN}`),
+        );
+        expect(response.status).toBe(404);
+        expect(keys).toEqual([`files:${CLIENT_IP}`]);
+      });
+
+      test("fails open when the limiter is unavailable", async () => {
+        const token = await mintLink();
+        const app = createApp({
+          deps: {
+            ...harness.fake.deps,
+            rateLimiter: {
+              async limit(): Promise<boolean> {
+                throw new RateLimiterUnavailableError("binding down");
+              },
+            },
+          },
+          usecases: harness.usecases,
+          graphiql: false,
+          resolveClientIp: () => CLIENT_IP,
+        });
+        const response = await app.request(
+          new Request(`${ORIGIN}/files/${token}`),
+        );
+        expect(response.status).toBe(200);
+      });
+
+      test("returns 429 when the limiter denies the client", async () => {
+        const token = await mintLink();
+        const { app } = appWithLimiter(new Set([`files:${CLIENT_IP}`]));
+        const response = await app.request(
+          new Request(`${ORIGIN}/files/${token}`),
+        );
+        expect(response.status).toBe(429);
+        expect(await response.json()).toEqual({ error: "Too many requests" });
+      });
+
+      test("does not limit when no client IP can be resolved", async () => {
+        const { limiter, keys } = createFakeRateLimiter({
+          deny: new Set([`files:${CLIENT_IP}`]),
+        });
+        const app = createApp({
+          deps: { ...harness.fake.deps, rateLimiter: limiter },
+          usecases: harness.usecases,
+          graphiql: false,
+          resolveClientIp: () => null,
+        });
+        const response = await app.request(
+          new Request(`${ORIGIN}/files/${UNKNOWN_TOKEN}`),
+        );
+        expect(response.status).toBe(404);
+        expect(keys).toEqual([]);
+      });
     });
   });
 

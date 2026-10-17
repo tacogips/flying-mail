@@ -137,6 +137,9 @@ export function splitEscaped(
   return parts;
 }
 
+// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control characters is the point
+const UNSAFE_PARAM_CHARS = /[\x00-\x1f\x7f"]/g;
+
 /** Quotes a parameter value when it carries a character (`:`, `;`, `,`)
  * that would otherwise end the parameter or its value list. vCard 3.0
  * (RFC 2426) parameter values have no caret-escaping mechanism -- unlike
@@ -144,7 +147,9 @@ export function splitEscaped(
  * rather than encoded; no vCard property this codec models has ever needed
  * one in the wild. */
 export function encodeParamValue(value: string): string {
-  const sanitized = value.replaceAll('"', "");
+  // Control characters are dropped as well: a CR/LF in a parameter value
+  // would otherwise start a new content line and inject a property.
+  const sanitized = value.replace(UNSAFE_PARAM_CHARS, "");
   return /[:;,]/.test(sanitized) ? `"${sanitized}"` : sanitized;
 }
 

@@ -7,6 +7,14 @@ export const REPLAY_PAGE = 200;
 export const MAX_CONN_PER_IP = 20;
 export const MAX_CONN_PER_PRINCIPAL = 10;
 export const MAX_CONN_TOTAL = 1_000;
+/** Per-connection inbound frame budget (token bucket capacity). */
+export const MAX_FRAMES_PER_WINDOW = 30;
+/** Window over which the full frame budget is refilled. */
+export const FRAME_RATE_WINDOW_MS = 10_000;
+/** Minimum spacing between persisted activity timestamps for non-state frames. */
+export const ACTIVITY_PERSIST_INTERVAL_MS = IDLE_TIMEOUT_MS / 2;
+/** How long a resolved principal is reused by the drain before re-checking. */
+export const PRINCIPAL_CACHE_TTL_MS = 60_000;
 
 export const SUBPROTOCOL = "graphql-transport-ws";
 

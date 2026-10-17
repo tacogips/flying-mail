@@ -38,7 +38,10 @@ import {
   type MessageId,
   type TagId,
 } from "@flying-mail/domain/value-objects/ids";
-import { buildMessageListQuery } from "./message-repository-queries";
+import {
+  buildMessageCountQuery,
+  buildMessageListQuery,
+} from "./message-repository-queries";
 import {
   assertEnumValue,
   boolToSql,
@@ -48,6 +51,7 @@ import {
 } from "./sql-helpers";
 import {
   ADD_ENVELOPE_RECIPIENT_SQL,
+  COUNT_OUTBOUND_SINCE_SQL,
   buildCountAttachmentsByBlobKeysSql,
   FIND_INBOUND_BY_RFC_MESSAGE_ID_SQL,
   SAVE_IF_DRAFT_SQL,
@@ -434,6 +438,14 @@ export function createMessageRepository(db: SqlDatabase): MessageRepository {
       ]);
     },
 
+    async countOutboundSince(domainId, since) {
+      const rows = await db.query<{ count: number }>(COUNT_OUTBOUND_SINCE_SQL, [
+        domainId,
+        since,
+      ]);
+      return rows[0]?.count ?? 0;
+    },
+
     async saveIfDraft(message) {
       const result = await db.execute(
         SAVE_IF_DRAFT_SQL,
@@ -481,10 +493,7 @@ export function createMessageRepository(db: SqlDatabase): MessageRepository {
 
     async list(filter, limit, cursor): Promise<MessagePage> {
       const query = buildMessageListQuery(filter, limit, cursor);
-      const [rows, countRows] = await Promise.all([
-        db.query<MessageRow>(query.rowsSql, query.rowsParams),
-        db.query<{ count: number }>(query.countSql, query.countParams),
-      ]);
+      const rows = await db.query<MessageRow>(query.rowsSql, query.rowsParams);
 
       // One extra row was requested; its presence is what tells us a next
       // page exists, without a second count-bounded query.
@@ -497,8 +506,16 @@ export function createMessageRepository(db: SqlDatabase): MessageRepository {
           hasMore && last !== undefined
             ? encodeCursor(last.occurred_at, last.id)
             : null,
-        totalCount: countRows[0]?.count ?? 0,
       };
+    },
+
+    async count(filter) {
+      const query = buildMessageCountQuery(filter);
+      const rows = await db.query<{ count: number }>(
+        query.countSql,
+        query.countParams,
+      );
+      return rows[0]?.count ?? 0;
     },
 
     async listByThread(threadId) {
