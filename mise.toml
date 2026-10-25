@@ -17,9 +17,9 @@ fi
 '''
 
 [tools]
-bun = "latest"
+bun = "1.4.4"
 biome = "latest"
-node = "lts"
+node = "24.22.1"
 gitleaks = "latest"
 pre-commit = "latest"
 # Pinned to the same version apps/api declares, so `mise exec -- wrangler`
