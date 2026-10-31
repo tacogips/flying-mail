@@ -4,6 +4,7 @@ import {
   type MessageFetchState,
 } from "@flying-mail/domain/entities/fetch-state";
 import {
+  DeliveryStatus,
   MailStatus,
   type Message,
   MessageDirection,
@@ -481,6 +482,22 @@ export function fakeMessageRepository(
           message.domainId === domainId &&
           message.occurredAt >= since,
       ).length;
+    },
+
+    async requeueIfFailed(id, updatedAt) {
+      const existing = stores.messages.get(id);
+      if (
+        existing?.direction !== MessageDirection.Outbound ||
+        existing.deliveryStatus !== DeliveryStatus.Failed
+      )
+        return false;
+      stores.messages.set(id, {
+        ...existing,
+        deliveryStatus: DeliveryStatus.Queued,
+        deliveryError: null,
+        updatedAt,
+      });
+      return true;
     },
 
     async saveIfDraft(message) {

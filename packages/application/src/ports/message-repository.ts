@@ -144,6 +144,8 @@ export interface MessageRepository {
    * `since` (ISO-8601). Backs the per-domain daily send budget. */
   countOutboundSince(domainId: DomainId, since: string): Promise<number>;
   saveIfDraft(message: Message): Promise<boolean>;
+  /** Atomically claims a failed outbound message for one retry attempt. */
+  requeueIfFailed(id: MessageId, updatedAt: string): Promise<boolean>;
   deleteDraftIfDraft(id: MessageId): Promise<boolean>;
   countAttachmentsByBlobKeys(
     blobKeys: readonly string[],

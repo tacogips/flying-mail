@@ -8,6 +8,8 @@ import {
   createDraftMessage,
   createInboundMessage,
   createOutboundMessage,
+  markMessageFailed,
+  DeliveryStatus,
   type Message,
   MailStatus,
 } from "@flying-mail/domain/entities/message";
@@ -218,4 +220,21 @@ describe("webmail message repository operations", () => {
       await repository.countOutboundSince(DOMAIN_A, "2026-09-01T00:00:00.000Z"),
     ).toBe(0);
   });
+});
+
+test("only one retry can claim a failed outbound message", async () => {
+  const message = markMessageFailed(
+    buildMessage({ id: "retry-claim", direction: "OUTBOUND" }),
+    "RELAY_ERROR",
+    NOW,
+  );
+  await insert(message);
+  const claims = await Promise.all([
+    repository.requeueIfFailed(message.id, NOW),
+    repository.requeueIfFailed(message.id, NOW),
+  ]);
+  expect(claims.filter(Boolean)).toHaveLength(1);
+  expect((await repository.findById(message.id))?.deliveryStatus).toBe(
+    DeliveryStatus.Queued,
+  );
 });

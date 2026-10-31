@@ -2,6 +2,7 @@ import { Capability } from "@flying-mail/domain/entities/api-key";
 import { ExternalAccountStatus } from "@flying-mail/domain/entities/external-mail-account";
 import {
   createMailDomain,
+  DomainStatus,
   verifyMailDomain,
 } from "@flying-mail/domain/entities/mail-domain";
 import { DeliveryStatus } from "@flying-mail/domain/entities/message";
@@ -347,6 +348,112 @@ describe("retrySend", () => {
     const retry = createRetrySendUseCase(fake.deps);
     const retried = await retry(adminViewer(), failed.id);
     expect(retried.deliveryStatus).toBe(DeliveryStatus.Sent);
+    expect(fake.mailSender.sent).toHaveLength(1);
+  });
+
+  test("rejects retry after the sending domain is disabled", async () => {
+    fake.mailSender.failNext(new Error("delivery failed"));
+    const failed = await createSendMessageUseCase(fake.deps)(
+      adminViewer(),
+      baseSend(),
+    );
+    const domain = await fake.deps.mailDomainRepository.findById(domainId);
+    if (domain === null) throw new Error("missing fixture domain");
+    await fake.deps.mailDomainRepository.save({
+      ...domain,
+      status: DomainStatus.Disabled,
+    });
+
+    await expect(
+      createRetrySendUseCase(fake.deps)(adminViewer(), failed.id),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(fake.messageStores.messages.get(failed.id)?.deliveryStatus).toBe(
+      DeliveryStatus.Failed,
+    );
+    expect(fake.mailSender.sent).toHaveLength(0);
+  });
+
+  test("rejects retry after the sending mailbox is disabled", async () => {
+    fake.mailSender.failNext(new Error("delivery failed"));
+    const failed = await createSendMessageUseCase(fake.deps)(
+      adminViewer(),
+      baseSend(),
+    );
+    const address = createMailAddress({
+      id: createMailAddressId("retry-sender"),
+      domainId,
+      domainName: createDomainName("example.com"),
+      localPart: "support",
+      createdByUserId: null,
+      createdAt: NOW,
+    });
+    await fake.deps.mailAddressRepository.save(
+      setMailAddressStatus(address, MailAddressStatus.Disabled, NOW),
+    );
+
+    await expect(
+      createRetrySendUseCase(fake.deps)(adminViewer(), failed.id),
+    ).rejects.toBeInstanceOf(BadUserInputError);
+    expect(fake.messageStores.messages.get(failed.id)?.deliveryStatus).toBe(
+      DeliveryStatus.Failed,
+    );
+    expect(fake.mailSender.sent).toHaveLength(0);
+  });
+
+  test("rejects retry when the burst limiter denies the request", async () => {
+    fake.mailSender.failNext(new Error("delivery failed"));
+    const failed = await createSendMessageUseCase(fake.deps)(
+      adminViewer(),
+      baseSend(),
+    );
+    const deps = { ...fake.deps, rateLimiter: { limit: async () => false } };
+
+    await expect(
+      createRetrySendUseCase(deps)(adminViewer(), failed.id),
+    ).rejects.toMatchObject({ code: "RATE_LIMITED" });
+    expect(fake.messageStores.messages.get(failed.id)?.deliveryStatus).toBe(
+      DeliveryStatus.Failed,
+    );
+    expect(fake.mailSender.sent).toHaveLength(0);
+  });
+
+  test("rejects retry when the daily sending budget is exhausted", async () => {
+    fake.mailSender.failNext(new Error("delivery failed"));
+    const failed = await createSendMessageUseCase(fake.deps)(
+      adminViewer(),
+      baseSend(),
+    );
+    const deps = {
+      ...fake.deps,
+      instanceConfig: {
+        ...fake.deps.instanceConfig,
+        maxSendsPerDomainPerDay: 1,
+      },
+    };
+
+    await expect(
+      createRetrySendUseCase(deps)(adminViewer(), failed.id),
+    ).rejects.toMatchObject({ code: "RATE_LIMITED" });
+    expect(fake.messageStores.messages.get(failed.id)?.deliveryStatus).toBe(
+      DeliveryStatus.Failed,
+    );
+    expect(fake.mailSender.sent).toHaveLength(0);
+  });
+
+  test("concurrent retries deliver a failed message only once", async () => {
+    fake.mailSender.failNext(new Error("delivery failed"));
+    const failed = await createSendMessageUseCase(fake.deps)(
+      adminViewer(),
+      baseSend(),
+    );
+    const retry = createRetrySendUseCase(fake.deps);
+    const results = await Promise.allSettled([
+      retry(adminViewer(), failed.id),
+      retry(adminViewer(), failed.id),
+    ]);
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
     expect(fake.mailSender.sent).toHaveLength(1);
   });
 

@@ -39,7 +39,7 @@ import {
   type TagId,
 } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
-import { BadUserInputError, NotFoundError } from "../errors";
+import { BadUserInputError, ConflictError, NotFoundError } from "../errors";
 import {
   authorizesAnyAddress,
   mailAuthorizationRules,
@@ -508,8 +508,33 @@ export function createRetrySendUseCase(
         );
       }
 
+      const domain = await deps.mailDomainRepository.findById(message.domainId);
+      if (domain === null) {
+        throw new NotFoundError("Domain", message.domainId);
+      }
+      assertCanSendMail(domain);
+      const sender = await deps.mailAddressRepository.findByAddress(
+        message.fromAddress,
+      );
+      if (sender !== null && !isMailAddressActive(sender)) {
+        throw new BadUserInputError(
+          "A disabled mail address cannot be used as a sender",
+          "from",
+        );
+      }
+      await enforceSendQuota(deps, viewer, domain.id);
+
       const requeued = requeueMessage(message, deps.clock.now().toISOString());
-      await deps.messageRepository.save(requeued);
+      if (
+        !(await deps.messageRepository.requeueIfFailed(
+          message.id,
+          requeued.updatedAt,
+        ))
+      ) {
+        throw new ConflictError(
+          "This message is already being retried or has been sent",
+        );
+      }
       const outbound = await assembleOutbound(deps, requeued);
       const delivered = await deliver(deps, requeued, outbound.mail);
       await recordMailEvents(deps, [

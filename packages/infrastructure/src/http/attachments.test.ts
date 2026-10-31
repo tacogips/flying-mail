@@ -114,6 +114,52 @@ async function createHarness(
 }
 
 describe("attachment routes", () => {
+  test.each([undefined, "1"])(
+    "bounds streamed multipart fields before parsing with Content-Length %s",
+    async (declaredLength) => {
+      const { app } = await createHarness();
+      let cancelled = false;
+      let sent = 0;
+      const chunk = new Uint8Array(64 * 1024).fill(65);
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(
+              '--boundary\r\nContent-Disposition: form-data; name="unused"\r\n\r\n',
+            ),
+          );
+        },
+        pull(controller) {
+          sent += chunk.length;
+          if (sent > MAX_ATTACHMENT_BYTES * 2) {
+            controller.close();
+          } else {
+            controller.enqueue(chunk);
+          }
+        },
+        cancel() {
+          cancelled = true;
+        },
+      });
+      const response = await app.request(
+        new Request("http://localhost/attachments", {
+          method: "POST",
+          headers: {
+            "content-type": "multipart/form-data; boundary=boundary",
+            ...(declaredLength === undefined
+              ? {}
+              : { "content-length": declaredLength }),
+          },
+          body,
+          duplex: "half",
+        } as RequestInit),
+      );
+      expect(response.status).toBe(413);
+      expect(cancelled).toBe(true);
+      expect(sent).toBeLessThan(MAX_ATTACHMENT_BYTES * 2);
+    },
+  );
+
   test("returns a structured 413 when the multipart file exceeds the limit", async () => {
     const { app } = await createHarness();
     const formData = new FormData();

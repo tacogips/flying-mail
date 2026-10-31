@@ -263,13 +263,6 @@ export function createMailEventStream(
   function connect(): void {
     if (stopped) return;
     setStatus(attempt === 0 && status === null ? "connecting" : "reconnecting");
-    let paramsPromise: Promise<Record<string, unknown> | undefined>;
-    try {
-      paramsPromise = Promise.resolve(options.connectionParams?.());
-    } catch (error) {
-      paramsPromise = Promise.reject(error);
-    }
-
     let current: WebSocketLike;
     try {
       current = socketFactory(options.url, PROTOCOL);
@@ -282,6 +275,12 @@ export function createMailEventStream(
 
     current.onopen = () => {
       if (stopped || socket !== current) return;
+      let paramsPromise: Promise<Record<string, unknown> | undefined>;
+      try {
+        paramsPromise = Promise.resolve(options.connectionParams?.());
+      } catch (error) {
+        paramsPromise = Promise.reject(error);
+      }
       ackTimer = timers.setTimeout(() => {
         ackTimer = undefined;
         current.close(

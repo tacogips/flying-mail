@@ -28,20 +28,21 @@ function collectFragments(
 function measureDepth(
   selectionSet: SelectionSetNode,
   fragments: ReadonlyMap<string, FragmentDefinitionNode>,
-  depth: number,
-  visitedFragments: ReadonlySet<string>,
+  visitedFragments: Set<string>,
+  fragmentDepths: Map<string, number>,
 ): number {
-  let deepest = depth;
+  let deepest = 1;
   for (const selection of selectionSet.selections) {
     if (selection.kind === Kind.FIELD) {
       const nested =
         selection.selectionSet === undefined
-          ? depth
-          : measureDepth(
+          ? 1
+          : 1 +
+            measureDepth(
               selection.selectionSet,
               fragments,
-              depth + 1,
               visitedFragments,
+              fragmentDepths,
             );
       deepest = Math.max(deepest, nested);
       continue;
@@ -52,8 +53,8 @@ function measureDepth(
         measureDepth(
           selection.selectionSet,
           fragments,
-          depth,
           visitedFragments,
+          fragmentDepths,
         ),
       );
       continue;
@@ -69,15 +70,22 @@ function measureDepth(
     if (fragment === undefined) {
       continue;
     }
-    deepest = Math.max(
-      deepest,
-      measureDepth(
+    // Cache relative depth, rather than absolute depth at the first use.
+    // A fragment DAG can have exponentially many expansion paths despite
+    // containing only a handful of selections in the document.
+    let fragmentDepth = fragmentDepths.get(name);
+    if (fragmentDepth === undefined) {
+      visitedFragments.add(name);
+      fragmentDepth = measureDepth(
         fragment.selectionSet,
         fragments,
-        depth,
-        new Set([...visitedFragments, name]),
-      ),
-    );
+        visitedFragments,
+        fragmentDepths,
+      );
+      visitedFragments.delete(name);
+      fragmentDepths.set(name, fragmentDepth);
+    }
+    deepest = Math.max(deepest, fragmentDepth);
   }
   return deepest;
 }
@@ -85,6 +93,7 @@ function measureDepth(
 /** Depth of the deepest operation in `document`, following fragments. */
 export function documentDepth(document: DocumentNode): number {
   const fragments = collectFragments(document);
+  const fragmentDepths = new Map<string, number>();
   let deepest = 0;
   for (const definition of document.definitions as readonly DefinitionNode[]) {
     if (definition.kind !== Kind.OPERATION_DEFINITION) {
@@ -92,7 +101,12 @@ export function documentDepth(document: DocumentNode): number {
     }
     deepest = Math.max(
       deepest,
-      measureDepth(definition.selectionSet, fragments, 1, new Set()),
+      measureDepth(
+        definition.selectionSet,
+        fragments,
+        new Set(),
+        fragmentDepths,
+      ),
     );
   }
   return deepest;

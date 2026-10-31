@@ -1,3 +1,4 @@
+import { isIPv4 } from "node:net";
 import { CliError, ExitCode } from "./exit-codes";
 
 /** True for hostnames that can only be reached from this machine. Used both
@@ -12,7 +13,7 @@ export function isLoopbackHost(host: string): boolean {
     normalized === "localhost" ||
     normalized === "::1" ||
     normalized === "0:0:0:0:0:0:0:1" ||
-    /^127\./.test(normalized)
+    (isIPv4(normalized) && normalized.startsWith("127."))
   );
 }
 

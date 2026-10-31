@@ -219,6 +219,30 @@ describe("linkRemoteAddressBook", () => {
     expect(books.map((book) => book.id)).toContain(link.addressBookId);
   });
 
+  test("invalid import URL does not leave an orphan address book", async () => {
+    const admin = adminViewer();
+    const { account } = await usecases.connectCarddavAccount(admin, {
+      serverUrl: "https://contacts.icloud.com",
+      username: "ada@icloud.com",
+      appPassword: "app-specific-pw",
+    });
+    const before = await usecases.listAddressBooks(
+      admin,
+      fixture.billingMailAddressId,
+    );
+    await expect(
+      usecases.linkRemoteAddressBook(admin, {
+        accountId: account.id,
+        remoteUrl: "https://evil.example.com/card/",
+        mode: "IMPORT_NEW",
+        mailAddressId: fixture.billingMailAddressId,
+      }),
+    ).rejects.toBeInstanceOf(BadUserInputError);
+    expect(
+      await usecases.listAddressBooks(admin, fixture.billingMailAddressId),
+    ).toEqual(before);
+  });
+
   test("rejects a remoteUrl outside the connected account's origin", async () => {
     const admin = adminViewer();
     const { account } = await usecases.connectCarddavAccount(admin, {

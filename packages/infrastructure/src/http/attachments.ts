@@ -10,6 +10,7 @@ import { createAttachmentId } from "@flying-mail/domain/value-objects/ids";
 import { Hono } from "hono";
 import type { AuthVariables } from "./auth-middleware";
 import { buildDownloadResponse } from "./downloads";
+import { enforceBodyLimit } from "./body-limit";
 
 /** JSON body of a successful upload. */
 export interface UploadAttachmentResponse {
@@ -111,22 +112,17 @@ export function createAttachmentRoutes(
       }
     }
 
-    // Reject an oversized request from its header alone, before
-    // `formData()` reads (and buffers) any of the body.
-    const contentLengthHeader = c.req.header("content-length");
-    if (contentLengthHeader !== undefined) {
-      const contentLength = Number(contentLengthHeader);
-      if (
-        Number.isFinite(contentLength) &&
-        contentLength >
-          MAX_ATTACHMENT_UPLOAD_BYTES + MULTIPART_OVERHEAD_ALLOWANCE
-      ) {
+    try {
+      // Bound the complete stream before multipart parsing: unused fields
+      // and multiple files count too, even without a Content-Length header.
+      const bounded = await enforceBodyLimit(
+        c.req.raw,
+        MAX_ATTACHMENT_UPLOAD_BYTES + MULTIPART_OVERHEAD_ALLOWANCE,
+      );
+      if (bounded.kind === "too-large") {
         return sizeLimitResponse();
       }
-    }
-
-    try {
-      const formData = await c.req.formData();
+      const formData = await bounded.request.formData();
       const file = formData.get("file");
       if (!(file instanceof File)) {
         return Response.json(

@@ -446,6 +446,14 @@ export function createMessageRepository(db: SqlDatabase): MessageRepository {
       return rows[0]?.count ?? 0;
     },
 
+    async requeueIfFailed(id, updatedAt) {
+      const result = await db.execute(
+        "UPDATE messages SET delivery_status = 'QUEUED', delivery_error = NULL, updated_at = ? WHERE id = ? AND direction = 'OUTBOUND' AND delivery_status = 'FAILED'",
+        [updatedAt, id],
+      );
+      return result.rowsAffected > 0;
+    },
+
     async saveIfDraft(message) {
       const result = await db.execute(
         SAVE_IF_DRAFT_SQL,

@@ -107,10 +107,13 @@ export function clampFrameHeight(measured: number): number {
 
 export function HtmlBodyFrame(props: {
   readonly html: string;
+  readonly messageId?: string;
   readonly title?: string;
   readonly attachments?: readonly AttachmentView[];
 }): JSX.Element {
-  const [loadRemoteImages, setLoadRemoteImages] = createSignal(false);
+  const [imageConsent, setImageConsent] = createSignal<string | null>(null);
+  const messageIdentity = (): string => props.messageId ?? props.html;
+  const loadRemoteImages = (): boolean => imageConsent() === messageIdentity();
   const [frameHeight, setFrameHeight] = createSignal(MIN_FRAME_HEIGHT_PX);
   let iframeRef: HTMLIFrameElement | undefined;
 
@@ -164,7 +167,10 @@ export function HtmlBodyFrame(props: {
             Remote images are blocked. Loading them tells the sender you opened
             this message.
           </span>
-          <button type="button" onClick={() => setLoadRemoteImages(true)}>
+          <button
+            type="button"
+            onClick={() => setImageConsent(messageIdentity())}
+          >
             Load images
           </button>
         </div>

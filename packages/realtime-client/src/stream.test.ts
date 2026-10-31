@@ -96,6 +96,54 @@ describe("createMailEventStream", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
+  it.each(["throw", "reject"])(
+    "handles %s from a credential provider after a delayed connection",
+    async (failure) => {
+      const { sockets, factory } = socketHarness();
+      const connectionParams = vi.fn(() => {
+        const error = new Error("Credential provider failed");
+        if (failure === "throw") throw error;
+        return Promise.reject(error);
+      });
+      const stream = createMailEventStream({
+        url: "ws://mail.test/graphql",
+        query: "q",
+        onEvent: vi.fn(),
+        connectionParams,
+        webSocketFactory: factory,
+      });
+      stream.start();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(connectionParams).not.toHaveBeenCalled();
+      socketAt(sockets, 0).open();
+      await flushPromises();
+      expect(socketAt(sockets, 0).closeCalls).toContainEqual({
+        code: 4500,
+        reason: "Connection parameters failed",
+      });
+      stream.stop();
+    },
+  );
+
+  it("does not acquire credentials when socket creation fails", async () => {
+    const connectionParams = vi.fn(() =>
+      Promise.reject(new Error("Unavailable credentials")),
+    );
+    const stream = createMailEventStream({
+      url: "ws://mail.test/graphql",
+      query: "q",
+      onEvent: vi.fn(),
+      connectionParams,
+      webSocketFactory: () => {
+        throw new Error("Unavailable socket");
+      },
+    });
+    stream.start();
+    await flushPromises();
+    expect(connectionParams).not.toHaveBeenCalled();
+    stream.stop();
+  });
+
   it("initializes, subscribes, reports LIVE, and delivers events", async () => {
     const { sockets, factory } = socketHarness();
     const onEvent = vi.fn();

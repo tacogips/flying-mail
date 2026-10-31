@@ -99,6 +99,106 @@ beforeEach(async () => {
 });
 
 describe("syncCarddavBook pull", () => {
+  test("does not advance the checkpoint when a later multiget batch is incomplete", async () => {
+    const hrefs = Array.from(
+      { length: 501 },
+      (_, index) => `${REMOTE_URL}${index}.vcf`,
+    );
+    await setup({
+      carddav: {
+        changes: [
+          {
+            changedHrefs: hrefs,
+            deletedHrefs: [],
+            syncToken: "incomplete-token",
+            ctag: "incomplete-ctag",
+            fullResync: false,
+          },
+        ],
+        objects: new Map(
+          hrefs
+            .slice(0, 500)
+            .map((href, index) => [
+              href,
+              remoteObject(
+                href,
+                parsedContact({ uid: `incomplete-${index}` }),
+                `etag-${index}`,
+              ),
+            ]),
+        ),
+      },
+    });
+    await expect(
+      usecases.syncCarddavBook(adminViewer(), LINK_ID),
+    ).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+    const link =
+      await fake.deps.carddavAccountRepository.findBookLinkById(LINK_ID);
+    expect(link?.syncToken).toBeNull();
+    expect(link?.lastSyncedAt).toBeNull();
+  });
+
+  test("applies every batch before advancing the remote sync token", async () => {
+    const hrefs = Array.from(
+      { length: 501 },
+      (_, index) => `${REMOTE_URL}${index}.vcf`,
+    );
+    await setup({
+      carddav: {
+        changes: [
+          {
+            changedHrefs: hrefs,
+            deletedHrefs: [],
+            syncToken: "complete-token",
+            ctag: "complete-ctag",
+            fullResync: false,
+          },
+        ],
+        objects: new Map(
+          hrefs.map((href, index) => [
+            href,
+            remoteObject(
+              href,
+              parsedContact({ uid: `batch-${index}` }),
+              `etag-${index}`,
+            ),
+          ]),
+        ),
+      },
+    });
+    const batchSizes: number[] = [];
+    const multiget = fake.deps.carddavClient.multigetContacts;
+    const deps = {
+      ...fake.deps,
+      carddavClient: {
+        ...fake.deps.carddavClient,
+        multigetContacts: async (
+          book: Parameters<typeof multiget>[0],
+          requested: readonly string[],
+        ) => {
+          batchSizes.push(requested.length);
+          return multiget(book, requested);
+        },
+      },
+    };
+    const result = await createUseCases(deps).syncCarddavBook(
+      adminViewer(),
+      LINK_ID,
+    );
+    expect(result).toMatchObject({ pulled: 501, truncated: false });
+    expect(batchSizes).toEqual([500, 1]);
+    expect(
+      await fake.deps.contactRepository.findByUid(
+        fixture.addressBookId,
+        "batch-500",
+      ),
+    ).not.toBeNull();
+    expect(
+      (await fake.deps.carddavAccountRepository.findBookLinkById(LINK_ID))
+        ?.syncToken,
+    ).toBe("complete-token");
+  });
+
   test("imports remote vCards and records their etags", async () => {
     await setup({
       carddav: {

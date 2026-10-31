@@ -229,6 +229,7 @@ export function createLinkRemoteAddressBookUseCase(
 ) => Promise<CarddavBookLink> {
   return async (viewer, input) => {
     const account = await loadOwnedAccount(deps, viewer, input.accountId);
+    const remoteUrl = requireAccountCollectionUrl(account, input.remoteUrl);
     const now = deps.clock.now().toISOString();
 
     let addressBookId: AddressBookId;
@@ -285,7 +286,7 @@ export function createLinkRemoteAddressBookUseCase(
       id: createCarddavBookId(deps.random.uuid()),
       accountId: account.id,
       addressBookId,
-      remoteUrl: requireAccountCollectionUrl(account, input.remoteUrl),
+      remoteUrl,
       displayName: input.displayName ?? null,
       ctag: null,
       syncToken: null,

@@ -12,7 +12,7 @@ import {
   createContactId,
 } from "@flying-mail/domain/value-objects/ids";
 import type { AppDependencies } from "../dependencies";
-import { NotFoundError } from "../errors";
+import { NotFoundError, ServiceUnavailableError } from "../errors";
 import type { Viewer } from "../policies/viewer";
 import type {
   CarddavCredentials,
@@ -42,12 +42,12 @@ export interface SyncCarddavBookResult {
   /** Wholly unparsable vCards only -- see the module doc. */
   readonly skipped: number;
   readonly conflictsResolvedRemoteWins: number;
-  /** True when the change set exceeded {@link MAX_OBJECTS_PER_SYNC}; run
-   * sync again to continue. */
+  /** Retained for API compatibility; successful syncs apply the entire delta. */
   readonly truncated: boolean;
   readonly warnings: readonly string[];
 }
 
+/** Maximum resources requested in one multiget, not a checkpoint boundary. */
 export const MAX_OBJECTS_PER_SYNC = 500;
 
 interface SyncContext {
@@ -175,16 +175,26 @@ async function pull(context: SyncContext): Promise<PullResult> {
     context.link.syncToken,
   );
 
-  const changed = changes.changedHrefs.slice(0, MAX_OBJECTS_PER_SYNC);
-  const truncated = changes.changedHrefs.length > changed.length;
+  const changed = changes.changedHrefs;
 
   let pulled = 0;
   let skipped = 0;
-  if (changed.length > 0) {
+  for (
+    let offset = 0;
+    offset < changed.length;
+    offset += MAX_OBJECTS_PER_SYNC
+  ) {
+    const requested = changed.slice(offset, offset + MAX_OBJECTS_PER_SYNC);
     const objects = await deps.carddavClient.multigetContacts(
       context.ref,
-      changed,
+      requested,
     );
+    const returnedHrefs = new Set(objects.map((object) => object.href));
+    if (requested.some((href) => !returnedHrefs.has(href))) {
+      throw new ServiceUnavailableError(
+        "CardDAV returned an incomplete contact batch; sync will be retried",
+      );
+    }
     for (const object of objects) {
       const parsed = deps.vcardCodec.parseVcard(object.vcard);
       if (parsed === null || parsed.unparsable) {
@@ -200,12 +210,9 @@ async function pull(context: SyncContext): Promise<PullResult> {
   let deleted = 0;
   // A full resync lists every remote member instead of a change delta, so
   // anything we hold that is absent from the listing was deleted remotely.
-  // Skipped when the listing was truncated: the missing hrefs are then
-  // merely the ones this request did not get to.
-  const remoteDeletions =
-    changes.fullResync && !truncated
-      ? await absentHrefs(context, changes.changedHrefs)
-      : [];
+  const remoteDeletions = changes.fullResync
+    ? await absentHrefs(context, changes.changedHrefs)
+    : [];
   for (const href of [...changes.deletedHrefs, ...remoteDeletions]) {
     const state = await deps.carddavAccountRepository.findContactStateByHref(
       context.link.id,
@@ -223,7 +230,7 @@ async function pull(context: SyncContext): Promise<PullResult> {
     pulled,
     deleted,
     skipped,
-    truncated,
+    truncated: false,
     syncToken: changes.syncToken,
     ctag: changes.ctag,
   };

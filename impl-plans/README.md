@@ -378,3 +378,10 @@ The same worker rules as for webmail completion apply.
   only plan that updates statuses in `PROGRESS.json` and this table.
 
 - [Login page clarity](active/login-page-clarity.md): clarify login purpose and passwordless guidance.
+
+## Security review (2026-10-28)
+
+- [Dependencies](completed/security-review-dependencies.md)
+- [HTTP and GraphQL](completed/security-review-http-graphql.md)
+- [Clients](completed/security-client-review.md)
+- [Application](completed/application-security-review.md)

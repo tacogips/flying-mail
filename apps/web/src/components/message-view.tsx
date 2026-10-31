@@ -415,6 +415,7 @@ export function MessageView(props: {
           }
         >
           <HtmlBodyFrame
+            messageId={props.message.id}
             html={props.message.htmlBody ?? ""}
             attachments={props.message.attachments}
           />

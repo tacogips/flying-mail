@@ -4,6 +4,7 @@ import { createCliClient, requireEndpoint } from "./client";
 import {
   allowedHostHeaders,
   createClientServeApp,
+  resolveClientServeOptions,
   type ClientServeOptions,
 } from "./commands/client-serve";
 import {
@@ -244,6 +245,8 @@ describe("endpoint scheme enforcement", () => {
 
   test.each([
     "http://mail.example.com",
+    "http://127.attacker.example",
+    "http://127.0.0.1.attacker.example",
     "ftp://mail.example.com",
     "ws://mail.example.com",
     "mail.example.com",
@@ -271,6 +274,23 @@ describe("endpoint scheme enforcement", () => {
     ).toThrow(CliError);
     expect(fetchSpy).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
+  });
+
+  test.each([
+    "127.attacker.example",
+    "127.0.0.1.attacker.example",
+    "127.999.1.1",
+  ])("does not inject credentials when binding deceptive host %s", (host) => {
+    const config = { endpoint: ENDPOINT, apiKey: "test-key" };
+    expect(() =>
+      resolveClientServeOptions(parseArgs(["--host", host]), config),
+    ).toThrow(CliError);
+    expect(
+      resolveClientServeOptions(
+        parseArgs(["--host", host, "--allow-remote"]),
+        config,
+      ).apiKey,
+    ).toBeNull();
   });
 
   test("websocketUrl maps https to wss and loopback http to ws", () => {

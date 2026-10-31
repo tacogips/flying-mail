@@ -197,8 +197,15 @@ export function createAuthMiddleware(
 ): MiddlewareHandler<{ Variables: AuthVariables }> {
   return async (c, next) => {
     const bearerToken = extractBearerToken(c.req.raw);
-    const cookieToken =
-      bearerToken === null ? extractSessionCookie(c.req.raw) : null;
+    let cookieToken: string | null = null;
+    if (bearerToken === null) {
+      try {
+        cookieToken = extractSessionCookie(c.req.raw);
+      } catch {
+        // A malformed HTTP credential is unauthenticated, not a server
+        // error. WebSocket upgrades retain their stricter rejection policy.
+      }
+    }
 
     // Non-safe methods are always checked. Safe methods are checked only when
     // the browser attached an `Origin` (a cross-origin fetch/XHR, which

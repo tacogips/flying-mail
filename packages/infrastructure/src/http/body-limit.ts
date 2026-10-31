@@ -53,24 +53,24 @@ async function readUpTo(
 /** Enforces `maxBytes` on a request body.
  *
  * - No body (GET/HEAD, or a null body): returned untouched.
- * - A valid `Content-Length`: rejected from the header alone when over the
- *   cap, else passed through untouched.
- * - `Content-Length` absent or malformed (chunked uploads): the stream is
- *   read through a bounded reader that aborts once the cap is exceeded, and
+ * - A valid oversized `Content-Length`: rejected before reading the body.
+ * - Every remaining body is read through a bounded reader, regardless of
+ *   its declared length. The reader aborts once the cap is exceeded, and
  *   the request is rebuilt around the buffered bytes so downstream handlers
  *   can still read it. */
 export async function enforceBodyLimit(
   request: Request,
   maxBytes: number,
 ): Promise<BoundedBodyResult> {
-  if (BODYLESS_METHODS.has(request.method) || request.body === null) {
+  if (BODYLESS_METHODS.has(request.method)) {
     return { kind: "ok", request };
   }
   const declared = parseContentLength(request.headers.get("content-length"));
-  if (declared !== null) {
-    return declared > maxBytes
-      ? { kind: "too-large" }
-      : { kind: "ok", request };
+  if (declared !== null && declared > maxBytes) {
+    return { kind: "too-large" };
+  }
+  if (request.body === null) {
+    return { kind: "ok", request };
   }
   const bytes = await readUpTo(request.body, maxBytes);
   if (bytes === null) {
