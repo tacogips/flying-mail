@@ -1,0 +1,26 @@
+.html-body-frame {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #fff;
+}
+
+.html-body-notice {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 12px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.html-body-iframe {
+  display: block;
+  width: 100%;
+  min-height: 320px;
+  border: 0;
+  background: #fff;
+}

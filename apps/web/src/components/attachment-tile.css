@@ -1,0 +1,27 @@
+.attachment-tile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+}
+
+.attachment-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.attachment-name {
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.attachment-link {
+  flex-basis: 100%;
+  word-break: break-all;
+}

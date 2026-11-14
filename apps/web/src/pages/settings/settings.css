@@ -1,0 +1,108 @@
+.settings-page {
+  flex: 1;
+  min-width: 0;
+  padding: 16px;
+  overflow-y: auto;
+  max-width: 900px;
+}
+
+.settings-page h1 {
+  font-size: 18px;
+  margin-top: 0;
+}
+
+.settings-page h2 {
+  font-size: 15px;
+  margin-top: 0;
+}
+
+.settings-page h3 {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.scope-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.scope-row select,
+.scope-row input {
+  width: auto;
+  flex: 1;
+  min-width: 160px;
+}
+
+.scope-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+}
+
+.secret-reveal {
+  border-color: var(--warning);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.secret-value {
+  display: block;
+  word-break: break-all;
+  padding: 8px;
+}
+
+tr.revoked td {
+  opacity: 0.55;
+}
+
+.dns-table code {
+  word-break: break-all;
+}
+
+.user-row {
+  margin-bottom: 12px;
+}
+
+.user-row-header {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.user-row-header select {
+  width: auto;
+}
+
+.permission-list {
+  list-style: none;
+  padding-left: 0;
+  margin-bottom: 8px;
+}
+
+.permission-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+/* The templates editor's button row: Save/Cancel/Delete sit together at the
+   end of the form. `panel` and `field` come from global.css, so this is the
+   only template-specific rule the settings pages need. */
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.settings-actions .danger {
+  margin-left: auto;
+}

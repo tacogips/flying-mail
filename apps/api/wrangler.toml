@@ -1,0 +1,57 @@
+name = "mailcal-api"
+main = "src/worker.ts"
+compatibility_date = "2026-08-23"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mailcal-db"
+database_id = "a2eb3297-4f2d-4a3a-9dc7-70ccb142f2df"
+
+[[r2_buckets]]
+binding = "BLOB"
+bucket_name = "mailcal-mail"
+
+[[send_email]]
+name = "EMAIL"
+
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[vars]
+# Public HTTPS origin this Worker is deployed at. Required for passwordless
+# login links and for absolute file-link URLs to be generated at all; left
+# unset, login is deliberately disabled rather than mailing broken links,
+# and file links are returned as relative paths. A set-but-invalid value
+# fails deployment fast instead of silently degrading -- see
+# composition/config.ts's resolvePublicOrigin.
+MAILCAL_PUBLIC_ORIGIN = "https://mailcal-api.tacotest.workers.dev"
+
+# The sender used for SYSTEM mail only -- the passwordless login link, which
+# has no user-chosen sender to use. Set it to one verified Cloudflare Email
+# Service mailbox on an onboarded domain. Until it is set, login-link
+# requests fail with a clear "not configured on this server" error.
+#
+# This is NOT the sender for user mail. Each message leaves as the mailbox
+# its sender was authorized for, so a multi-address, multi-domain instance
+# needs nothing configured here to send ordinary mail -- only the send_email
+# binding above.
+# MAILCAL_MAIL_FROM = "postmaster@example.com"
+
+# Self-service signup is closed by default: this is a mail server, not a SaaS
+# trial. Set to "open" only when you intend anyone to be able to register.
+MAILCAL_SIGNUP = "closed"
+
+# Spam score at or above which the SPAM system tag is applied on ingest.
+MAILCAL_SPAM_THRESHOLD = "0.6"
+
+# Hard cap, in seconds, on a file link's requested ttlSeconds (7 days).
+MAILCAL_FILE_LINK_MAX_TTL = "604800"
+
+# CalDAV credential encryption key: base64 of 32 random bytes, AES-256-GCM.
+# A secret, never a var -- set it out of band and never commit a value:
+#   kinko exec -- bunx wrangler secret put MAILCAL_CREDENTIAL_KEY
+# Unset is a supported deployment: CalDAV mutations then fail with
+# SERVICE_UNAVAILABLE and the rest of the calendar feature works normally.

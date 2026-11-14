@@ -1,0 +1,30 @@
+{
+  "name": "mailcal-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/server.ts",
+    "start": "bun run src/server.ts",
+    "build:node": "bun build src/server.ts --target=node --outdir dist --external @libsql/client",
+    "start:node": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler deploy",
+    "migrate:remote": "wrangler d1 migrations apply mailcal-db --remote"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.1",
+    "@libsql/client": "0.17.4",
+    "@mailcal/adapter": "workspace:*",
+    "@mailcal/application": "workspace:*",
+    "@mailcal/domain": "workspace:*",
+    "@mailcal/infrastructure": "workspace:*",
+    "hono": "4.13.2"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "typescript": "5.7.2",
+    "wrangler": "4.123.0"
+  }
+}

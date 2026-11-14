@@ -1,0 +1,157 @@
+.mailbox-sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  padding: 12px;
+  overflow-y: auto;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-brand {
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  padding: 6px 8px 12px;
+}
+
+.sidebar-compose {
+  width: 100%;
+  padding: 10px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+/* Sits directly under "New message" as the second, quieter entry point:
+   the same target, pre-filled from a saved template. */
+.sidebar-compose--secondary {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text);
+  border: 1px solid var(--sidebar-active);
+  margin-top: -8px;
+}
+
+.sidebar-compose--secondary:hover {
+  background: var(--sidebar-active);
+}
+
+.sidebar-group {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  color: var(--sidebar-text);
+}
+
+.sidebar-item-icon {
+  display: inline-flex;
+  color: var(--sidebar-muted);
+  flex-shrink: 0;
+}
+
+.sidebar-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-item-meta {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.sidebar-item:hover {
+  background: var(--sidebar-hover);
+}
+
+.sidebar-item-active {
+  background: var(--sidebar-active);
+  font-weight: 600;
+}
+
+.sidebar-badge {
+  background: var(--badge-bg);
+  color: var(--badge-text);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  flex-shrink: 0;
+}
+
+.sidebar-static {
+  display: block;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.sidebar-heading {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sidebar-muted);
+  margin: 0 0 4px 8px;
+}
+
+.sidebar-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 4px;
+}
+
+.sidebar-heading-row .sidebar-heading {
+  margin: 0;
+}
+
+.sidebar-heading-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--sidebar-muted);
+}
+
+.sidebar-heading-action:hover {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text);
+}
+
+.sidebar-event {
+  display: flex;
+  gap: 0.45rem;
+  align-items: baseline;
+  min-width: 0;
+}
+.sidebar-event-due {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--sidebar-muted);
+  white-space: nowrap;
+}
+.sidebar-event-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mailbox-sidebar .muted {
+  color: var(--sidebar-muted);
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@mailcal/infrastructure",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./graphql/schema": "./src/graphql/schema.ts",
+    "./graphql/schema.graphql": "./src/graphql/schema.graphql.ts",
+    "./graphql/schema-calendar.graphql": "./src/graphql/schema-calendar.graphql.ts",
+    "./graphql/context": "./src/graphql/context.ts",
+    "./graphql/errors": "./src/graphql/errors.ts",
+    "./graphql/loaders": "./src/graphql/loaders.ts",
+    "./graphql/resolvers/*": "./src/graphql/resolvers/*.ts",
+    "./composition/config": "./src/composition/config.ts",
+    "./composition/build-dependencies": "./src/composition/build-dependencies.ts",
+    "./http/app": "./src/http/app.ts",
+    "./http/auth-middleware": "./src/http/auth-middleware.ts",
+    "./http/attachments": "./src/http/attachments.ts",
+    "./http/file-links": "./src/http/file-links.ts",
+    "./http/security-headers": "./src/http/security-headers.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mailcal/adapter": "workspace:*",
+    "@mailcal/application": "workspace:*",
+    "@mailcal/domain": "workspace:*",
+    "graphql": "17.0.2",
+    "graphql-yoga": "5.21.3",
+    "hono": "4.13.2"
+  },
+  "devDependencies": {
+    "typescript": "5.7.2"
+  }
+}

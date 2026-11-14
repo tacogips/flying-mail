@@ -1,0 +1,21 @@
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tag-chip-remove {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 11px;
+  color: inherit;
+  cursor: pointer;
+}

@@ -1,0 +1,14 @@
+# Applied by Cloudflare Workers Static Assets.
+#
+# The asset server answers matching requests *before* the Worker runs, so
+# `infrastructure/http/security-headers.ts` never sees them -- these headers
+# are the same baseline expressed where the SPA is actually served from.
+#
+# `frame-src 'self' blob:` is required: the mail client renders HTML message
+# bodies inside a sandboxed same-origin iframe (see html-body-frame.tsx).
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'

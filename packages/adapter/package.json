@@ -1,0 +1,42 @@
+{
+  "name": "@mailcal/adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./sql/d1": "./src/sql/d1.ts",
+    "./sql/libsql": "./src/sql/libsql.ts",
+    "./blob/r2": "./src/blob/r2.ts",
+    "./dns/doh-resolver": "./src/dns/doh-resolver.ts",
+    "./blob/s3": "./src/blob/s3.ts",
+    "./blob/memory": "./src/blob/memory.ts",
+    "./migrations/runner": "./src/migrations/runner.ts",
+    "./crypto": "./src/crypto.ts",
+    "./crypto/credential-cipher": "./src/crypto/credential-cipher.ts",
+    "./ics/ics-codec": "./src/ics/ics-codec.ts",
+    "./caldav/caldav-client": "./src/caldav/caldav-client.ts",
+    "./mail/cloudflare-email": "./src/mail/cloudflare-email.ts",
+    "./mime/postal-mime-parser": "./src/mime/postal-mime-parser.ts",
+    "./mime/mime-builder": "./src/mime/mime-builder.ts",
+    "./repositories/*": "./src/repositories/*.ts",
+    "./templates/eta-renderer": "./src/templates/eta-renderer.ts",
+    "./mail/cloudflare-email-api": "./src/mail/cloudflare-email-api.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@libsql/client": "0.17.4",
+    "@mailcal/application": "workspace:*",
+    "@mailcal/domain": "workspace:*",
+    "aws4fetch": "1.0.20",
+    "eta": "4.6.0",
+    "mimetext": "3.0.28",
+    "postal-mime": "2.7.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260814.1",
+    "typescript": "5.7.2"
+  }
+}

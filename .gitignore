@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Local SQLite data (apps/api's default local dev database)
+apps/api/data/
+/data/
+
+# Wrangler local state
+.wrangler/
+
+# Bun (binary lockfile - we use the text lockfile bun.lock instead)
+bun.lockb
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Implementation progress lock file
+impl-plans/.progress.lock
+
+# Private files
+.private*/
+
+mise.local.toml

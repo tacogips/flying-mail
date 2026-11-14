@@ -1,0 +1,18 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-shell-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-shell-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
