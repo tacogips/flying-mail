@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": [
+    "src/**/*.ts",
+    // The ambient `declare module "cloudflare:sockets"` this package's own
+    // program never reaches by import (ambient module declarations load
+    // only from a program's root files, never transitively): now that
+    // `composition/build-dependencies.ts` imports
+    // `@flying-mail/adapter/tcp/cloudflare-tcp-dialer`, this package's own
+    // `tsc --noEmit` needs the declaration in its own root file set, the
+    // same way `@flying-mail/adapter`'s tsconfig already picks it up via its
+    // sibling-file `src/**/*.ts` include.
+    "../adapter/src/tcp/cloudflare-sockets.d.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

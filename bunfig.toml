@@ -1,0 +1,16 @@
+# Bun configuration
+# https://bun.sh/docs/runtime/bunfig
+
+[install]
+# Save exact versions (no ^ or ~ prefixes)
+exact = true
+
+# Generate text lockfile for better git diff visibility
+saveTextLockfile = true
+
+# Minimum age in seconds before a package version can be installed
+# 259200 = 3 days (prevents installing freshly published malicious packages)
+minimumReleaseAge = 259200
+
+# NOTE: Bun blocks lifecycle scripts by default (secure by design)
+# Use "trustedDependencies" in package.json to allowlist specific packages

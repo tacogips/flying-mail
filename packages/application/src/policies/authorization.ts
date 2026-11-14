@@ -1,0 +1,485 @@
+import {
+  Capability,
+  type ContactCapability,
+  isGlobalCapability,
+  scopesAuthorize,
+  scopesAuthorizeGlobal,
+  scopesForCapability,
+  type TemplateCapability,
+} from "@flying-mail/domain/entities/api-key";
+import { resolveUserTemplateCapability } from "@flying-mail/domain/entities/user-template-permission";
+import { UserRole } from "@flying-mail/domain/entities/user";
+import {
+  type AddressPattern,
+  matchAddressPattern,
+} from "@flying-mail/domain/value-objects/address-pattern";
+import type { EmailAddress } from "@flying-mail/domain/value-objects/email-address";
+import type {
+  DomainId,
+  MailAddressId,
+  UserId,
+} from "@flying-mail/domain/value-objects/ids";
+import { ForbiddenError, UnauthenticatedError } from "../errors";
+import { isAdminViewer, type Viewer } from "./viewer";
+
+/** Every authorization decision in flying-mail goes through this module. Use
+ * cases call it rather than inspecting `Viewer` directly, so the rules exist
+ * in exactly one place and can be audited as a unit. */
+
+/** Narrows a possibly-absent viewer, throwing `UnauthenticatedError`. */
+export function requireViewer(viewer: Viewer | null): Viewer {
+  if (viewer === null) {
+    throw new UnauthenticatedError("Authentication required");
+  }
+  return viewer;
+}
+
+/** Whether a viewer has any grant capable of reading mail. */
+export function hasAnyMailRead(viewer: Viewer): boolean {
+  if (viewer.kind === "API_KEY") {
+    return viewer.scopes.some(
+      (scope) => scope.capability === Capability.MailRead,
+    );
+  }
+  return (
+    viewer.role === UserRole.Admin ||
+    viewer.permissions.some((permission) => permission.effect === "ALLOW")
+  );
+}
+
+/** Whether an API-key viewer's scopes contain this capability. This is a
+ * presence check for MCP tool visibility, not an authorization grant. USER
+ * viewers always return false because MCP accepts API keys only. */
+export function viewerHoldsCapability(
+  viewer: Viewer,
+  capability: Capability,
+): boolean {
+  return (
+    viewer.kind === "API_KEY" &&
+    viewer.scopes.some((scope) => scope.capability === capability)
+  );
+}
+
+/** Non-throwing form of {@link requireGlobalCapability}. USER_ADMIN is
+ * excluded because liveness needs repository access; only
+ * `requireUserAdministrator` may accept it. */
+export function authorizesGlobal(
+  viewer: Viewer,
+  capability: Capability,
+): boolean {
+  if (capability === Capability.UserAdmin) {
+    return false;
+  }
+  if (viewer.kind === "USER") {
+    // Instance administration is an ADMIN-only user power; a MEMBER never
+    // has it, and a deactivated user never resolves to a viewer at all.
+    return isGlobalCapability(capability)
+      ? isAdminViewer(viewer)
+      : // Non-global capabilities are per-address; asking about them here is
+        // a caller mistake rather than a grant, so answer conservatively.
+        false;
+  }
+  return scopesAuthorizeGlobal(viewer.scopes, capability);
+}
+
+/** Instance-wide capability check (`DOMAIN_ADMIN`, `KEY_ADMIN`). */
+export function requireGlobalCapability(
+  viewer: Viewer,
+  capability: Capability,
+): void {
+  if (!authorizesGlobal(viewer, capability)) {
+    throw new ForbiddenError(
+      `This credential is not permitted to perform ${capability} operations`,
+    );
+  }
+}
+
+/** One `UserMailPermission` row, reduced to exactly what an authorization
+ * decision or a listing filter needs. The `(effect, domainId,
+ * addressPattern)` triple must always travel together: splitting a rule's
+ * domain and pattern into independent lists would let an unrelated pairing
+ * from a *different* rule match, which is the cross-product bug this shape
+ * exists to prevent. */
+export interface MailAuthorizationRule {
+  readonly effect: "ALLOW" | "DENY";
+  readonly domainId: DomainId | null;
+  readonly addressPattern: AddressPattern;
+}
+
+/** Everything a listing query needs to enforce a USER viewer's mailbox
+ * rules. `baseline: true` (ADMIN) means every domain/address is visible
+ * unless a DENY rule matches; `baseline: false` (MEMBER/VIEWER) means only
+ * a matching ALLOW with no matching DENY makes a candidate visible. */
+export interface MailPermissionFilter {
+  readonly baseline: boolean;
+  readonly rules: readonly MailAuthorizationRule[];
+}
+
+/** Whether a role may exercise `capability` **at all**, before any per-rule
+ * ALLOW/DENY is considered. `ADMIN` and `MEMBER` may exercise every
+ * non-global capability (subject to `MEMBER` still needing a matching
+ * ALLOW rule); `VIEWER` may only ever read mail and mint file links, no
+ * matter what its rules say. Callers must already have excluded global
+ * capabilities before calling this. */
+function roleGrantsCapability(role: UserRole, capability: Capability): boolean {
+  switch (role) {
+    case UserRole.Admin:
+    case UserRole.Member:
+      return true;
+    case UserRole.Viewer:
+      return (
+        capability === Capability.MailRead || capability === Capability.FileLink
+      );
+    default: {
+      const exhaustive: never = role;
+      throw new Error(`Unhandled user role: ${String(exhaustive)}`);
+    }
+  }
+}
+
+/** The viewer's mailbox rules that are even in play for `capability` --
+ * empty for an API-key viewer, a global capability, or a role that a
+ * `VIEWER` can never hold (`MAIL_SEND`/`MAIL_MANAGE`). Every rule keeps its
+ * own `(effect, domainId, addressPattern)` triple, so a caller can never
+ * accidentally recombine one rule's domain with another rule's pattern. */
+export function mailAuthorizationRules(
+  viewer: Viewer,
+  capability: Capability,
+): readonly MailAuthorizationRule[] {
+  if (viewer.kind !== "USER" || isGlobalCapability(capability)) {
+    return [];
+  }
+  if (!roleGrantsCapability(viewer.role, capability)) {
+    return [];
+  }
+  return viewer.permissions.map((permission) => ({
+    effect: permission.effect,
+    domainId: permission.domainId,
+    addressPattern: permission.addressPattern,
+  }));
+}
+
+/** The listing-query filter a USER viewer's mailbox rules impose, or `null`
+ * when this mechanism does not apply (an API-key viewer, or a global
+ * capability -- both keep using `readableAddressPatterns`/`scopedDomainIds`
+ * instead, entirely independently of this one). */
+export function mailPermissionListFilter(
+  viewer: Viewer,
+  capability: Capability,
+): MailPermissionFilter | null {
+  if (viewer.kind !== "USER" || isGlobalCapability(capability)) {
+    return null;
+  }
+  return {
+    baseline: viewer.role === UserRole.Admin,
+    rules: mailAuthorizationRules(viewer, capability),
+  };
+}
+
+/** True when `rule`'s own domain/pattern pairing covers `domainId` and
+ * `address`. Never call this with a domain or pattern taken from a
+ * *different* rule -- that is exactly the cross-product this type's shape
+ * is meant to make impossible. */
+function mailRuleMatches(
+  rule: Pick<MailAuthorizationRule, "domainId" | "addressPattern">,
+  domainId: DomainId,
+  address: EmailAddress,
+): boolean {
+  if (rule.domainId !== null && rule.domainId !== domainId) {
+    return false;
+  }
+  return matchAddressPattern(rule.addressPattern, address);
+}
+
+/** Whether `filter`'s rules authorize at least one of `addresses` in
+ * `domainId`. Each candidate address is evaluated independently in the
+ * order the design doc specifies: a matching DENY always rejects that one
+ * address; otherwise `filter.baseline` (an ADMIN) covers it, and a
+ * non-baseline viewer (MEMBER/VIEWER) needs a matching ALLOW. A DENY on one
+ * address never hides a message that is independently authorized through
+ * another address. Takes an already-resolved `MailPermissionFilter` rather
+ * than a `Viewer`, so in-memory test doubles for listing repositories can
+ * honor a USER viewer's mailbox rules without re-implementing the rule
+ * semantics themselves. */
+export function mailPermissionFilterAuthorizesAnyAddress(
+  filter: MailPermissionFilter,
+  domainId: DomainId,
+  addresses: readonly EmailAddress[],
+): boolean {
+  return addresses.some((address) => {
+    const denied = filter.rules.some(
+      (rule) =>
+        rule.effect === "DENY" && mailRuleMatches(rule, domainId, address),
+    );
+    if (denied) {
+      return false;
+    }
+    if (filter.baseline) {
+      return true;
+    }
+    return filter.rules.some(
+      (rule) =>
+        rule.effect === "ALLOW" && mailRuleMatches(rule, domainId, address),
+    );
+  });
+}
+
+/** Non-throwing per-address check. Passes when **any** of `addresses` is
+ * authorized: a message with several envelope recipients is readable when
+ * the key covers even one of them. */
+export function authorizesAnyAddress(
+  viewer: Viewer,
+  capability: Capability,
+  domainId: DomainId,
+  addresses: readonly EmailAddress[],
+): boolean {
+  if (viewer.kind === "USER") {
+    if (isGlobalCapability(capability)) {
+      return false;
+    }
+    return mailPermissionFilterAuthorizesAnyAddress(
+      {
+        baseline: viewer.role === UserRole.Admin,
+        rules: mailAuthorizationRules(viewer, capability),
+      },
+      domainId,
+      addresses,
+    );
+  }
+  return addresses.some((address) =>
+    scopesAuthorize(viewer.scopes, { capability, domainId, address }),
+  );
+}
+
+/** Whether the viewer holds a per-address `capability` somewhere at all,
+ * with no particular address in play -- for instance-wide mail resources
+ * such as tags or staged uploads. An ADMIN user always does; a MEMBER needs
+ * at least one ALLOW rule; a VIEWER never holds a capability its role
+ * cannot carry (`MAIL_SEND`, `MAIL_MANAGE`); an API key needs a scope for
+ * the capability. A global capability is never held "anywhere". */
+export function authorizesCapabilityAnywhere(
+  viewer: Viewer,
+  capability: Capability,
+): boolean {
+  if (isGlobalCapability(capability)) {
+    return false;
+  }
+  if (viewer.kind === "USER") {
+    if (viewer.role === UserRole.Admin) {
+      return true;
+    }
+    return mailAuthorizationRules(viewer, capability).some(
+      (rule) => rule.effect === "ALLOW",
+    );
+  }
+  return viewer.scopes.some((scope) => scope.capability === capability);
+}
+
+/** `MAIL_MANAGE` held somewhere; see {@link authorizesCapabilityAnywhere}. */
+export function authorizesAnyMailManage(viewer: Viewer): boolean {
+  return authorizesCapabilityAnywhere(viewer, Capability.MailManage);
+}
+
+/** `MAIL_SEND` held somewhere; see {@link authorizesCapabilityAnywhere}. */
+export function authorizesAnyMailSend(viewer: Viewer): boolean {
+  return authorizesCapabilityAnywhere(viewer, Capability.MailSend);
+}
+
+/** Throwing per-address check, for write operations. Reads must **not** use
+ * this: an unauthorized read is reported as `NOT_FOUND` by its use case, so
+ * a key cannot probe for the existence of addresses outside its scope. */
+export function requireAddressCapability(
+  viewer: Viewer,
+  capability: Capability,
+  domainId: DomainId,
+  addresses: readonly EmailAddress[],
+): void {
+  if (!authorizesAnyAddress(viewer, capability, domainId, addresses)) {
+    throw new ForbiddenError(
+      `This credential is not permitted to perform ${capability} on the requested address`,
+    );
+  }
+}
+
+/** The address patterns a listing query must be filtered by.
+ *
+ * `null` means unrestricted (a user viewer). An **empty array** means the
+ * viewer holds no scope for this capability at all and must therefore see
+ * nothing -- callers and the repository must treat that as "match none",
+ * never as "no filter". */
+export function readableAddressPatterns(
+  viewer: Viewer,
+  capability: Capability,
+): readonly AddressPattern[] | null {
+  if (viewer.kind === "USER") {
+    return null;
+  }
+  return scopesForCapability(viewer.scopes, capability).map(
+    (scope) => scope.addressPattern,
+  );
+}
+
+/** The domain ids a listing query must be restricted to, or `null` for
+ * unrestricted. A scope with a `null` `domainId` is a wildcard, so the
+ * presence of even one collapses the whole result to `null`. */
+export function scopedDomainIds(
+  viewer: Viewer,
+  capability: Capability,
+): readonly DomainId[] | null {
+  if (viewer.kind === "USER") {
+    return null;
+  }
+  const scopes = scopesForCapability(viewer.scopes, capability);
+  if (scopes.length === 0) {
+    // No scope for this capability: nothing is visible. Signalled as an
+    // empty array rather than `null`, which would mean "everything".
+    return [];
+  }
+  const ids: DomainId[] = [];
+  for (const scope of scopes) {
+    if (scope.domainId === null) {
+      return null;
+    }
+    if (!ids.includes(scope.domainId)) {
+      ids.push(scope.domainId);
+    }
+  }
+  return ids;
+}
+
+/** Narrows to a USER viewer for operations that need a user identity. */
+export function requireUserViewer(
+  viewer: Viewer,
+  message: string,
+): Extract<Viewer, { kind: "USER" }> {
+  if (viewer.kind !== "USER") {
+    throw new ForbiddenError(message);
+  }
+  return viewer;
+}
+
+/** Non-throwing template capability check. Templates are instance-wide, so
+ * there is no address axis: a key's scope is the capability alone. */
+export function authorizesTemplateCapability(
+  viewer: Viewer,
+  capability: TemplateCapability,
+): boolean {
+  if (viewer.kind === "USER") {
+    return resolveUserTemplateCapability(
+      viewer.role,
+      viewer.templatePermissions,
+      capability,
+    );
+  }
+  return viewer.scopes.some((scope) => scope.capability === capability);
+}
+
+export function requireTemplateCapability(
+  viewer: Viewer,
+  capability: TemplateCapability,
+): void {
+  if (!authorizesTemplateCapability(viewer, capability)) {
+    throw new ForbiddenError(
+      `This credential is not permitted to perform ${capability} operations`,
+    );
+  }
+}
+
+/** Identity of an address book's owner, as a contact authorization decision
+ * needs it: the *mail address* the book belongs to, plus its domain. This is
+ * always a managed address, so `domainId` carries no optionality here. */
+export interface ContactBookOwnerRef {
+  readonly mailAddressId: MailAddressId;
+  readonly address: EmailAddress;
+  readonly domainId: DomainId;
+}
+
+/** Maps `CONTACT_READ` -> `MAIL_READ` and `CONTACT_WRITE` -> `MAIL_MANAGE`:
+ * the mail capability a USER viewer's existing permission rules must grant
+ * for the corresponding contact capability to hold. This mapping -- not a
+ * second per-resource permission table -- is the entire mechanism behind
+ * the design doc's "no second permission system" claim for contacts. */
+export function mailCapabilityForContact(
+  capability: ContactCapability,
+): Capability.MailRead | Capability.MailManage {
+  return capability === Capability.ContactRead
+    ? Capability.MailRead
+    : Capability.MailManage;
+}
+
+/** One contact capability check, for either credential kind. A USER viewer
+ * is authorized purely through the mapped mail capability on the book's
+ * owning address; an API-key viewer needs an explicit `CONTACT_READ`/
+ * `CONTACT_WRITE` scope matched by address, exactly like a mail scope. */
+export function authorizesContactCapability(
+  viewer: Viewer,
+  capability: ContactCapability,
+  owner: ContactBookOwnerRef,
+): boolean {
+  if (viewer.kind === "USER") {
+    return authorizesAnyAddress(
+      viewer,
+      mailCapabilityForContact(capability),
+      owner.domainId,
+      [owner.address],
+    );
+  }
+  return scopesAuthorize(viewer.scopes, {
+    capability,
+    domainId: owner.domainId,
+    address: owner.address,
+  });
+}
+
+/** Non-throwing read check. A failing read is reported by its use case as
+ * `NOT_FOUND`, never `FORBIDDEN` -- same probe resistance as mail reads. */
+export function authorizesContactRead(
+  viewer: Viewer,
+  owner: ContactBookOwnerRef,
+): boolean {
+  return authorizesContactCapability(viewer, Capability.ContactRead, owner);
+}
+
+export function authorizesContactWrite(
+  viewer: Viewer,
+  owner: ContactBookOwnerRef,
+): boolean {
+  return authorizesContactCapability(viewer, Capability.ContactWrite, owner);
+}
+
+/** Throwing write check. Callers must have already established that the
+ * viewer can *read* the book, so reporting FORBIDDEN here leaks nothing the
+ * caller does not already know. */
+export function requireContactWrite(
+  viewer: Viewer,
+  owner: ContactBookOwnerRef,
+): void {
+  if (!authorizesContactWrite(viewer, owner)) {
+    throw new ForbiddenError(
+      "This credential is not permitted to modify this address book",
+    );
+  }
+}
+
+/** USER-viewer listing filter, reusing `mailPermissionListFilter` under the
+ * mapped mail capability. `null` for an API-key viewer, which instead uses
+ * `readableAddressPatterns`/`scopedDomainIds` under the `CONTACT_*`
+ * capability directly -- the two mechanisms are deliberately independent,
+ * mirroring `mailPermissionListFilter` itself. */
+export function contactPermissionListFilter(
+  viewer: Viewer,
+  capability: ContactCapability,
+): MailPermissionFilter | null {
+  return mailPermissionListFilter(viewer, mailCapabilityForContact(capability));
+}
+
+/** CardDAV accounts are strictly per-user: an API key must not be able to
+ * connect, rotate or delete one, because that would let an agent exfiltrate
+ * a person's iCloud credentials. A suitably scoped key may still trigger
+ * `syncCarddavBook`, which touches no credential of its own. */
+export function requireCarddavAccountUser(viewer: Viewer): UserId {
+  return requireUserViewer(
+    viewer,
+    "CardDAV accounts can only be managed by a signed-in user",
+  ).userId;
+}

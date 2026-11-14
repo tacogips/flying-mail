@@ -1,0 +1,703 @@
+{
+  "taskId": "mcp-server-s316",
+  "workflowMode": "issue-resolution",
+  "implementationBranch": "main",
+  "baseBranch": "main",
+  "remote": "origin",
+  "originalHead": "18e53e8ceff25fe32dcdfa95632cd1d98a1446ca",
+  "designDocPaths": [
+    "design-docs/specs/design-mcp-server.md",
+    "design-docs/user-qa/pending-mcp-server.md",
+    "design-docs/user-qa/README.md",
+    "design-docs/specs/architecture.md",
+    "design-docs/specs/design-security-model.md",
+    "design-docs/specs/design-api-keys-and-permissions.md",
+    "design-docs/specs/design-deployment.md",
+    "design-docs/references/README.md",
+    "design-docs/specs/design-user-admin-capability.md"
+  ],
+  "evidenceRoot": "tmp/mcp-server-s316",
+  "reviewContext": {
+    "issueReference": "workflowInput:opus-luna-design-and-implement-review-loop-session-316/comm-005167 (design accepted comm-005170; plan revision comm-005173; plan review ACCEPT comm-005174). No GitHub issue or PR was supplied.",
+    "userProblem": "flying-mail has no MCP (Model Context Protocol) endpoint. Agents such as Claude Code and Codex cannot read, send or manage mail except through GraphQL, REST and the CLI, and there is no MCP surface that reuses API-key scopes, treats mail content as untrusted, and audits tool calls.",
+    "requiredOutcomes": [
+      "POST /mcp on the shared hono app (Worker, Bun and Node). It is a stateless, dual-era, hand-written JSON-RPC 2.0 handler. Modern 2026-07-28 serves server/discover, tools/list and tools/call. Legacy 2025-11-25, 2025-06-18 and 2025-03-26 serve initialize, notifications/initialized, ping, tools/list and tools/call. Responses are JSON only, with no SSE and no Mcp-Session-Id (design 2).",
+      "Pipeline, in order (design 3): method, Origin, limiter configured, per-IP limit, API-key-only Bearer auth, per-key limit, Accept, Content-Type, body cap, then dispatch. Auth failure gives 401 with WWW-Authenticate: Bearer realm=\"flying-mail\". Cookies are never read. /mcp is mounted before the global auth middleware. OAuth discovery paths give JSON 404s.",
+      "A new MCP_RATE_LIMITER binding (120 per 60 s, namespace_id 1002) per key and per IP. The Bun and Node servers use an in-memory limiter. The Worker answers 503 when the binding is absent. The body cap is 7 MiB.",
+      "27 snake_case tools in the fixed design 4.4 catalogue order, with annotations per design 4.2. They execute only through application use cases. tools/list hides tools whose capability the key lacks entirely (viewerHoldsCapability). tools/call re-checks, and a hidden tool is indistinguishable from an unknown one (-32602). USER_ADMIN tools are visible only to USER_ADMIN keys. No tool creates users, invites or logs in.",
+      "New use cases: resolveApiKeyViewerFromToken, trashMessages (never purges), stageAttachmentUpload and readAttachment. The REST attachment routes are refactored onto them with byte-identical responses.",
+      "Every sender-controlled string is placed only under untrusted_content, with a fixed notice in the text summary. HTML is converted to text with parse5 by default, and allowlist-sanitized HTML is returned only on request. Bodies are capped with truncation markers. Nothing is fetched.",
+      "Domain errors map to isError tool results with stable codes through the shared classifyError, and GraphQL output is unchanged. Protocol errors are JSON-RPC errors. Each tools/call produces one mcp.tool_call audit line with no content and no secrets.",
+      "README MCP server section (Claude Code, Codex config.toml, generic client, tool table, least-privilege key guidance, limits) and a flying-mail-deploy skill MCP smoke check that never prints the key. The design docs are already updated in this checkpoint.",
+      "mise run lint, bun run test (all workspaces), mise run build-web and the Worker dry run pass. The baseline is 2055 package tests and 302 web tests, plus the new tests."
+    ],
+    "nonGoals": [
+      "No deploy, no remote wrangler (dry run only), no secrets and no DNS. The orchestrating session performs deployment and live verification.",
+      "No git commit, push, stash, reset or checkout by workers. No worktrees.",
+      "No OAuth flow, no SSE, no sessions, no subscriptions/listen, no resources, no prompts and no outputSchema (M7).",
+      "No delete_messages or permanent-delete tool (M4). No template, contact, domain, key, classification-rule, fetch-state or user-template-permission tools. No CLI helper.",
+      "No change to GraphQL output, the web app or migrations. No migration 0018. Existing migrations are not edited.",
+      "No @modelcontextprotocol/sdk. The only new dependency is parse5 8.0.1, pinned and already present in bun.lock through jsdom."
+    ],
+    "constraints": [
+      "AGENTS.md/CLAUDE.md: English only, no emojis, maximum TypeScript strictness, Biome clean, ts-coding-standards, and no TypeScript file at 1000+ lines. protocol.ts stays under 500 lines and each tool file under 500 lines. apps/api/src/worker.test.ts (998 lines) is not edited.",
+      "Workers edit only their plan writePaths and their own plan Progress Log. impl-plans/PROGRESS.json and impl-plans/README.md are edited only by mcp-server-12. No worker edits, moves or deletes this dispatch manifest.",
+      "Record sha256 before and after each edit. On drift, re-read and merge only the plan's intent. Never revert others' edits. Never run repository-wide formatters.",
+      "Cross-plan transient failures inside a wave are recorded and re-run after the owner reports done. They are never fixed outside the plan's writePaths. Contract defects go to the owning plan as repair requests.",
+      "Evidence for each plan and attempt goes under tmp/mcp-server-s316/<planId>/<attempt>/ (gitignored). Plan gate logs go to /tmp/mcp-server-<NN>-*.log and /tmp/mcp-server-final-<n>.log.",
+      "Do not weaken existing security: auth hardening, USER_ADMIN rules, realtime authorization and CSP. createUser, resendInvitation and login stay web-session-only. Authorization is not duplicated in the MCP layer.",
+      "Never commit secret values. Use placeholders only ($FLYING_MAIL_MCP_KEY, ybm_<prefix>_<secret>)."
+    ],
+    "designDecisionsAndRationale": [
+      "Dual-era stateless server (design 2.2, M1). The current 2026-07-28 revision removed initialize, ping and sessions, but field clients may speak either era. Without state, nothing has to live outside Durable Objects on Workers.",
+      "Hand-written handler, no SDK (design 2.7). The SDK is not in bun.lock, and it brings zod plus Node HTTP packages. Its transport would hide the required ordering of auth, rate limits and body limits. Input validation comes from one FieldSpec per tool, which derives both the JSON Schema and the runtime parser.",
+      "API-key-only resolution (design 3.1). resolveApiKeyViewerFromToken never consults sessions and rejects tokens that do not match ^ybm_[0-9a-f]{12}_\\S+$ before any hashing or lookup. The 401 is identical for missing, malformed, unknown, revoked and expired keys.",
+      "A separate MCP_RATE_LIMITER (design 3.3, M2), because AUTH_RATE_LIMITER (10 per 60 s) would throttle an agent after ten calls. The per-IP check runs before auth, and the body is read only after auth.",
+      "Visibility is a scope-presence check (viewerHoldsCapability in the single policy module). Authorization stays in the use cases. USER_ADMIN liveness is enforced at call time by requireUserAdministrator (design 4.1).",
+      "Untrusted content (design 4.5, 5): views put sender strings only under untrusted_content. HTML goes through parse5 to text, or through an allowlist sanitizer when include_html is set. No DOMPurify, because it needs a DOM that Workers lack.",
+      "Error classification is extracted into classifyError in graphql/errors.ts and shared, so MCP codes and messages equal GraphQL's (design 6).",
+      "Plan DAG: wave 1 = 01, 02, 03 and 04 (parallel, disjoint writePaths); wave 2 = 05, 06, 07, 08, 09 and 10; wave 3 = 11 (catalogue and end-to-end tests only); wave 4 = 12 (serial reconciliation and final gates). Plan 03 creates five empty tool-group stubs, and ownership of each passes to plans 05-09, serialized by dependsOn."
+    ],
+    "intentionalTradeoffs": [
+      "Staged attachment ids are not bound to the uploader. This is existing behavior, accepted as a residual risk.",
+      "Clients may implement either MCP era imperfectly. This is covered by the plan 11 end-to-end tests and the plan 04 smoke check.",
+      "Hidden-text filtering in HTML-to-text is best-effort against prompt injection.",
+      "Worker CPU and memory for large base64 and HTML stay within the caps. M3 is pending user confirmation.",
+      "The Workers rate limiter fails open on binding errors, matching the accepted auth policy. It is per location and eventually consistent, so it is an abuse brake, not a quota.",
+      "A key whose creating admin lapsed still sees USER_ADMIN tools, and gets FORBIDDEN on every call.",
+      "Transport rejections (401, 403, 413, 429) are not audit events. They are bounded by the rate limits.",
+      "Wave-internal plans may see transient typecheck or test failures in each other's files. The plan 11 and plan 12 full re-runs are authoritative."
+    ],
+    "supportedEdgeCases": [
+      "A session token sent as Bearer, even one matching the ybm_ format, gives 401.",
+      "A malformed Bearer token gives 401 with no hashing and no database lookup.",
+      "Absent Origin is allowed. A malformed or foreign Origin gives 403 / -32000.",
+      "A Content-Length over 7 MiB is rejected unread. A chunked body is aborted at the cap with 413.",
+      "A modern request with a mismatched MCP-Protocol-Version, Mcp-Method or Mcp-Name header gives 400 / -32020. An unsupported version gives 400 / -32022 with data.supported.",
+      "A legacy request without MCP-Protocol-Version is assumed to be 2025-03-26. A legacy initialize with an unsupported version is answered with 2025-11-25. Modern ping gives 404 / -32601. A legacy unknown method gives 200 / -32601.",
+      "Notifications give 202 with an empty body. A batch array, a JSON-RPC response object or invalid JSON give 400 with -32600 or -32700.",
+      "tools/call for a hidden or unknown tool gives -32602 and is audited as rejected, with tool \"<unknown>\" when the name is not a catalogue name or not a string.",
+      "A zero-scope viewer sees an empty tools/list.",
+      "move_to_trash on an already-trashed message keeps it stored, adds no new event and returns the count. A missing Trash tag gives SERVICE_UNAVAILABLE and never a hard delete.",
+      "get_attachment over 256 KiB mints a single-download, 10-minute link, which requires FILE_LINK. Staged or unreadable attachments give NOT_FOUND.",
+      "The REST attachment routes return the exact same responses, including the 404 body {\"error\":\"Attachment not found\"}.",
+      "Out-of-scope messages read as NOT_FOUND, and listings are filtered exactly as in GraphQL."
+    ],
+    "outOfScopeEdgeCases": [
+      "OAuth and protected-resource metadata beyond the JSON 404s.",
+      "SSE streaming, progress notifications, MRTR input requests, the tasks extension, resources and prompts.",
+      "HTTP+SSE transport clients (2024-11-05 and older).",
+      "Binding staged uploads to their uploader.",
+      "Lower upload caps, a separate delete_messages tool, metadata-only attachment results, all-write-destructive annotations and output schemas (alternatives in M3-M7)."
+    ],
+    "sourcePaths": [
+      "design-docs/specs/design-mcp-server.md",
+      "design-docs/user-qa/pending-mcp-server.md",
+      "design-docs/user-qa/README.md",
+      "design-docs/specs/architecture.md",
+      "design-docs/specs/design-security-model.md",
+      "design-docs/specs/design-api-keys-and-permissions.md",
+      "design-docs/specs/design-deployment.md",
+      "design-docs/references/README.md",
+      "design-docs/specs/design-user-admin-capability.md",
+      "design-docs/specs/design-graphql-api.md",
+      "design-docs/specs/design-webmail-completion.md",
+      "impl-plans/PROGRESS.json",
+      "impl-plans/README.md",
+      "impl-plans/active/mcp-server-01-application-usecases.md",
+      "impl-plans/active/mcp-server-02-content-shaping.md",
+      "impl-plans/active/mcp-server-03-protocol-core.md",
+      "impl-plans/active/mcp-server-04-docs.md",
+      "impl-plans/active/mcp-server-05-read-tools.md",
+      "impl-plans/active/mcp-server-06-compose-tools.md",
+      "impl-plans/active/mcp-server-07-attachment-tools.md",
+      "impl-plans/active/mcp-server-08-manage-tools.md",
+      "impl-plans/active/mcp-server-09-user-admin-tools.md",
+      "impl-plans/active/mcp-server-10-transport-wiring.md",
+      "impl-plans/active/mcp-server-11-catalogue-integration.md",
+      "impl-plans/active/mcp-server-12-final-verification.md"
+    ]
+  },
+  "plans": [
+    {
+      "planId": "mcp-server-01-application-usecases",
+      "planPath": "impl-plans/active/mcp-server-01-application-usecases.md",
+      "dependsOn": [],
+      "writePaths": [
+        "packages/application/src/usecases/auth.ts",
+        "packages/application/src/usecases/auth.test.ts",
+        "packages/application/src/usecases/trash.ts",
+        "packages/application/src/usecases/trash.test.ts",
+        "packages/application/src/usecases/attachment-uploads.ts",
+        "packages/application/src/usecases/attachment-uploads.test.ts",
+        "packages/application/src/usecases.ts",
+        "packages/infrastructure/src/http/attachments.ts",
+        "impl-plans/active/mcp-server-01-application-usecases.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/src/http/attachments.ts",
+          "intendedEdit": "Refactor POST /attachments and GET /attachments/:id onto stageAttachmentUpload and readAttachment with byte-identical responses, including the exact {\"error\":\"Attachment not found\"} 404. Remove imports that become unused."
+        },
+        {
+          "path": "impl-plans/active/mcp-server-01-application-usecases.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "resolveApiKeyViewerFromToken(token): Promise<ApiKeyViewer | null> resolves only the API-key branch, through a helper extracted from resolveViewerFromTokenHash. It returns null without hashing for tokens not matching ^ybm_[0-9a-f]{12}_\\S+$, and null for revoked, expired, unknown and session tokens. It never reads sessions. resolveViewerFromToken is unchanged.",
+        "trashMessages(viewer, ids): Promise<number> adds the Trash tag under MAIL_MANAGE, silently skips unreadable ids, never purges, and records MessageUpdated only for newly trashed messages. A missing Trash tag throws ServiceUnavailableError.",
+        "stageAttachmentUpload enforces MAX_ATTACHMENT_UPLOAD_BYTES (BAD_USER_INPUT on content) and the default name and type. readAttachment gives NOT_FOUND for staged, unreadable or blob-missing attachments, and does not call blobs.get when includeBody is false.",
+        "The four members are added to UseCases and createUseCases. The REST attachment routes keep byte-identical responses, and app.test.ts and messages.ts are untouched.",
+        "Files stay under 1000 lines. Verification evidence is recorded in the plan Progress Log."
+      ],
+      "verification": [
+        "bunx vitest run packages/application/src/usecases/auth.test.ts packages/application/src/usecases/trash.test.ts packages/application/src/usecases/attachment-uploads.test.ts",
+        "bunx vitest run packages/infrastructure/src/http",
+        "bunx vitest run packages/application",
+        "bun run typecheck",
+        "bunx biome check packages/application/src/usecases/auth.ts packages/application/src/usecases/auth.test.ts packages/application/src/usecases/trash.ts packages/application/src/usecases/trash.test.ts packages/application/src/usecases/attachment-uploads.ts packages/application/src/usecases/attachment-uploads.test.ts packages/application/src/usecases.ts packages/infrastructure/src/http/attachments.ts",
+        "wc -l packages/application/src/usecases.ts packages/application/src/usecases/auth.ts packages/infrastructure/src/http/attachments.ts",
+        "git diff --quiet -- packages/application/src/usecases/messages.ts packages/infrastructure/src/http/app.test.ts"
+      ]
+    },
+    {
+      "planId": "mcp-server-02-content-shaping",
+      "planPath": "impl-plans/active/mcp-server-02-content-shaping.md",
+      "dependsOn": [],
+      "writePaths": [
+        "packages/infrastructure/package.json",
+        "bun.lock",
+        "node_modules",
+        "packages/infrastructure/node_modules",
+        "packages/infrastructure/src/mcp/html-text.ts",
+        "packages/infrastructure/src/mcp/html-text.test.ts",
+        "packages/infrastructure/src/mcp/html-sanitize.ts",
+        "packages/infrastructure/src/mcp/html-sanitize.test.ts",
+        "packages/infrastructure/src/mcp/result-shaping.ts",
+        "packages/infrastructure/src/mcp/result-shaping.test.ts",
+        "impl-plans/active/mcp-server-02-content-shaping.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/package.json",
+          "intendedEdit": "Add \"parse5\": \"8.0.1\" (exact, no caret) to dependencies only."
+        },
+        {
+          "path": "bun.lock",
+          "intendedEdit": "Only the change produced by bun install for the parse5 workspace dependency (parse5 8.0.1 is already locked through jsdom). Record the version, the integrity digest, the install command and its exit code in the Progress Log."
+        },
+        {
+          "path": "node_modules",
+          "intendedEdit": "Artifact root: bun isolated-linker store written by bun install. Never edited by hand."
+        },
+        {
+          "path": "packages/infrastructure/node_modules",
+          "intendedEdit": "Artifact root: workspace symlinks written by bun install. Never edited by hand."
+        },
+        {
+          "path": "impl-plans/active/mcp-server-02-content-shaping.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [
+        "node_modules",
+        "packages/infrastructure/node_modules"
+      ],
+      "acceptanceCriteria": [
+        "parse5 is pinned at exactly 8.0.1 in packages/infrastructure/package.json, and bun install --frozen-lockfile passes afterwards.",
+        "html-text.ts converts HTML to plain text with parse5, cuts the input at MCP_HTML_INPUT_CHARS with a truncation marker, and drops hidden and non-content elements on a best-effort basis. html-sanitize.ts is an allowlist sanitizer with no script, event handler or unsafe URL in its output. Neither file performs I/O or fetch.",
+        "result-shaping.ts views place every sender-controlled string (subject, addresses and names, bodies, snippets, file names) only under untrusted_content. Bodies are capped with truncation markers. html_sanitized appears only when includeHtml is true. ParsedElement is DefaultTreeAdapterMap['element'].",
+        "htmlToPlainText and the web sanitizer are unchanged. constants.ts is not edited. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bun install --frozen-lockfile",
+        "bunx vitest run packages/infrastructure/src/mcp/html-text.test.ts packages/infrastructure/src/mcp/html-sanitize.test.ts packages/infrastructure/src/mcp/result-shaping.test.ts",
+        "bun run typecheck",
+        "bunx biome check packages/infrastructure/src/mcp/html-text.ts packages/infrastructure/src/mcp/html-sanitize.ts packages/infrastructure/src/mcp/result-shaping.ts packages/infrastructure/src/mcp/html-text.test.ts packages/infrastructure/src/mcp/html-sanitize.test.ts packages/infrastructure/src/mcp/result-shaping.test.ts packages/infrastructure/package.json",
+        "grep -n '\"parse5\": \"8.0.1\"' packages/infrastructure/package.json",
+        "sh -c '! grep -rn \"fetch(\" packages/infrastructure/src/mcp/html-text.ts packages/infrastructure/src/mcp/html-sanitize.ts packages/infrastructure/src/mcp/result-shaping.ts'"
+      ]
+    },
+    {
+      "planId": "mcp-server-03-protocol-core",
+      "planPath": "impl-plans/active/mcp-server-03-protocol-core.md",
+      "dependsOn": [],
+      "writePaths": [
+        "packages/application/src/policies/authorization.ts",
+        "packages/application/src/policies/authorization.test.ts",
+        "packages/application/src/policies/index.ts",
+        "packages/infrastructure/src/graphql/errors.ts",
+        "packages/infrastructure/src/mcp/constants.ts",
+        "packages/infrastructure/src/mcp/tool-schema.ts",
+        "packages/infrastructure/src/mcp/tool-schema.test.ts",
+        "packages/infrastructure/src/mcp/tool-types.ts",
+        "packages/infrastructure/src/mcp/jsonrpc.ts",
+        "packages/infrastructure/src/mcp/errors.ts",
+        "packages/infrastructure/src/mcp/errors.test.ts",
+        "packages/infrastructure/src/mcp/audit.ts",
+        "packages/infrastructure/src/mcp/audit.test.ts",
+        "packages/infrastructure/src/mcp/tool-registry.ts",
+        "packages/infrastructure/src/mcp/protocol.ts",
+        "packages/infrastructure/src/mcp/protocol.test.ts",
+        "packages/infrastructure/src/mcp/mcp-test-support.ts",
+        "packages/infrastructure/src/mcp/tools/read-tools.ts",
+        "packages/infrastructure/src/mcp/tools/compose-tools.ts",
+        "packages/infrastructure/src/mcp/tools/attachment-tools.ts",
+        "packages/infrastructure/src/mcp/tools/manage-tools.ts",
+        "packages/infrastructure/src/mcp/tools/user-admin-tools.ts",
+        "impl-plans/active/mcp-server-03-protocol-core.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/src/mcp/tools/read-tools.ts",
+          "intendedEdit": "Create only an empty stub exporting READ_TOOLS = []. Ownership passes to mcp-server-05-read-tools, which depends on this plan."
+        },
+        {
+          "path": "packages/infrastructure/src/mcp/tools/compose-tools.ts",
+          "intendedEdit": "Create only an empty stub exporting COMPOSE_TOOLS = []. Ownership passes to mcp-server-06-compose-tools, which depends on this plan."
+        },
+        {
+          "path": "packages/infrastructure/src/mcp/tools/attachment-tools.ts",
+          "intendedEdit": "Create only an empty stub exporting ATTACHMENT_TOOLS = []. Ownership passes to mcp-server-07-attachment-tools, which depends on this plan."
+        },
+        {
+          "path": "packages/infrastructure/src/mcp/tools/manage-tools.ts",
+          "intendedEdit": "Create only an empty stub exporting MANAGE_TOOLS = []. Ownership passes to mcp-server-08-manage-tools, which depends on this plan."
+        },
+        {
+          "path": "packages/infrastructure/src/mcp/tools/user-admin-tools.ts",
+          "intendedEdit": "Create only an empty stub exporting USER_ADMIN_TOOLS = []. Ownership passes to mcp-server-09-user-admin-tools, which depends on this plan."
+        },
+        {
+          "path": "packages/infrastructure/src/graphql/errors.ts",
+          "intendedEdit": "Extract the toGraphQLError instanceof cascade into an exported, transport-neutral classifyError(err) -> { code, message, field? }. GraphQL error output stays byte-identical."
+        },
+        {
+          "path": "packages/application/src/policies/index.ts",
+          "intendedEdit": "Add viewerHoldsCapability to the explicit export list only."
+        },
+        {
+          "path": "impl-plans/active/mcp-server-03-protocol-core.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "viewerHoldsCapability(viewer, capability) is a pure scope-presence check in authorization.ts and is exported from policies/index.ts.",
+        "The pinned contracts exist with the exact names and shapes in the plan: constants (SUPPORTED_VERSIONS, caps, MCP_RATE_LIMIT, UNTRUSTED_NOTICE), FieldSpec, FieldSpecMap, InferArgs and schema/parse derivation, defineTool, McpToolContext, McpToolOutcome, the jsonrpc helpers and codes, the MCP error mapping, the McpAuditSink and consoleAuditSink, MCP_TOOL_REGISTRY and MCP_CATALOGUE_ORDER, dispatchMcpMessage and createMcpTestHarness.",
+        "protocol.ts implements dual-era classification, the legacy lifecycle, modern header checks (-32020), unsupported versions (-32022), JSON-RPC framing per design 2.6, visibility filtering, hidden-equals-unknown -32602, and one audit line per tools/call, including 'rejected' with tool '<unknown>' for a non-string or non-catalogue params.name.",
+        "The five stub tool files export empty arrays and MCP_TOOL_REGISTRY builds. GraphQL tests are unchanged and green. protocol.ts is under 500 lines and every file is under 1000 lines. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/mcp packages/application/src/policies",
+        "bunx vitest run packages/infrastructure/src/graphql",
+        "bun run typecheck",
+        "bunx biome check packages/application/src/policies/authorization.ts packages/application/src/policies/authorization.test.ts packages/application/src/policies/index.ts packages/infrastructure/src/graphql/errors.ts packages/infrastructure/src/mcp/constants.ts packages/infrastructure/src/mcp/tool-schema.ts packages/infrastructure/src/mcp/tool-schema.test.ts packages/infrastructure/src/mcp/tool-types.ts packages/infrastructure/src/mcp/jsonrpc.ts packages/infrastructure/src/mcp/errors.ts packages/infrastructure/src/mcp/errors.test.ts packages/infrastructure/src/mcp/audit.ts packages/infrastructure/src/mcp/audit.test.ts packages/infrastructure/src/mcp/tool-registry.ts packages/infrastructure/src/mcp/protocol.ts packages/infrastructure/src/mcp/protocol.test.ts packages/infrastructure/src/mcp/mcp-test-support.ts packages/infrastructure/src/mcp/tools",
+        "sh -c 'wc -l packages/infrastructure/src/mcp/*.ts packages/application/src/policies/authorization.ts'",
+        "sh -c 'test \"$(wc -l < packages/infrastructure/src/mcp/protocol.ts)\" -lt 500'"
+      ]
+    },
+    {
+      "planId": "mcp-server-04-docs",
+      "planPath": "impl-plans/active/mcp-server-04-docs.md",
+      "dependsOn": [],
+      "writePaths": [
+        "README.md",
+        ".agents/skills/flying-mail-deploy/SKILL.md",
+        "impl-plans/active/mcp-server-04-docs.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "README.md",
+          "intendedEdit": "Documentation only: add a ### MCP server subsection inside ## API after the Subscriptions subsection (Claude Code, Codex config.toml, generic client, the 27-tool table, untrusted content, least-privilege key with a createApiKey placeholder example, limits)."
+        },
+        {
+          "path": ".agents/skills/flying-mail-deploy/SKILL.md",
+          "intendedEdit": "Documentation only: add the MCP_RATE_LIMITER resource inventory row and an MCP endpoint post-deploy smoke check (legacy initialize, legacy tools/list, modern server/discover, and an unauthenticated 401 check) using the existing kinko pattern without ever printing the key. The .codex/skills symlink is not touched."
+        },
+        {
+          "path": "impl-plans/active/mcp-server-04-docs.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "README has exactly one ### MCP server section, with the Claude Code claude mcp add --transport http command, the Codex [mcp_servers.flying-mail] example with bearer_token_env_var, generic client headers and versions, all 27 tool names with capability and read-only/destructive columns, the untrusted-content note, least-privilege key guidance and the limits.",
+        "SKILL.md has the MCP_RATE_LIMITER inventory row and the MCP smoke check. The key is referenced only as $FLYING_MAIL_API_KEY inside sh -c, with no echo, no curl -v and no key in a URL.",
+        "Documentation-only plan: document checks 1-10 meet their expected results with outputs recorded. There are no real keys, no emojis, and no non-printable characters beyond the pre-edit count."
+      ],
+      "verification": [
+        "sh -c 'test \"$(grep -c \"### MCP server\" README.md)\" -eq 1'",
+        "grep -n \"claude mcp add --transport http flying-mail https://mail.tacoserve.online/mcp\" README.md",
+        "grep -n \"mcp_servers.flying-mail\" README.md",
+        "sh -c 'for t in search_messages get_message get_thread list_mailboxes send_message reply_message forward_message list_drafts save_draft update_draft send_draft delete_draft upload_attachment get_attachment mark_read mark_unread list_tags tag_messages untag_messages move_to_trash mark_spam mark_not_spam list_users set_user_role set_user_active add_mail_permission remove_mail_permission; do grep -q \"$t\" README.md || { echo \"missing $t\"; exit 1; }; done'",
+        "sh -c 'grep -nE \"create_user|invite|login\" README.md || true'",
+        "sh -c 'test \"$(grep -c MCP_RATE_LIMITER .agents/skills/flying-mail-deploy/SKILL.md)\" -ge 2'",
+        "sh -c 'test \"$(grep -cE \"/mcp\" .agents/skills/flying-mail-deploy/SKILL.md)\" -ge 3'",
+        "sh -c '! grep -nE \"echo .*FLYING_MAIL_API_KEY|curl -v|mcp\\?.*key=\" .agents/skills/flying-mail-deploy/SKILL.md'",
+        "sh -c '! grep -rnE \"ybm_[0-9a-f]{12}_[A-Za-z0-9_-]{20,}\" README.md .agents/skills/flying-mail-deploy/SKILL.md'",
+        "sh -c 'LC_ALL=C grep -c \"[^[:print:][:space:]]\" README.md .agents/skills/flying-mail-deploy/SKILL.md || true'"
+      ]
+    },
+    {
+      "planId": "mcp-server-05-read-tools",
+      "planPath": "impl-plans/active/mcp-server-05-read-tools.md",
+      "dependsOn": [
+        "mcp-server-02-content-shaping",
+        "mcp-server-03-protocol-core"
+      ],
+      "writePaths": [
+        "packages/infrastructure/src/mcp/tools/read-tools.ts",
+        "packages/infrastructure/src/mcp/tools/read-tools.test.ts",
+        "impl-plans/active/mcp-server-05-read-tools.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/src/mcp/tools/read-tools.ts",
+          "intendedEdit": "Fill the plan 03 stub. Ownership passes from mcp-server-03-protocol-core after it is Done."
+        },
+        {
+          "path": "impl-plans/active/mcp-server-05-read-tools.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "READ_TOOLS exports exactly search_messages, get_message, get_thread, list_mailboxes, list_drafts and list_tags in that order, with the design 4.4 visibility, R/D/I annotations and FieldSpecMap inputs passed to defineTool({ input }).",
+        "The tools use only UseCases for authorized reads. get_message reads recipients, attachments and tags only after an authorized getMessage. Every sender-controlled string goes through the plan 02 views into untrusted_content, with body caps.",
+        "No edits outside the writePaths. read-tools.ts is under 500 lines. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/mcp/tools/read-tools.test.ts",
+        "bun run typecheck",
+        "bunx biome check packages/infrastructure/src/mcp/tools/read-tools.ts packages/infrastructure/src/mcp/tools/read-tools.test.ts",
+        "sh -c 'test \"$(wc -l < packages/infrastructure/src/mcp/tools/read-tools.ts)\" -lt 500'"
+      ]
+    },
+    {
+      "planId": "mcp-server-06-compose-tools",
+      "planPath": "impl-plans/active/mcp-server-06-compose-tools.md",
+      "dependsOn": [
+        "mcp-server-02-content-shaping",
+        "mcp-server-03-protocol-core"
+      ],
+      "writePaths": [
+        "packages/infrastructure/src/mcp/tools/compose-tools.ts",
+        "packages/infrastructure/src/mcp/tools/compose-tools.test.ts",
+        "impl-plans/active/mcp-server-06-compose-tools.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/src/mcp/tools/compose-tools.ts",
+          "intendedEdit": "Fill the plan 03 stub. Ownership passes from mcp-server-03-protocol-core after it is Done."
+        },
+        {
+          "path": "impl-plans/active/mcp-server-06-compose-tools.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "COMPOSE_TOOLS exports exactly send_message, reply_message, forward_message, save_draft, update_draft, send_draft and delete_draft in that order, with the specified annotations (openWorld for the sending tools).",
+        "reply_message and forward_message use composeFromMessage prefill and then sendMessage. forward carries the original attachments by default. Authorization comes only from the use cases.",
+        "Summaries never echo sender-controlled content (for example a subject) outside untrusted_content. compose-tools.ts is under 500 lines. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/mcp/tools/compose-tools.test.ts",
+        "bun run typecheck",
+        "bunx biome check packages/infrastructure/src/mcp/tools/compose-tools.ts packages/infrastructure/src/mcp/tools/compose-tools.test.ts",
+        "sh -c 'test \"$(wc -l < packages/infrastructure/src/mcp/tools/compose-tools.ts)\" -lt 500'"
+      ]
+    },
+    {
+      "planId": "mcp-server-07-attachment-tools",
+      "planPath": "impl-plans/active/mcp-server-07-attachment-tools.md",
+      "dependsOn": [
+        "mcp-server-01-application-usecases",
+        "mcp-server-02-content-shaping",
+        "mcp-server-03-protocol-core"
+      ],
+      "writePaths": [
+        "packages/infrastructure/src/mcp/tools/attachment-tools.ts",
+        "packages/infrastructure/src/mcp/tools/attachment-tools.test.ts",
+        "impl-plans/active/mcp-server-07-attachment-tools.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/src/mcp/tools/attachment-tools.ts",
+          "intendedEdit": "Fill the plan 03 stub. Ownership passes from mcp-server-03-protocol-core after it is Done."
+        },
+        {
+          "path": "impl-plans/active/mcp-server-07-attachment-tools.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "ATTACHMENT_TOOLS exports exactly upload_attachment and get_attachment. upload_attachment decodes base64 within the 5 MiB decoded cap through stageAttachmentUpload. get_attachment returns base64 up to MCP_INLINE_ATTACHMENT_BYTES, and otherwise a single-download link through createAttachmentLink (FILE_LINK enforced by the use case, default 600 s, 60-3600 s).",
+        "The REST attachments.ts is not changed by this plan. No link is minted for staged uploads. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/mcp/tools/attachment-tools.test.ts",
+        "bun run typecheck",
+        "bunx biome check packages/infrastructure/src/mcp/tools/attachment-tools.ts packages/infrastructure/src/mcp/tools/attachment-tools.test.ts"
+      ]
+    },
+    {
+      "planId": "mcp-server-08-manage-tools",
+      "planPath": "impl-plans/active/mcp-server-08-manage-tools.md",
+      "dependsOn": [
+        "mcp-server-01-application-usecases",
+        "mcp-server-03-protocol-core"
+      ],
+      "writePaths": [
+        "packages/infrastructure/src/mcp/tools/manage-tools.ts",
+        "packages/infrastructure/src/mcp/tools/manage-tools.test.ts",
+        "impl-plans/active/mcp-server-08-manage-tools.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/src/mcp/tools/manage-tools.ts",
+          "intendedEdit": "Fill the plan 03 stub. Ownership passes from mcp-server-03-protocol-core after it is Done."
+        },
+        {
+          "path": "impl-plans/active/mcp-server-08-manage-tools.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "MANAGE_TOOLS exports exactly mark_read, mark_unread, tag_messages, untag_messages, move_to_trash, mark_spam and mark_not_spam, all visible with MAIL_MANAGE. Only move_to_trash has destructiveHint true.",
+        "move_to_trash uses trashMessages and never deleteMessages. Message-id arrays are capped at MCP_MAX_IDS. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/mcp/tools/manage-tools.test.ts",
+        "bun run typecheck",
+        "bunx biome check packages/infrastructure/src/mcp/tools/manage-tools.ts packages/infrastructure/src/mcp/tools/manage-tools.test.ts",
+        "sh -c '! grep -n deleteMessages packages/infrastructure/src/mcp/tools/manage-tools.ts'"
+      ]
+    },
+    {
+      "planId": "mcp-server-09-user-admin-tools",
+      "planPath": "impl-plans/active/mcp-server-09-user-admin-tools.md",
+      "dependsOn": [
+        "mcp-server-03-protocol-core"
+      ],
+      "writePaths": [
+        "packages/infrastructure/src/mcp/tools/user-admin-tools.ts",
+        "packages/infrastructure/src/mcp/tools/user-admin-tools.test.ts",
+        "impl-plans/active/mcp-server-09-user-admin-tools.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/src/mcp/tools/user-admin-tools.ts",
+          "intendedEdit": "Fill the plan 03 stub. Ownership passes from mcp-server-03-protocol-core after it is Done."
+        },
+        {
+          "path": "impl-plans/active/mcp-server-09-user-admin-tools.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "USER_ADMIN_TOOLS exports exactly list_users, set_user_role, set_user_active, add_mail_permission and remove_mail_permission, visible only with USER_ADMIN. They run through the user use cases and requireUserAdministrator, so a lapsed creator gives FORBIDDEN and the last-admin rule gives CONFLICT.",
+        "The file contains no createUser, resendInvitation, requestEmailAuth or verifyEmailAuthToken. Liveness and last-admin checks are not reimplemented. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/mcp/tools/user-admin-tools.test.ts",
+        "bun run typecheck",
+        "bunx biome check packages/infrastructure/src/mcp/tools/user-admin-tools.ts packages/infrastructure/src/mcp/tools/user-admin-tools.test.ts",
+        "sh -c '! grep -nE \"createUser|resendInvitation|requestEmailAuth|verifyEmailAuthToken\" packages/infrastructure/src/mcp/tools/user-admin-tools.ts'"
+      ]
+    },
+    {
+      "planId": "mcp-server-10-transport-wiring",
+      "planPath": "impl-plans/active/mcp-server-10-transport-wiring.md",
+      "dependsOn": [
+        "mcp-server-01-application-usecases",
+        "mcp-server-02-content-shaping",
+        "mcp-server-03-protocol-core"
+      ],
+      "writePaths": [
+        "packages/infrastructure/src/mcp/http-handler.ts",
+        "packages/infrastructure/src/mcp/http-handler.test.ts",
+        "packages/infrastructure/src/http/app.ts",
+        "apps/api/src/env.ts",
+        "apps/api/src/worker.ts",
+        "apps/api/src/server.ts",
+        "apps/api/src/worker-mcp.test.ts",
+        "apps/api/src/server-mcp.test.ts",
+        "apps/api/wrangler.toml",
+        "impl-plans/active/mcp-server-10-transport-wiring.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "packages/infrastructure/src/http/app.ts",
+          "intendedEdit": "Register /mcp between the security-headers use and the auth-middleware use. Add the CreateAppOptions.mcp option and the JSON 404s for /.well-known/oauth-protected-resource* and /.well-known/oauth-authorization-server*. Nothing else changes."
+        },
+        {
+          "path": "apps/api/wrangler.toml",
+          "intendedEdit": "Add only a [[ratelimits]] MCP_RATE_LIMITER block (namespace_id 1002, limit 120, period 60). AUTH_RATE_LIMITER and the other bindings are unchanged."
+        },
+        {
+          "path": "apps/api/src/worker.ts",
+          "intendedEdit": "Pass mcp.rateLimiter from env.MCP_RATE_LIMITER through createWorkersRateLimiter when the binding is present. worker.test.ts is not edited."
+        },
+        {
+          "path": "impl-plans/active/mcp-server-10-transport-wiring.md",
+          "intendedEdit": "Progress log and completion checkboxes only."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "The /mcp pipeline order matches design 3: method 405, Origin 403, limiter missing 503, per-IP 429, API-key-only auth 401 with WWW-Authenticate: Bearer realm=\"flying-mail\", per-key 429, Accept 406, Content-Type 415, body cap 413 (Content-Length and streamed count), then dispatch. Cookies are never read and responses carry Cache-Control: no-store.",
+        "/mcp is mounted before the auth middleware. The OAuth discovery JSON 404s are present.",
+        "Worker wiring uses MCP_RATE_LIMITER (wrangler.toml, env.ts, worker.ts). Bun and Node use the in-memory limiter (120 per 60 s). app.test.ts, worker.test.ts, auth-middleware.ts and security-headers.ts are untouched.",
+        "Existing http and apps/api tests stay green. app.ts is under 260 lines and http-handler.ts under 300. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/mcp/http-handler.test.ts apps/api/src/worker-mcp.test.ts apps/api/src/server-mcp.test.ts",
+        "bunx vitest run packages/infrastructure/src/http apps/api/src",
+        "bun run typecheck",
+        "bunx biome check packages/infrastructure/src/mcp/http-handler.ts packages/infrastructure/src/mcp/http-handler.test.ts packages/infrastructure/src/http/app.ts apps/api/src/env.ts apps/api/src/worker.ts apps/api/src/server.ts apps/api/src/worker-mcp.test.ts apps/api/src/server-mcp.test.ts",
+        "grep -c MCP_RATE_LIMITER apps/api/wrangler.toml apps/api/src/env.ts apps/api/src/worker.ts",
+        "wc -l packages/infrastructure/src/http/app.ts packages/infrastructure/src/mcp/http-handler.ts apps/api/src/worker.ts apps/api/src/server.ts",
+        "git diff --quiet -- apps/api/src/worker.test.ts packages/infrastructure/src/http/app.test.ts packages/infrastructure/src/http/auth-middleware.ts"
+      ]
+    },
+    {
+      "planId": "mcp-server-11-catalogue-integration",
+      "planPath": "impl-plans/active/mcp-server-11-catalogue-integration.md",
+      "dependsOn": [
+        "mcp-server-05-read-tools",
+        "mcp-server-06-compose-tools",
+        "mcp-server-07-attachment-tools",
+        "mcp-server-08-manage-tools",
+        "mcp-server-09-user-admin-tools",
+        "mcp-server-10-transport-wiring"
+      ],
+      "writePaths": [
+        "packages/infrastructure/src/mcp/catalogue.test.ts",
+        "packages/infrastructure/src/mcp/e2e.test.ts",
+        "impl-plans/active/mcp-server-11-catalogue-integration.md"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "impl-plans/active/mcp-server-11-catalogue-integration.md",
+          "intendedEdit": "Progress log and completion checkboxes only. Product defects are routed to the owning plan as repair requests and never fixed here."
+        }
+      ],
+      "artifactRoots": [],
+      "acceptanceCriteria": [
+        "catalogue.test.ts pins the exact 27-tool set and order, the annotations table and the per-capability visibility matrix. The zero-scope row uses a directly constructed McpViewer with scopes: [] and never issueKey([]).",
+        "e2e.test.ts drives real HTTP through createApp with real issued keys: allowed and refused calls per capability, both protocol eras end to end, untrusted-content delimiting and audit lines without content.",
+        "The whole packages/infrastructure/src/mcp suite is green together. Tests only; no source edits. Verification evidence is recorded."
+      ],
+      "verification": [
+        "bunx vitest run packages/infrastructure/src/mcp/catalogue.test.ts packages/infrastructure/src/mcp/e2e.test.ts",
+        "bunx vitest run packages/infrastructure/src/mcp",
+        "bunx biome check packages/infrastructure/src/mcp/catalogue.test.ts packages/infrastructure/src/mcp/e2e.test.ts",
+        "bun run typecheck"
+      ]
+    },
+    {
+      "planId": "mcp-server-12-final-verification",
+      "planPath": "impl-plans/active/mcp-server-12-final-verification.md",
+      "dependsOn": [
+        "mcp-server-01-application-usecases",
+        "mcp-server-02-content-shaping",
+        "mcp-server-03-protocol-core",
+        "mcp-server-04-docs",
+        "mcp-server-05-read-tools",
+        "mcp-server-06-compose-tools",
+        "mcp-server-07-attachment-tools",
+        "mcp-server-08-manage-tools",
+        "mcp-server-09-user-admin-tools",
+        "mcp-server-10-transport-wiring",
+        "mcp-server-11-catalogue-integration"
+      ],
+      "writePaths": [
+        "impl-plans/PROGRESS.json",
+        "impl-plans/README.md",
+        "impl-plans/active",
+        "impl-plans/completed",
+        "design-docs/specs/design-mcp-server.md",
+        "apps/web/dist",
+        "apps/api/.wrangler"
+      ],
+      "sharedPaths": [],
+      "sharedPathNotes": [
+        {
+          "path": "impl-plans/active",
+          "intendedEdit": "Only after every gate passes: move the twelve impl-plans/active/mcp-server-*.md plan files to impl-plans/completed with a plain filesystem move. Never edit, move or delete impl-plans/active/mcp-server-s316-dispatch.json."
+        },
+        {
+          "path": "impl-plans/completed",
+          "intendedEdit": "Receives only the twelve moved mcp-server plan files. Existing completed files are untouched."
+        },
+        {
+          "path": "impl-plans/PROGRESS.json",
+          "intendedEdit": "Serial reconciliation: set every mcp-server plan and task to Completed and phases 30-33 to COMPLETED, update planPath values and lastUpdated, and keep the JSON valid."
+        },
+        {
+          "path": "impl-plans/README.md",
+          "intendedEdit": "Serial reconciliation: point the MCP table links to completed/."
+        },
+        {
+          "path": "design-docs/specs/design-mcp-server.md",
+          "intendedEdit": "Only for a factual mismatch revealed by implementation, recorded in the Progress Log. Design decisions are not changed."
+        },
+        {
+          "path": "apps/web/dist",
+          "intendedEdit": "Artifact root: mise run build-web output (gitignored). Never edited by hand."
+        },
+        {
+          "path": "apps/api/.wrangler",
+          "intendedEdit": "Artifact root: wrangler local state from the dry run (gitignored). Never edited by hand."
+        }
+      ],
+      "artifactRoots": [
+        "apps/web/dist",
+        "apps/api/.wrangler"
+      ],
+      "acceptanceCriteria": [
+        "bun install --frozen-lockfile, mise run lint, bun run test, mise run build-web and the Worker dry run all exit 0, with logs at /tmp/mcp-server-final-<n>.log. bun run test reports at least 2055 package tests plus the new ones and at least 302 web tests, with exact counts recorded. apps/web/dist/index.html exists. parse5 bundles without Node built-in errors.",
+        "The drift check finds no changed path outside plans 01-11 writePaths, the accepted design files and impl-plans/. No changed or new TypeScript file is at 1000 lines or more.",
+        "Security spot checks pass: /mcp is registered before the auth middleware; the MCP code never references resolveViewerFromToken; non-test MCP code has no deleteMessages, createUser, resendInvitation, requestEmailAuth, verifyEmailAuthToken or fetch(; parse5 is pinned at 8.0.1; apps/api/migrations is unchanged and has no 0018; there are no real keys.",
+        "Every design-to-test mapping file exists and passed, and the plan 04 document-check outputs are recorded.",
+        "Source files, README.md, the skill, wrangler.toml, bun.lock and git state are read-only for this plan. On any failure, the owning plan, command, exit code and log path are reported as a repair request, and all gates are re-run after the fix. On success, PROGRESS.json and README.md are reconciled, the JSON is valid and the plan files are moved to completed/."
+      ],
+      "verification": [
+        "git status --short",
+        "sh -c 'bun install --frozen-lockfile > /tmp/mcp-server-final-1.log 2>&1'",
+        "sh -c 'mise run lint > /tmp/mcp-server-final-2.log 2>&1'",
+        "sh -c 'bun run test > /tmp/mcp-server-final-3.log 2>&1'",
+        "sh -c 'mise run build-web > /tmp/mcp-server-final-4.log 2>&1'",
+        "test -f apps/web/dist/index.html",
+        "sh -c 'bun run --cwd apps/api cf:deploy -- --dry-run --outdir /tmp/flying-mail-dryrun > /tmp/mcp-server-final-5.log 2>&1'",
+        "sh -c '{ git diff --name-only; git ls-files --others --exclude-standard; } | grep -E \"\\.tsx?$\" | sort -u | xargs wc -l | awk \"\\$2 != \\\"total\\\" && \\$1 >= 1000 { print; bad = 1 } END { exit bad }\"'",
+        "sh -c 'a=$(grep -n \"app.all(\\\"/mcp\\\"\" packages/infrastructure/src/http/app.ts | head -n 1 | cut -d: -f1); b=$(grep -n \"createAuthMiddleware(\" packages/infrastructure/src/http/app.ts | head -n 1 | cut -d: -f1); test -n \"$a\" && test -n \"$b\" && test \"$a\" -lt \"$b\"'",
+        "sh -c '! grep -rnw resolveViewerFromToken packages/infrastructure/src/mcp'",
+        "sh -c '! grep -rnE \"deleteMessages|createUser|resendInvitation|requestEmailAuth|verifyEmailAuthToken|fetch\\(\" packages/infrastructure/src/mcp --include=*.ts | grep -v \"\\.test\\.ts\"'",
+        "grep -n '\"parse5\": \"8.0.1\"' packages/infrastructure/package.json",
+        "git diff --quiet -- apps/api/migrations",
+        "sh -c 'test \"$(ls apps/api/migrations | grep -c 0018)\" -eq 0'",
+        "sh -c 'grep -rnE \"ybm_[0-9a-f]{12}_[A-Za-z0-9_-]{20,}\" README.md .agents apps packages --include=*.md --include=*.ts || true'",
+        "jq empty impl-plans/PROGRESS.json"
+      ]
+    }
+  ]
+}

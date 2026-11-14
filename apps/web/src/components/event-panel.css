@@ -1,0 +1,71 @@
+.event-panel {
+  border-top: 1px solid var(--border);
+  padding: 0.75rem 0;
+  margin-top: 0.75rem;
+}
+.event-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.event-panel-header h2 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0;
+}
+.event-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.event-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.event-list li.done .event-title {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.event-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.event-kind {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--chip-bg, rgba(127, 127, 127, 0.15));
+  white-space: nowrap;
+}
+.event-due {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--accent, #b45309);
+  white-space: nowrap;
+}
+.event-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.event-delete {
+  font-size: 0.75rem;
+}
+.event-add {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+.event-add input[type="text"] {
+  flex: 1;
+  min-width: 8rem;
+}

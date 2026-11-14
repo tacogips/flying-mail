@@ -1,0 +1,91 @@
+import type { MiddlewareHandler } from "hono";
+import { isPlainHttpLocalhost } from "./auth-middleware";
+
+const HSTS_HEADER = "strict-transport-security";
+const HSTS_VALUE = "max-age=31536000; includeSubDomains";
+
+/** Baseline headers applied to every response.
+ *
+ * `nosniff` and `X-Frame-Options` matter most on the attachment/file-link
+ * routes, where the bytes are attacker-supplied by definition, but applying
+ * them uniformly means a future route cannot forget them.
+ *
+ * HSTS is part of the baseline but is skipped for plain-HTTP localhost (see
+ * `applySecurityHeaders`): browsers ignore it over HTTP anyway, and sending
+ * it from a dev server invites confusion about what was pinned. */
+const BASELINE_HEADERS: readonly (readonly [string, string])[] = [
+  ["x-content-type-options", "nosniff"],
+  ["referrer-policy", "no-referrer"],
+  ["x-frame-options", "DENY"],
+  ["cross-origin-opener-policy", "same-origin"],
+  ["strict-transport-security", HSTS_VALUE],
+];
+
+/** CSP for the SPA shell and Cloudflare Turnstile.
+ *
+ * `frame-src 'self'` is required: the web client renders HTML mail inside a
+ * sandboxed same-origin iframe. Turnstile also needs its challenge origin in
+ * `script-src` and `frame-src`. `object-src 'none'` and `base-uri 'self'`
+ * close the two most common bypasses. */
+export const HTML_CSP = [
+  "default-src 'self'",
+  "connect-src 'self'",
+  "img-src 'self' data: blob:",
+  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self' https://challenges.cloudflare.com",
+  "frame-src 'self' blob: https://challenges.cloudflare.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
+/** `includeHsts` defaults to true so a caller that forgets the argument
+ * errs towards the stricter header. */
+export function applySecurityHeaders(
+  response: Response,
+  includeCsp: boolean,
+  includeHsts = true,
+): Response {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of BASELINE_HEADERS) {
+    if (name === HSTS_HEADER && !includeHsts) {
+      continue;
+    }
+    if (!headers.has(name)) {
+      headers.set(name, value);
+    }
+  }
+  if (includeCsp && !headers.has("content-security-policy")) {
+    headers.set("content-security-policy", HTML_CSP);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function isHtmlResponse(response: Response): boolean {
+  return (response.headers.get("content-type") ?? "").includes("text/html");
+}
+
+/** Registered before every other middleware so its `await next()` spans the
+ * whole request.
+ *
+ * The CSP is only added to HTML responses: attachment and file-link
+ * responses set their own, much stricter, `Content-Security-Policy:
+ * sandbox`, and overwriting that would weaken the stored-XSS boundary. */
+export function createSecurityHeadersMiddleware(): MiddlewareHandler {
+  return async (c, next) => {
+    await next();
+    if (c.res === undefined) {
+      return;
+    }
+    c.res = applySecurityHeaders(
+      c.res,
+      isHtmlResponse(c.res),
+      !isPlainHttpLocalhost(c.req.raw),
+    );
+  };
+}

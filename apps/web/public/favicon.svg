@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img"
+     aria-labelledby="flying-mail-icon-title flying-mail-icon-desc">
+  <title id="flying-mail-icon-title">flying-mail</title>
+  <desc id="flying-mail-icon-desc">A flying letter: a folded letter bound with a
+    cord to the shaft of an arrow in flight.</desc>
+
+  <!--
+    The mark is drawn horizontally (arrow pointing right along y=32) and the
+    whole group is then rotated 45 degrees counter-clockwise. Designing it
+    axis-aligned keeps every coordinate readable; the single transform on
+    `#mark` is what gives the arrow its upward flight.
+
+    Two deliberate choices keep this reading as flying mail rather than as a
+    rocket, which is what a fat centred capsule and swept tail fins produce:
+
+      1. The letter is a sharp-cornered rectangle, tilted against the shaft.
+         A shape that is not concentric with the shaft reads as something
+         tied on, not as part of the arrow's body.
+      2. The shaft stays thin and runs the full width, so the arrow, not
+         the cargo, is the dominant silhouette.
+  -->
+  <defs>
+    <linearGradient id="flying-mail-ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#233a61"/>
+      <stop offset="1" stop-color="#13203a"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="14" fill="url(#flying-mail-ground)"/>
+
+  <g id="mark"
+     transform="translate(32,32) scale(0.94) rotate(-45) translate(-32,-32)">
+    <!-- Fletching: two parallelogram vanes swept toward the tail, the
+         classic silhouette. Kept clear of the shaft's centre line so each
+         vane stays a distinct shape at 16px. -->
+    <path d="M7 30.4 L11.5 23 L18 23 L13.5 30.4 Z" fill="#e2542c"/>
+    <path d="M7 33.6 L11.5 41 L18 41 L13.5 33.6 Z" fill="#c9401d"/>
+
+    <!-- Shaft, in a wood tone so the cream letter stays a separate object. -->
+    <path d="M6.5 32 H50" stroke="#d3a05a" stroke-width="3"
+          stroke-linecap="round"/>
+
+    <!-- Barbed arrowhead: the notch at x=47 is what distinguishes an arrow
+         from a plain triangular nose cone. -->
+    <path d="M57.5 32 L43.5 25 L47 32 L43.5 39 Z" fill="#eee6d0"/>
+
+    <!-- The letter, tilted against the shaft. -->
+    <g transform="rotate(-13 28.5 33)">
+      <rect x="20.5" y="26.5" width="16" height="13" rx="1" fill="#f8f2e2"/>
+      <path d="M23.5 30.5 H33 M23.5 33.5 H30.5" stroke="#c5b48c"
+            stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Cord binding letter and shaft together. Drawn outside the tilted
+         group, so it stays perpendicular to the shaft and reads as wrapped
+         around both rather than printed on the paper. -->
+    <rect x="27" y="23.5" width="3" height="19" rx="1.5" fill="#e2542c"/>
+  </g>
+</svg>

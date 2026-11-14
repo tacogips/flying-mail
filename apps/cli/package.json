@@ -1,0 +1,24 @@
+{
+  "name": "flying-mail-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "flying-mail": "./src/main.ts"
+  },
+  "scripts": {
+    "start": "bun run src/main.ts",
+    "build": "bun build src/main.ts --outdir dist --target bun",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@flying-mail/realtime-client": "workspace:*",
+    "@hono/node-server": "2.1.1",
+    "hono": "4.13.13"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "typescript": "5.7.2"
+  }
+}

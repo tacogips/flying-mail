@@ -1,0 +1,289 @@
+import type {
+  EmailAuthChallengeRepository,
+  SessionRepository,
+  UserRepository,
+} from "@flying-mail/application/ports/auth-repository";
+import type { SqlDatabase } from "@flying-mail/application/ports/sql-database";
+import {
+  EmailAuthChallengePurpose,
+  type EmailAuthChallenge,
+} from "@flying-mail/domain/entities/email-auth-challenge";
+import type { Session } from "@flying-mail/domain/entities/session";
+import { type User, UserRole } from "@flying-mail/domain/entities/user";
+import { createEmailAddress } from "@flying-mail/domain/value-objects/email-address";
+import {
+  createEmailAuthChallengeId,
+  createSessionId,
+  createUserId,
+} from "@flying-mail/domain/value-objects/ids";
+import { assertEnumValue } from "./sql-helpers";
+
+interface UserRow {
+  readonly id: string;
+  readonly email: string;
+  readonly name: string;
+  readonly role: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly deactivated_at: string | null;
+  readonly invitation_accepted_at: string | null;
+}
+
+function rowToUser(row: UserRow): User {
+  return {
+    id: createUserId(row.id),
+    email: createEmailAddress(row.email),
+    name: row.name,
+    role: assertEnumValue(UserRole, row.role, "user role"),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    deactivatedAt: row.deactivated_at,
+    invitationAcceptedAt: row.invitation_accepted_at,
+  };
+}
+
+const UPSERT_USER_SQL = `INSERT INTO users
+  (id, email, name, role, created_at, updated_at, deactivated_at, invitation_accepted_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(id) DO UPDATE SET
+    email = excluded.email,
+    name = excluded.name,
+    role = excluded.role,
+    updated_at = excluded.updated_at,
+    deactivated_at = excluded.deactivated_at,
+    invitation_accepted_at = excluded.invitation_accepted_at`;
+
+export function createUserRepository(db: SqlDatabase): UserRepository {
+  return {
+    async findById(id) {
+      const rows = await db.query<UserRow>("SELECT * FROM users WHERE id = ?", [
+        id,
+      ]);
+      return rows[0] === undefined ? null : rowToUser(rows[0]);
+    },
+
+    async findByEmail(email) {
+      const rows = await db.query<UserRow>(
+        "SELECT * FROM users WHERE email = ?",
+        [email],
+      );
+      return rows[0] === undefined ? null : rowToUser(rows[0]);
+    },
+
+    async list() {
+      const rows = await db.query<UserRow>(
+        "SELECT * FROM users ORDER BY created_at ASC",
+      );
+      return rows.map(rowToUser);
+    },
+
+    async count() {
+      const rows = await db.query<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM users",
+      );
+      return rows[0]?.count ?? 0;
+    },
+
+    async save(user) {
+      await db.execute(UPSERT_USER_SQL, [
+        user.id,
+        user.email,
+        user.name,
+        user.role,
+        user.createdAt,
+        user.updatedAt,
+        user.deactivatedAt,
+        user.invitationAcceptedAt,
+      ]);
+    },
+
+    async saveUnlessLastActiveAdmin(user) {
+      const result = await db.execute(
+        `UPDATE users SET role = ?, updated_at = ?, deactivated_at = ?
+         WHERE id = ? AND EXISTS (
+           SELECT 1 FROM users
+           WHERE role = 'ADMIN' AND deactivated_at IS NULL AND id <> ?
+         )`,
+        [user.role, user.updatedAt, user.deactivatedAt, user.id, user.id],
+      );
+      return result.rowsAffected > 0;
+    },
+
+    async createFirstUser(user) {
+      // `INSERT ... SELECT ... WHERE NOT EXISTS` folds the emptiness check
+      // into the insert itself: of N racing bootstrap calls, exactly one
+      // observes an empty table inside its own statement and wins.
+      const result = await db.execute(
+        `INSERT INTO users (id, email, name, role, created_at, updated_at, deactivated_at, invitation_accepted_at)
+         SELECT ?, ?, ?, ?, ?, ?, NULL, ?
+         WHERE NOT EXISTS (SELECT 1 FROM users)`,
+        [
+          user.id,
+          user.email,
+          user.name,
+          user.role,
+          user.createdAt,
+          user.updatedAt,
+          user.invitationAcceptedAt,
+        ],
+      );
+      return result.rowsAffected > 0;
+    },
+  };
+}
+
+interface SessionRow {
+  readonly id: string;
+  readonly token_hash: string;
+  readonly user_id: string;
+  readonly expires_at: string;
+  readonly created_at: string;
+}
+
+function rowToSession(row: SessionRow): Session {
+  return {
+    id: createSessionId(row.id),
+    tokenHash: row.token_hash,
+    userId: createUserId(row.user_id),
+    expiresAt: row.expires_at,
+    createdAt: row.created_at,
+  };
+}
+
+export function createSessionRepository(db: SqlDatabase): SessionRepository {
+  return {
+    async findByTokenHash(tokenHash) {
+      const rows = await db.query<SessionRow>(
+        "SELECT * FROM sessions WHERE token_hash = ?",
+        [tokenHash],
+      );
+      return rows[0] === undefined ? null : rowToSession(rows[0]);
+    },
+
+    async save(session) {
+      await db.execute(
+        `INSERT INTO sessions (id, token_hash, user_id, expires_at, created_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET expires_at = excluded.expires_at`,
+        [
+          session.id,
+          session.tokenHash,
+          session.userId,
+          session.expiresAt,
+          session.createdAt,
+        ],
+      );
+    },
+
+    async delete(id) {
+      await db.execute("DELETE FROM sessions WHERE id = ?", [id]);
+    },
+
+    async deleteByTokenHash(tokenHash) {
+      await db.execute("DELETE FROM sessions WHERE token_hash = ?", [
+        tokenHash,
+      ]);
+    },
+
+    async deleteExpired(now) {
+      const result = await db.execute(
+        "DELETE FROM sessions WHERE expires_at <= ?",
+        [now],
+      );
+      return result.rowsAffected;
+    },
+  };
+}
+
+interface ChallengeRow {
+  readonly id: string;
+  readonly email: string;
+  readonly token_hash: string;
+  readonly expires_at: string;
+  readonly consumed_at: string | null;
+  readonly created_at: string;
+  readonly purpose: string;
+}
+
+function rowToChallenge(row: ChallengeRow): EmailAuthChallenge {
+  return {
+    id: createEmailAuthChallengeId(row.id),
+    email: createEmailAddress(row.email),
+    purpose: assertEnumValue(
+      EmailAuthChallengePurpose,
+      row.purpose,
+      "email auth challenge purpose",
+    ),
+    tokenHash: row.token_hash,
+    expiresAt: row.expires_at,
+    consumedAt: row.consumed_at,
+    createdAt: row.created_at,
+  };
+}
+
+export function createEmailAuthChallengeRepository(
+  db: SqlDatabase,
+): EmailAuthChallengeRepository {
+  return {
+    async findById(id) {
+      const rows = await db.query<ChallengeRow>(
+        "SELECT * FROM email_auth_challenges WHERE id = ?",
+        [id],
+      );
+      return rows[0] === undefined ? null : rowToChallenge(rows[0]);
+    },
+
+    async findByTokenHash(tokenHash) {
+      const rows = await db.query<ChallengeRow>(
+        "SELECT * FROM email_auth_challenges WHERE token_hash = ?",
+        [tokenHash],
+      );
+      return rows[0] === undefined ? null : rowToChallenge(rows[0]);
+    },
+
+    async countRecentByEmail(email, since, purpose) {
+      const rows = await db.query<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM email_auth_challenges
+         WHERE email = ? AND created_at >= ? AND purpose = ?`,
+        [email, since, purpose],
+      );
+      return rows[0]?.count ?? 0;
+    },
+
+    async consume(id, now) {
+      const result = await db.execute(
+        `UPDATE email_auth_challenges
+         SET consumed_at = ?
+         WHERE id = ? AND consumed_at IS NULL AND expires_at > ?`,
+        [now, id, now],
+      );
+      return result.rowsAffected === 1;
+    },
+
+    async save(challenge) {
+      await db.execute(
+        `INSERT INTO email_auth_challenges
+           (id, email, token_hash, expires_at, consumed_at, created_at, purpose)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET consumed_at = excluded.consumed_at`,
+        [
+          challenge.id,
+          challenge.email,
+          challenge.tokenHash,
+          challenge.expiresAt,
+          challenge.consumedAt,
+          challenge.createdAt,
+          challenge.purpose,
+        ],
+      );
+    },
+
+    async deleteExpired(now) {
+      const result = await db.execute(
+        "DELETE FROM email_auth_challenges WHERE expires_at <= ?",
+        [now],
+      );
+      return result.rowsAffected;
+    },
+  };
+}

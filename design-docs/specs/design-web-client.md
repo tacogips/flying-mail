@@ -1,0 +1,170 @@
+# Web Mail Client
+
+`apps/web` is a SolidJS single-page mail client built with Vite. It is a plain
+consumer of the same `/graphql` endpoint agents use -- it has no privileged
+API of its own -- and is served two ways:
+
+1. Bundled into the Worker as static assets (`[assets] binding = "ASSETS"`),
+   so a deployment is self-contained at `https://<worker-host>/`.
+2. Locally by `flying-mail client serve`, which serves the built bundle and proxies
+   `/graphql`, `/api` and `/files` to a configured remote endpoint. See
+   `command.md`.
+
+## Stack
+
+| Concern | Choice |
+|---------|--------|
+| Framework | `solid-js` |
+| Routing | `@solidjs/router` |
+| GraphQL | a ~250-line `fetch` wrapper; no Apollo/urql |
+| HTML mail rendering | `dompurify` sanitize into a sandboxed iframe |
+| Styling | Plain CSS with design tokens; one `.css` file per component |
+
+State lives in a single `AppStore` built from Solid signals and stores,
+created once in `app.tsx` and read through a context, mirroring the reference
+project's `store/app-store.ts` split into `-documents` and `-helpers` files to
+keep each under the 1000-line limit.
+
+## Routes
+
+| Path | Guard | View |
+|------|-------|------|
+| `/login` | public | Passwordless email request; renders the Turnstile widget when `publicConfig.turnstileSiteKey` is non-null (design-security-model.md section 5.4) |
+| `/auth/verify` | public | Consumes the emailed token (login or invitation), establishes the session |
+| `/` | auth | Mailbox: message list for the selected domain/address |
+| `/threads/:id` | auth | Thread view with per-message expansion |
+| `/messages/:id` | auth | Single message detail |
+| `/compose` | auth | Compose / reply |
+| `/search` | auth | Filter-driven search results |
+| `/settings/domains` | admin | Domain list, add, DNS records, verify |
+| `/settings/api-keys` | admin | Key list, issue with a scope builder, revoke |
+| `/settings/users` | admin | "Invite user", invitation status (pending/active), resend invitation, roles, activation, address/domain permissions |
+| `/settings/tags` | auth | User tag management |
+
+## Login page clarity
+
+The public `/login` page must identify itself with a prominent “Log in to
+flying-mail” heading and a short explanation that signing in opens the mail
+inbox to read and send email. Display the product name separately from the
+login heading. Before the email field, explain that users enter the email
+address associated with their account and receive a one-time login link;
+no password is needed. Associate this guidance with the email input for
+assistive technology.
+
+After a successful request, show “Check your email” and explain that, if
+an account exists for that address, a sign-in link is on its way. Keep the
+15-minute expiry and single-use guidance, and suggest checking spam. The
+heading and introductory context remain visible in this state. Preserve
+all existing authentication and Turnstile behavior and account privacy.
+Use the existing visual tokens and keep the card readable on small screens.
+
+## Key components
+
+| Component | Responsibility |
+|-----------|----------------|
+| `app-shell` | Sidebar + topbar + routed outlet |
+| `mailbox-sidebar` | Domains, addresses, system tags (Inbox/Starred/Spam/Trash), user tags |
+| `message-list` | Virtualized keyset-paginated list; multi-select for bulk actions |
+| `message-view` | Headers, body, attachment tiles, tag chips, spam banner |
+| `html-body-frame` | Sanitized HTML rendered in a `sandbox`ed iframe; remote images blocked until the reader opts in |
+| `compose-form` | From-address picker (scoped), recipients, subject, body, attachment upload |
+| `tag-picker` | Add/remove tags, create a new tag inline |
+| `attachment-tile` | Download, or "copy temp link" via `createAttachmentLink` |
+| `domain-form` / `dns-record-table` | Add a domain and show the records to publish |
+| `api-key-form` / `scope-builder` | Capability + domain + address-pattern rows; shows the secret once, with a copy button and an explicit "you will not see this again" warning |
+| `user-permission-editor` | Role selector plus allow/deny domain and exact-address assignments |
+| `spam-banner` | "Marked as spam (score 0.82)" with a one-click **Not spam** |
+
+## Search syntax
+
+The search box speaks a small operator syntax (`lib/search-query.ts`), so a
+single input covers every filter dimension without a filter-builder UI:
+
+| Operator | Meaning |
+|----------|---------|
+| `from:addr` | Sender |
+| `to:addr` | Recipient, cc **not** included |
+| `cc:addr` / `recipient:addr` | Recipient, cc/bcc included |
+| `has:attachment` / `no:attachment` | Attachment presence |
+| `kind:pdf` / `kind:pdf,image` | Attachment kind, repeatable |
+| `tag:Name` / `tag:"With Spaces"` | Tag by name, resolved client-side |
+| `is:unread` | Unread only |
+| `in:spam` | Include spam explicitly |
+| anything else | Full text over subject, snippet and body |
+
+Unknown operators and unresolved tag names fall back to free text rather
+than erroring: a search box that rejects input is worse than one that
+searches for it.
+
+## Behaviors worth stating
+
+- **HTML mail is hostile input.** Bodies are sanitized with DOMPurify *and*
+  rendered inside a `sandbox` iframe with no `allow-same-origin`, so even a
+  sanitizer bypass cannot reach the session cookie. Remote images are stripped
+  until the reader clicks "load images", which prevents tracking pixels from
+  firing on open.
+- **Spam is hidden by default** in every list except the Spam view, matching
+  the API's `includeSpam: false` default.
+- **The secret is shown once.** `createApiKey` returns it in the mutation
+  response; the client holds it in a signal that is cleared on navigation and
+  never written to `localStorage`.
+- **Compose respects scope.** The from-address picker is populated from the
+  viewer's `MAIL_SEND` scopes, so a scoped user cannot compose a send that the
+  server will reject.
+- **Optimistic tagging.** Tag and read/unread toggles update the store
+  immediately and roll back on error with a toast, because those mutations are
+  frequent and individually cheap.
+
+## Live updates (2026-10-08)
+
+The full design is `design-realtime-push.md` section 10.3.
+
+**Subscription**
+- One `mailEvents` subscription per signed-in tab, via
+  `@flying-mail/realtime-client`.
+- The store integration lives in `store/app-store-live.ts`.
+
+**Events**
+- Patch loaded rows and the open message in place, or remove them.
+- Schedule a debounced refetch of the visible first page, the
+  `addressActivity` counts (unread, rail badges, recent addresses) and the
+  inbox unread count.
+
+**Catch-up**
+- Every `LIVE` event triggers the catch-up refresh: on first connect,
+  after a reconnect, and after `RESYNC_REQUIRED`.
+
+**Connection indicator**
+- A connection indicator in the sidebar header shows Live, Reconnecting or
+  Offline.
+- Under `flying-mail client serve` the indicator shows Offline (no
+  WebSocket proxying), and the app behaves as before.
+
+**Local development**
+- `vite.config.ts` proxies `/graphql` with `ws: true`.
+
+## Webmail completion (updated 2026-10-07)
+
+See `design-webmail-completion.md` section 7.
+
+**Compose**
+- Gains Bcc, a pattern-aware From picker, and a dependency-free
+  contenteditable HTML editor with a derived plain-text alternative.
+- Attachment chips show progress and can be removed. Forwarded attachments
+  are included.
+- Debounced, serialized autosave never delivers. Discard calls
+  `deleteDraft`.
+
+**Reply, reply-all and forward**
+- Prefill comes from the `composeFromMessage` query.
+
+**Sidebar**
+- The sidebar becomes folder x scope: domain or mailbox from
+  `viewer.readableAddresses`.
+
+**Received mail**
+- Correction to "Behaviors worth stating": the HTML frame uses
+  `sandbox="allow-same-origin"` without `allow-scripts`, so the parent can
+  measure height. Script execution is impossible, and the CSP is
+  `default-src 'none'`, so the boundary is no scripts plus no network rather
+  than origin isolation.

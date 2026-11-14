@@ -1,0 +1,26 @@
+{
+  "name": "@flying-mail/application",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./ports/*": "./src/ports/*.ts",
+    "./dependencies": "./src/dependencies.ts",
+    "./errors": "./src/errors.ts",
+    "./usecases": "./src/usecases.ts",
+    "./usecases/*": "./src/usecases/*.ts",
+    "./policies": "./src/policies/index.ts",
+    "./policies/*": "./src/policies/*.ts",
+    "./test-support/*": "./src/test-support/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@flying-mail/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.7.2"
+  }
+}

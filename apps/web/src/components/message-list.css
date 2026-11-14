@@ -1,0 +1,172 @@
+.message-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  width: var(--list-width);
+  flex-shrink: 0;
+}
+
+.message-list-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+}
+
+.message-list-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.message-list-header-row + .message-list-header-row {
+  margin-top: 6px;
+}
+
+.message-list-count {
+  font-size: 13px;
+}
+
+.message-list-spacer {
+  flex: 1;
+}
+
+.message-list-header-row button.pill {
+  font-size: 12px;
+  padding: 4px 12px;
+}
+
+.message-list-header-row button.pill.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.message-list-bulk {
+  font-size: 13px;
+}
+
+.message-list-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.message-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+  border-left: 3px solid transparent;
+}
+
+.message-row-unread {
+  background: var(--bg);
+  border-left-color: var(--accent);
+}
+
+.message-row-active {
+  background: var(--accent-soft);
+}
+
+.message-select {
+  width: auto;
+  margin-top: 12px;
+  flex-shrink: 0;
+}
+
+.message-avatar {
+  margin-top: 2px;
+}
+
+.message-open {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.message-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.message-from {
+  font-weight: 500;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-from-unread {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.message-time {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.message-time-unread {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.message-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.message-subject-unread {
+  font-weight: 600;
+}
+
+.message-line-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.message-star-icon {
+  color: var(--accent);
+  display: inline-flex;
+}
+
+.message-snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.message-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.message-load-more {
+  margin: 12px;
+}

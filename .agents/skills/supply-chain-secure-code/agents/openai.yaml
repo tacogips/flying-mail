@@ -1,0 +1,3 @@
+interface:
+  display_name: "supply-chain-secure-code"
+  short_description: "Use when writing TypeScript code that interacts with dependencies, handles credentials, executes child processes, or manages configuration. Provides Shai-Hulud supply chain attack countermeasures at the code level including safe dependency usage, credential handling, subprocess hardening, and runtime integrity patterns."
