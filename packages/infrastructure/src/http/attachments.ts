@@ -1,0 +1,212 @@
+import {
+  ApplicationError,
+  NotFoundError,
+} from "@flying-mail/application/errors";
+import { limitFailOpen } from "@flying-mail/application/ports/rate-limiter";
+import type { AppDependencies } from "@flying-mail/application/dependencies";
+import type { UseCases } from "@flying-mail/application/usecases";
+import { MAX_ATTACHMENT_UPLOAD_BYTES } from "@flying-mail/application/usecases/mail-limits";
+import { createAttachmentId } from "@flying-mail/domain/value-objects/ids";
+import { Hono } from "hono";
+import type { AuthVariables } from "./auth-middleware";
+import { buildDownloadResponse } from "./downloads";
+import { enforceBodyLimit } from "./body-limit";
+
+/** JSON body of a successful upload. */
+export interface UploadAttachmentResponse {
+  readonly id: string;
+  readonly fileName: string;
+  readonly contentType: string;
+  readonly size: number;
+  readonly url: string;
+  readonly createdAt: string;
+}
+
+/** Slack added when rejecting from `Content-Length` alone, before the body
+ * is parsed: a multipart request's total size includes boundary markers and
+ * per-part headers, which count toward `Content-Length` but not toward the
+ * file's own size. Generous enough never to reject a legitimately-sized
+ * upload, while still refusing a wildly oversized body unread. */
+const MULTIPART_OVERHEAD_ALLOWANCE = 64 * 1024;
+
+function sizeLimitResponse(): Response {
+  return Response.json(
+    {
+      error: `Attachment exceeds the ${MAX_ATTACHMENT_UPLOAD_BYTES / (1024 * 1024)} MB size limit`,
+      code: "PAYLOAD_TOO_LARGE",
+      maxBytes: MAX_ATTACHMENT_UPLOAD_BYTES,
+    },
+    { status: 413 },
+  );
+}
+
+function errorStatus(
+  error: ApplicationError,
+): 400 | 401 | 403 | 404 | 409 | 503 | 500 {
+  switch (error.code) {
+    case "UNAUTHENTICATED":
+      return 401;
+    case "FORBIDDEN":
+      return 403;
+    case "NOT_FOUND":
+      return 404;
+    case "BAD_USER_INPUT":
+      return 400;
+    case "CONFLICT":
+      return 409;
+    case "SERVICE_UNAVAILABLE":
+      return 503;
+    default:
+      return 500;
+  }
+}
+
+/** Mirrors the GraphQL layer's masking: every current `ApplicationError`
+ * maps to a 4xx/503, but if a future code were added without a case above,
+ * this still refuses to leak `error.message` -- which may embed
+ * caller-supplied values -- through a 500. */
+function applicationErrorResponse(error: ApplicationError): Response {
+  const status = errorStatus(error);
+  return Response.json(
+    { error: status === 500 ? "Internal server error" : error.message },
+    { status },
+  );
+}
+
+function unauthenticatedResponse(): Response {
+  return Response.json({ error: "Authentication required" }, { status: 401 });
+}
+
+/** Binary attachment transfer, kept out of GraphQL: GraphQL carries
+ * metadata, bytes go over plain HTTP.
+ *
+ * - `POST /attachments` (multipart, field `file`) stores a body for a later
+ *   `sendMessage` to reference by id.
+ * - `GET /attachments/:id` streams a stored attachment back.
+ *
+ * Both require an authenticated viewer. For a credential-free, expiring URL
+ * see `file-links.ts`. */
+export function createAttachmentRoutes(
+  deps: AppDependencies,
+  usecases: UseCases,
+): Hono<{ Variables: AuthVariables }> {
+  const app = new Hono<{ Variables: AuthVariables }>();
+
+  app.post("/attachments", async (c) => {
+    const viewer = c.get("viewer");
+    if (viewer === null) {
+      return unauthenticatedResponse();
+    }
+
+    // Per-principal throttle: an upload buffers up to the full size limit
+    // and writes to blob storage, so it is the costliest authenticated
+    // route to hammer.
+    if (deps.rateLimiter !== null) {
+      const principal =
+        viewer.kind === "USER"
+          ? `user:${viewer.userId}`
+          : `key:${viewer.apiKeyId}`;
+      // Fails open: a limiter outage must not block authenticated uploads.
+      if (!(await limitFailOpen(deps.rateLimiter, `upload:${principal}`))) {
+        return Response.json({ error: "Too many requests" }, { status: 429 });
+      }
+    }
+
+    try {
+      // Bound the complete stream before multipart parsing: unused fields
+      // and multiple files count too, even without a Content-Length header.
+      const bounded = await enforceBodyLimit(
+        c.req.raw,
+        MAX_ATTACHMENT_UPLOAD_BYTES + MULTIPART_OVERHEAD_ALLOWANCE,
+      );
+      if (bounded.kind === "too-large") {
+        return sizeLimitResponse();
+      }
+      const formData = await bounded.request.formData();
+      const file = formData.get("file");
+      if (!(file instanceof File)) {
+        return Response.json(
+          { error: 'Missing multipart "file" field' },
+          { status: 400 },
+        );
+      }
+      // Backstop for a request with no, or an understated, `Content-Length`.
+      if (file.size > MAX_ATTACHMENT_UPLOAD_BYTES) {
+        return sizeLimitResponse();
+      }
+
+      const attachment = await usecases.stageAttachmentUpload(viewer, {
+        fileName: file.name,
+        contentType: file.type,
+        bytes: new Uint8Array(await file.arrayBuffer()),
+      });
+
+      const response: UploadAttachmentResponse = {
+        id: attachment.id,
+        fileName: attachment.fileName,
+        contentType: attachment.contentType,
+        size: attachment.size,
+        url: `/api/attachments/${attachment.id}`,
+        createdAt: attachment.createdAt,
+      };
+      return Response.json(response, { status: 201 });
+    } catch (error) {
+      if (error instanceof ApplicationError) {
+        return applicationErrorResponse(error);
+      }
+      // Most commonly a malformed multipart body, which throws rather than
+      // rejecting with an `ApplicationError`. Treated as a client error
+      // rather than left to bubble up as a 500.
+      return Response.json(
+        { error: "Malformed multipart request body" },
+        { status: 400 },
+      );
+    }
+  });
+
+  app.get("/attachments/:id", async (c) => {
+    const viewer = c.get("viewer");
+    if (viewer === null) {
+      return unauthenticatedResponse();
+    }
+
+    const attachmentId = createAttachmentId(c.req.param("id"));
+    let attachment: Awaited<
+      ReturnType<UseCases["readAttachment"]>
+    >["attachment"];
+    let blob: Awaited<ReturnType<UseCases["readAttachment"]>>["blob"];
+    try {
+      ({ attachment, blob } = await usecases.readAttachment(
+        viewer,
+        attachmentId,
+        {
+          includeBody: true,
+        },
+      ));
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        return Response.json(
+          { error: "Attachment not found" },
+          { status: 404 },
+        );
+      }
+      if (error instanceof ApplicationError) {
+        return applicationErrorResponse(error);
+      }
+      throw error;
+    }
+    if (blob === null) {
+      return Response.json({ error: "Attachment not found" }, { status: 404 });
+    }
+
+    return buildDownloadResponse({
+      body: blob.body,
+      contentType: blob.contentType ?? attachment.contentType,
+      contentLength: blob.size || attachment.size,
+      fileName: attachment.fileName,
+      forceDownload: c.req.query("download") === "1",
+    });
+  });
+
+  return app;
+}

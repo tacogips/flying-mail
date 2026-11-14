@@ -1,0 +1,880 @@
+import { createSignal } from "solid-js";
+import type { ConnectionStatus } from "@flying-mail/realtime-client";
+import {
+  graphqlRequest,
+  type GraphQLResult,
+  sessionStore,
+} from "../api/graphql-client";
+import {
+  MAIL_TEMPLATES_QUERY,
+  MAIL_TEMPLATE_VALIDATION_QUERY,
+  PREVIEW_MAIL_TEMPLATE_QUERY,
+  SEND_TEMPLATED_MESSAGE_MUTATION,
+  DELETE_MESSAGES_MUTATION,
+  DELETE_DRAFT_MUTATION,
+  DOMAINS_ADMIN_QUERY,
+  DOMAINS_QUERY,
+  COMPOSE_FROM_MESSAGE_QUERY,
+  CREATE_MESSAGE_EVENT_MUTATION,
+  DELETE_MESSAGE_EVENT_MUTATION,
+  LOGOUT_MUTATION,
+  MAIL_LIMITS_QUERY,
+  SAVE_DRAFT_MUTATION,
+  SEND_DRAFT_MUTATION,
+  UNREAD_COUNT_QUERY,
+  UPCOMING_EVENTS_QUERY,
+  UPDATE_MESSAGE_EVENT_MUTATION,
+  MARK_NOT_SPAM_MUTATION,
+  MARK_READ_MUTATION,
+  MARK_SPAM_MUTATION,
+  MESSAGES_QUERY,
+  SEND_MESSAGE_MUTATION,
+  TAG_MESSAGES_MUTATION,
+  TAGS_QUERY,
+  UNTAG_MESSAGES_MUTATION,
+  VIEWER_QUERY,
+} from "../api/documents";
+import type {
+  ComposeMode,
+  ComposePrefillView,
+  MailLimitsView,
+  MailTemplateView,
+  RenderedTemplateView,
+  SendTemplatedMessageVariables,
+  TemplateValidationView,
+  TemplateValueInput,
+  MessageEventKind,
+  MessageEventView,
+  MailDomainView,
+  MessagePageView,
+  MessageView,
+  SendMessageVariables,
+  SystemTagSlug,
+  TagView,
+  ViewerView,
+} from "../api/schema-types";
+import { type MailboxView, viewToFilter } from "../lib/filter-params";
+import { describeErrors } from "../lib/mutation-error";
+import { pushToast } from "../lib/toast";
+import { toSaveDraftOutcome, type SaveDraftOutcome } from "./app-store-compose";
+
+const PAGE_SIZE = 50;
+
+export type LiveMessageEvent =
+  | { readonly type: "MESSAGE_UPDATED"; readonly message: MessageView }
+  | { readonly type: "MESSAGE_DELETED"; readonly messageId: string };
+
+export interface AppStore {
+  readonly viewer: () => ViewerView | null;
+  readonly domains: () => readonly MailDomainView[];
+  readonly tags: () => readonly TagView[];
+  readonly messages: () => readonly MessageView[];
+  readonly totalCount: () => number;
+  readonly hasMore: () => boolean;
+  readonly loading: () => boolean;
+  readonly selectedIds: () => ReadonlySet<string>;
+  readonly view: () => MailboxView;
+  readonly unreadOnly: () => boolean;
+  readonly inboxUnreadCount: () => number;
+  readonly mailLimits: () => MailLimitsView | null;
+  readonly upcomingEvents: () => readonly MessageEventView[];
+  readonly liveStatus: () => ConnectionStatus;
+  reloadUpcomingEvents(): Promise<void>;
+  setLiveStatus(status: ConnectionStatus): void;
+  publishLiveMessageEvent(event: LiveMessageEvent): void;
+  subscribeToLiveMessageEvents(
+    listener: (event: LiveMessageEvent) => void,
+  ): () => void;
+  patchMessage(message: MessageView): void;
+  removeMessage(id: string): void;
+  refreshVisible(): Promise<void>;
+  reloadTags(): Promise<void>;
+
+  rehydrateSession(): Promise<void>;
+  loadReferenceData(): Promise<void>;
+  loadAdminDomains(): Promise<void>;
+  setView(view: MailboxView): Promise<void>;
+  setUnreadOnly(value: boolean): Promise<void>;
+  reloadMessages(): Promise<void>;
+  loadMore(): Promise<void>;
+
+  toggleSelection(id: string): void;
+  clearSelection(): void;
+  selectAll(): void;
+
+  systemTag(slug: SystemTagSlug): TagView | null;
+  tagSelected(tagIds: readonly string[]): Promise<void>;
+  untagSelected(tagIds: readonly string[]): Promise<void>;
+  markSelectedSpam(spam: boolean): Promise<void>;
+  markSelectedRead(read: boolean): Promise<void>;
+  deleteSelected(): Promise<void>;
+  setStarred(messageIds: readonly string[], starred: boolean): Promise<boolean>;
+  setArchived(
+    messageIds: readonly string[],
+    archived: boolean,
+  ): Promise<boolean>;
+  send(input: SendMessageVariables): Promise<boolean>;
+  saveDraft(input: SaveDraftVariables): Promise<MessageView | null>;
+  saveDraftDetailed(
+    input: SaveDraftVariables,
+    options?: { readonly silent?: boolean },
+  ): Promise<SaveDraftOutcome>;
+  sendDraft(id: string): Promise<boolean>;
+  deleteDraft(id: string): Promise<boolean>;
+  composeFromMessage(
+    messageId: string,
+    mode: ComposeMode,
+  ): Promise<ComposePrefillView | null>;
+  createMessageEvent(
+    input: CreateMessageEventVariables,
+  ): Promise<MessageEventView | null>;
+  updateMessageEvent(
+    id: string,
+    input: UpdateMessageEventVariables,
+  ): Promise<MessageEventView | null>;
+  deleteMessageEvent(id: string): Promise<boolean>;
+  logout(): Promise<void>;
+
+  // --- mail templates ---
+  readonly mailTemplates: () => readonly MailTemplateView[];
+  loadMailTemplates(): Promise<void>;
+  validateTemplateValues(
+    id: string,
+    values: readonly TemplateValueInput[],
+  ): Promise<TemplateValidationView | null>;
+  previewTemplate(
+    id: string,
+    values: readonly TemplateValueInput[],
+  ): Promise<RenderedTemplateView | null>;
+  sendTemplatedMessage(input: SendTemplatedMessageVariables): Promise<boolean>;
+}
+
+export interface SaveDraftVariables {
+  readonly draftId?: string;
+  readonly inReplyToMessageId?: string;
+  readonly from: string;
+  readonly to?: readonly string[];
+  readonly cc?: readonly string[];
+  readonly bcc?: readonly string[];
+  readonly html?: string;
+  readonly replyTo?: string;
+  readonly forwardedFromMessageId?: string;
+  readonly forwardAttachmentIds?: readonly string[];
+  readonly subject?: string;
+  readonly text?: string;
+  readonly attachmentIds?: readonly string[];
+}
+
+export interface CreateMessageEventVariables {
+  readonly messageId: string;
+  readonly kind: MessageEventKind;
+  readonly dueAt?: string;
+  readonly title: string;
+  readonly note?: string;
+}
+
+export interface UpdateMessageEventVariables {
+  readonly kind?: MessageEventKind;
+  readonly dueAt?: string | null;
+  readonly title?: string;
+  readonly note?: string | null;
+  readonly completed?: boolean;
+}
+
+/** Applies an optimistic patch to the loaded messages and returns a rollback
+ * closure.
+ *
+ * Tag, read and spam toggles are frequent and individually cheap, so waiting
+ * for a round trip before showing the change makes the client feel broken.
+ * Rolling back on failure keeps the list honest when the server disagrees. */
+function optimisticPatch(
+  setMessages: (
+    updater: (current: readonly MessageView[]) => readonly MessageView[],
+  ) => void,
+  current: readonly MessageView[],
+  ids: ReadonlySet<string>,
+  patch: (message: MessageView) => MessageView,
+): () => void {
+  const before = current;
+  setMessages((messages) =>
+    messages.map((message) => (ids.has(message.id) ? patch(message) : message)),
+  );
+  return () => setMessages(() => before);
+}
+
+export function createAppStore(): AppStore {
+  const [viewer, setViewer] = createSignal<ViewerView | null>(null);
+  const [domains, setDomains] = createSignal<readonly MailDomainView[]>([]);
+  const [tags, setTags] = createSignal<readonly TagView[]>([]);
+  const [messages, setMessages] = createSignal<readonly MessageView[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = createSignal<
+    readonly MessageEventView[]
+  >([]);
+  const [cursor, setCursor] = createSignal<string | null>(null);
+  const [totalCount, setTotalCount] = createSignal(0);
+  const [loading, setLoading] = createSignal(false);
+  const [selectedIds, setSelectedIds] = createSignal<ReadonlySet<string>>(
+    new Set(),
+  );
+  const [mailTemplates, setMailTemplates] = createSignal<
+    readonly MailTemplateView[]
+  >([]);
+  const [view, setViewSignal] = createSignal<MailboxView>({
+    folder: { kind: "INBOX" },
+    scope: {},
+  });
+  const [unreadOnly, setUnreadOnlySignal] = createSignal(false);
+  const [inboxUnreadCount, setInboxUnreadCount] = createSignal(0);
+  const [mailLimits, setMailLimits] = createSignal<MailLimitsView | null>(null);
+  const [liveStatus, setLiveStatus] = createSignal<ConnectionStatus>("offline");
+  const liveMessageListeners = new Set<(event: LiveMessageEvent) => void>();
+  let listGeneration = 0;
+  let loadingRequestGeneration = 0;
+  let mailLimitsRequested = false;
+
+  function reportFailure(result: GraphQLResult<unknown>): boolean {
+    if (result.ok) {
+      return false;
+    }
+    pushToast("error", describeErrors(result.errors));
+    return true;
+  }
+
+  function currentMessageFilter(): Record<string, unknown> {
+    return {
+      ...viewToFilter(view(), tags()),
+      ...(unreadOnly() ? { unreadOnly: true } : {}),
+    };
+  }
+
+  async function fetchPage(after: string | null): Promise<void> {
+    const requestGeneration = listGeneration;
+    const loadingRequest = ++loadingRequestGeneration;
+    setLoading(true);
+    const result = await graphqlRequest<
+      { readonly messages: MessagePageView },
+      Record<string, unknown>
+    >(MESSAGES_QUERY, {
+      filter: currentMessageFilter(),
+      first: PAGE_SIZE,
+      after,
+    });
+    if (requestGeneration !== listGeneration) {
+      if (loadingRequest === loadingRequestGeneration) setLoading(false);
+      return;
+    }
+    setLoading(false);
+    if (reportFailure(result)) {
+      return;
+    }
+    if (!result.ok) {
+      return;
+    }
+    const page = result.data.messages;
+    setMessages((current) =>
+      after === null ? page.nodes : [...current, ...page.nodes],
+    );
+    setCursor(page.nextCursor);
+    setTotalCount(page.totalCount);
+  }
+
+  async function mutateSelected<TData>(
+    document: string,
+    variables: Record<string, unknown>,
+    optimistic: (message: MessageView) => MessageView,
+  ): Promise<boolean> {
+    const ids = selectedIds();
+    if (ids.size === 0) {
+      return false;
+    }
+    const rollback = optimisticPatch(setMessages, messages(), ids, optimistic);
+    const result = await graphqlRequest<TData, Record<string, unknown>>(
+      document,
+      variables,
+    );
+    if (!result.ok) {
+      rollback();
+      pushToast("error", describeErrors(result.errors));
+      return false;
+    }
+    // Re-reads the page so counts and any server-side reclassification
+    // (spam leaving the inbox, for instance) are reflected.
+    await fetchPage(null);
+    await reloadAddressActivity().catch(() => undefined);
+    return true;
+  }
+
+  /** Everything due in the next 30 days, open items only. */
+  async function reloadUpcomingEvents(): Promise<void> {
+    const dueBefore = new Date(
+      Date.now() + 30 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const result = await graphqlRequest<
+      { readonly messageEvents: readonly MessageEventView[] },
+      Record<string, unknown>
+    >(UPCOMING_EVENTS_QUERY, { dueBefore });
+    if (result.ok) {
+      setUpcomingEvents(result.data.messageEvents);
+    }
+  }
+
+  async function reloadAddressActivity(): Promise<void> {
+    const result = await graphqlRequest<{
+      readonly viewer: ViewerView | null;
+    }>(VIEWER_QUERY);
+    if (result.ok && result.data.viewer !== null) {
+      const refreshedViewer = result.data.viewer;
+      setViewer((current) =>
+        current === null
+          ? null
+          : { ...current, addressActivity: refreshedViewer.addressActivity },
+      );
+    }
+  }
+
+  /** Re-runs the tags query so system-tag counts (Starred, Archived,
+   * Trash) and user-tag counts stay in sync after a mutation, shared by
+   * initial load and the star/archive toggles. */
+  async function reloadTags(): Promise<void> {
+    const result = await graphqlRequest<{
+      readonly tags: readonly TagView[];
+    }>(TAGS_QUERY);
+    if (result.ok) {
+      setTags(result.data.tags);
+    }
+  }
+
+  /** Best-effort inbox unread count for the sidebar badge: a stale or
+   * missing count is a cosmetic problem, not worth a toast. */
+  async function reloadInboxUnread(): Promise<void> {
+    const result = await graphqlRequest<
+      { readonly messages: MessagePageView },
+      Record<string, unknown>
+    >(UNREAD_COUNT_QUERY, {
+      filter: { direction: "INBOUND", unreadOnly: true },
+    });
+    if (result.ok) {
+      setInboxUnreadCount(result.data.messages.totalCount);
+    }
+  }
+
+  function patchMessage(message: MessageView): void {
+    setMessages((current) =>
+      current.map((loaded) => (loaded.id === message.id ? message : loaded)),
+    );
+  }
+
+  function removeMessage(id: string): void {
+    setMessages((current) => current.filter((message) => message.id !== id));
+    setSelectedIds((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  async function refreshVisible(): Promise<void> {
+    const requestGeneration = ++listGeneration;
+    const result = await graphqlRequest<
+      { readonly messages: MessagePageView },
+      Record<string, unknown>
+    >(MESSAGES_QUERY, {
+      filter: currentMessageFilter(),
+      first: PAGE_SIZE,
+      after: null,
+    });
+    if (result.ok && requestGeneration === listGeneration) {
+      const firstPage = result.data.messages.nodes;
+      const firstPageIds = new Set(firstPage.map((message) => message.id));
+      const currentMessages = messages();
+      let lastOverlap = -1;
+      for (let index = 0; index < currentMessages.length; index += 1) {
+        const message = currentMessages[index];
+        if (message !== undefined && firstPageIds.has(message.id)) {
+          lastOverlap = index;
+        }
+      }
+      const laterMessages =
+        lastOverlap >= 0
+          ? currentMessages.slice(lastOverlap + 1)
+          : currentMessages.slice(PAGE_SIZE);
+      const next = [
+        ...firstPage,
+        ...laterMessages.filter((message) => !firstPageIds.has(message.id)),
+      ];
+      setMessages(next);
+      const presentIds = new Set(next.map((message) => message.id));
+      setSelectedIds((selected) => {
+        const retained = new Set(
+          [...selected].filter((id) => presentIds.has(id)),
+        );
+        return retained.size === selected.size ? selected : retained;
+      });
+      setTotalCount(result.data.messages.totalCount);
+    }
+    await Promise.all([
+      reloadAddressActivity().catch(() => undefined),
+      reloadInboxUnread().catch(() => undefined),
+    ]);
+  }
+
+  function publishLiveMessageEvent(event: LiveMessageEvent): void {
+    for (const listener of liveMessageListeners) listener(event);
+  }
+
+  function subscribeToLiveMessageEvents(
+    listener: (event: LiveMessageEvent) => void,
+  ): () => void {
+    liveMessageListeners.add(listener);
+    return () => liveMessageListeners.delete(listener);
+  }
+
+  function findSystemTag(slug: SystemTagSlug): TagView | null {
+    return (
+      tags().find((tag) => tag.kind === "SYSTEM" && tag.systemSlug === slug) ??
+      null
+    );
+  }
+
+  async function setSystemTagged(
+    messageIds: readonly string[],
+    slug: SystemTagSlug,
+    tagged: boolean,
+    missingTagMessage: string,
+  ): Promise<boolean> {
+    if (messageIds.length === 0) {
+      return false;
+    }
+    const tag = findSystemTag(slug);
+    if (tag === null) {
+      pushToast("error", missingTagMessage);
+      return false;
+    }
+    const document = tagged ? TAG_MESSAGES_MUTATION : UNTAG_MESSAGES_MUTATION;
+    const result = await graphqlRequest<unknown, Record<string, unknown>>(
+      document,
+      { messageIds, tagIds: [tag.id] },
+    );
+    if (!result.ok) {
+      pushToast("error", describeErrors(result.errors));
+      return false;
+    }
+    await fetchPage(null);
+    await reloadTags();
+    if (slug === "TRASH") {
+      await reloadAddressActivity().catch(() => undefined);
+    }
+    return true;
+  }
+
+  return {
+    viewer,
+    domains,
+    tags,
+    mailTemplates,
+    messages,
+    totalCount,
+    hasMore: () => cursor() !== null,
+    loading,
+    selectedIds,
+    view,
+    unreadOnly,
+    inboxUnreadCount,
+    mailLimits,
+
+    async rehydrateSession() {
+      const result = await graphqlRequest<{
+        readonly viewer: ViewerView | null;
+      }>(VIEWER_QUERY);
+      if (!result.ok || result.data.viewer === null) {
+        setViewer(null);
+        setMailLimits(null);
+        mailLimitsRequested = false;
+        sessionStore.clear();
+        return;
+      }
+      setViewer(result.data.viewer);
+      sessionStore.markEstablished();
+      if (!mailLimitsRequested) {
+        mailLimitsRequested = true;
+        const limitsResult = await graphqlRequest<{
+          readonly mailLimits: MailLimitsView;
+        }>(MAIL_LIMITS_QUERY);
+        if (limitsResult.ok) {
+          setMailLimits(limitsResult.data.mailLimits);
+        }
+      }
+    },
+
+    async loadReferenceData() {
+      const [domainResult] = await Promise.all([
+        graphqlRequest<{ readonly domains: readonly MailDomainView[] }>(
+          DOMAINS_QUERY,
+        ),
+        reloadTags(),
+      ]);
+      if (domainResult.ok) {
+        setDomains(domainResult.data.domains);
+      }
+      // Best-effort: the agenda and unread count failing must not block the
+      // mailbox.
+      await Promise.all([
+        reloadUpcomingEvents().catch(() => undefined),
+        reloadInboxUnread().catch(() => undefined),
+      ]);
+    },
+
+    async loadAdminDomains() {
+      const result = await graphqlRequest<{
+        readonly domains: readonly MailDomainView[];
+      }>(DOMAINS_ADMIN_QUERY);
+      if (result.ok) setDomains(result.data.domains);
+    },
+
+    reloadUpcomingEvents,
+
+    async setView(next) {
+      listGeneration += 1;
+      setViewSignal(() => next);
+      setUnreadOnlySignal(false);
+      setSelectedIds(new Set<string>());
+      setCursor(null);
+      await fetchPage(null);
+    },
+
+    async setUnreadOnly(value) {
+      listGeneration += 1;
+      setUnreadOnlySignal(value);
+      setCursor(null);
+      await fetchPage(null);
+    },
+
+    async reloadMessages() {
+      listGeneration += 1;
+      setCursor(null);
+      await fetchPage(null);
+      await Promise.all([
+        reloadInboxUnread().catch(() => undefined),
+        reloadAddressActivity().catch(() => undefined),
+      ]);
+    },
+
+    async loadMore() {
+      const after = cursor();
+      if (after === null || loading()) {
+        return;
+      }
+      await fetchPage(after);
+    },
+
+    toggleSelection(id) {
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        if (!next.delete(id)) {
+          next.add(id);
+        }
+        return next;
+      });
+    },
+
+    clearSelection() {
+      setSelectedIds(new Set<string>());
+    },
+
+    selectAll() {
+      setSelectedIds(new Set(messages().map((message) => message.id)));
+    },
+
+    systemTag(slug) {
+      return findSystemTag(slug);
+    },
+
+    async tagSelected(tagIds) {
+      await mutateSelected(
+        TAG_MESSAGES_MUTATION,
+        { messageIds: [...selectedIds()], tagIds },
+        (message) => message,
+      );
+    },
+
+    async untagSelected(tagIds) {
+      await mutateSelected(
+        UNTAG_MESSAGES_MUTATION,
+        { messageIds: [...selectedIds()], tagIds },
+        (message) => message,
+      );
+    },
+
+    async markSelectedSpam(spam) {
+      const succeeded = await mutateSelected(
+        spam ? MARK_SPAM_MUTATION : MARK_NOT_SPAM_MUTATION,
+        { messageIds: [...selectedIds()] },
+        (message) => ({ ...message, isSpam: spam }),
+      );
+      if (succeeded) {
+        await reloadInboxUnread().catch(() => undefined);
+      }
+    },
+
+    async markSelectedRead(read) {
+      const succeeded = await mutateSelected(
+        MARK_READ_MUTATION,
+        { messageIds: [...selectedIds()], read },
+        (message) => ({
+          ...message,
+          readAt: read ? new Date().toISOString() : null,
+        }),
+      );
+      if (succeeded) {
+        await reloadInboxUnread().catch(() => undefined);
+      }
+    },
+
+    async deleteSelected() {
+      const ids = selectedIds();
+      if (ids.size === 0) {
+        return;
+      }
+      const rollback = optimisticPatch(
+        setMessages,
+        messages(),
+        ids,
+        (message) => message,
+      );
+      setMessages((current) =>
+        current.filter((message) => !ids.has(message.id)),
+      );
+      const result = await graphqlRequest<
+        { readonly deleteMessages: number },
+        Record<string, unknown>
+      >(DELETE_MESSAGES_MUTATION, { messageIds: [...ids] });
+      if (!result.ok) {
+        rollback();
+        pushToast("error", describeErrors(result.errors));
+        return;
+      }
+      pushToast("success", `Deleted ${result.data.deleteMessages} message(s)`);
+      setSelectedIds(new Set<string>());
+      await fetchPage(null);
+      await reloadInboxUnread().catch(() => undefined);
+      await reloadAddressActivity().catch(() => undefined);
+    },
+
+    async setStarred(messageIds, starred) {
+      return setSystemTagged(
+        messageIds,
+        "STARRED",
+        starred,
+        "Star tag is not available",
+      );
+    },
+
+    async setArchived(messageIds, archived) {
+      return setSystemTagged(
+        messageIds,
+        "ARCHIVED",
+        archived,
+        "Archive tag is not available",
+      );
+    },
+
+    async send(input) {
+      const result = await graphqlRequest<
+        { readonly sendMessage: MessageView },
+        Record<string, unknown>
+      >(SEND_MESSAGE_MUTATION, { input });
+      if (!result.ok) {
+        pushToast("error", describeErrors(result.errors));
+        return false;
+      }
+      pushToast(
+        "success",
+        result.data.sendMessage.deliveryStatus === "SENT"
+          ? "Message sent"
+          : "Message queued",
+      );
+      await reloadAddressActivity().catch(() => undefined);
+      return true;
+    },
+
+    upcomingEvents,
+    liveStatus,
+    setLiveStatus,
+    publishLiveMessageEvent,
+    subscribeToLiveMessageEvents,
+    patchMessage,
+    removeMessage,
+    refreshVisible,
+    reloadTags,
+
+    async saveDraft(input) {
+      const result = await graphqlRequest<
+        { readonly saveDraft: MessageView },
+        Record<string, unknown>
+      >(SAVE_DRAFT_MUTATION, { input });
+      if (!result.ok) {
+        pushToast("error", describeErrors(result.errors));
+        return null;
+      }
+      pushToast("success", "Draft saved");
+      return result.data.saveDraft;
+    },
+
+    async saveDraftDetailed(input, options) {
+      const result = await graphqlRequest<
+        { readonly saveDraft: MessageView },
+        Record<string, unknown>
+      >(SAVE_DRAFT_MUTATION, { input });
+      const outcome = toSaveDraftOutcome(result, input);
+      if (outcome.kind === "error" && options?.silent !== true) {
+        pushToast("error", outcome.message);
+      }
+      return outcome;
+    },
+
+    async sendDraft(id) {
+      const result = await graphqlRequest<
+        { readonly sendDraft: MessageView },
+        Record<string, unknown>
+      >(SEND_DRAFT_MUTATION, { id });
+      if (!result.ok) {
+        pushToast("error", describeErrors(result.errors));
+        return false;
+      }
+      pushToast(
+        "success",
+        result.data.sendDraft.deliveryStatus === "SENT"
+          ? "Message sent"
+          : "Message queued",
+      );
+      await fetchPage(null);
+      await reloadAddressActivity().catch(() => undefined);
+      return true;
+    },
+
+    async deleteDraft(id) {
+      const result = await graphqlRequest<
+        { readonly deleteDraft: boolean },
+        { readonly id: string }
+      >(DELETE_DRAFT_MUTATION, { id });
+      if (!result.ok) {
+        pushToast("error", describeErrors(result.errors));
+        return false;
+      }
+      return result.data.deleteDraft;
+    },
+
+    async composeFromMessage(messageId, mode) {
+      const result = await graphqlRequest<
+        { readonly composeFromMessage: ComposePrefillView },
+        { readonly messageId: string; readonly mode: ComposeMode }
+      >(COMPOSE_FROM_MESSAGE_QUERY, { messageId, mode });
+      if (!result.ok) {
+        pushToast("error", describeErrors(result.errors));
+        return null;
+      }
+      return result.data.composeFromMessage;
+    },
+
+    async createMessageEvent(input) {
+      const result = await graphqlRequest<
+        { readonly createMessageEvent: MessageEventView },
+        Record<string, unknown>
+      >(CREATE_MESSAGE_EVENT_MUTATION, { input });
+      if (!result.ok) {
+        pushToast("error", describeErrors(result.errors));
+        return null;
+      }
+      return result.data.createMessageEvent;
+    },
+
+    async updateMessageEvent(id, input) {
+      const result = await graphqlRequest<
+        { readonly updateMessageEvent: MessageEventView },
+        Record<string, unknown>
+      >(UPDATE_MESSAGE_EVENT_MUTATION, { id, input });
+      if (!result.ok) {
+        pushToast("error", describeErrors(result.errors));
+        return null;
+      }
+      return result.data.updateMessageEvent;
+    },
+
+    async deleteMessageEvent(id) {
+      const result = await graphqlRequest<
+        { readonly deleteMessageEvent: boolean },
+        Record<string, unknown>
+      >(DELETE_MESSAGE_EVENT_MUTATION, { id });
+      if (!result.ok) {
+        pushToast("error", describeErrors(result.errors));
+        return false;
+      }
+      return true;
+    },
+
+    async logout() {
+      // Invalidate the server session first: clearing only local state
+      // would leave the HttpOnly cookie valid until its natural expiry,
+      // still usable by anyone with access to the browser profile. The
+      // request is best-effort -- local state clears even when the server
+      // is unreachable, since keeping the UI signed in would be worse.
+      await graphqlRequest(LOGOUT_MUTATION).catch(() => undefined);
+      setViewer(null);
+      setMailLimits(null);
+      mailLimitsRequested = false;
+      setMessages([]);
+      setSelectedIds(new Set<string>());
+      sessionStore.clear();
+    },
+
+    async loadMailTemplates(): Promise<void> {
+      const result = await graphqlRequest<{
+        readonly mailTemplates: readonly MailTemplateView[];
+      }>(MAIL_TEMPLATES_QUERY);
+      if (reportFailure(result) || !result.ok) {
+        return;
+      }
+      setMailTemplates(result.data.mailTemplates);
+    },
+
+    /** Validation is asked of the *server* rather than re-derived here: a
+     * client-side copy of "is this filled in?" is one more place for the two
+     * to disagree. */
+    async validateTemplateValues(id, values) {
+      const result = await graphqlRequest<
+        { readonly mailTemplateValidation: TemplateValidationView },
+        { id: string; values: readonly TemplateValueInput[] }
+      >(MAIL_TEMPLATE_VALIDATION_QUERY, { id, values });
+      if (reportFailure(result) || !result.ok) {
+        return null;
+      }
+      return result.data.mailTemplateValidation;
+    },
+
+    async previewTemplate(id, values) {
+      const result = await graphqlRequest<
+        { readonly previewMailTemplate: RenderedTemplateView },
+        { id: string; values: readonly TemplateValueInput[] }
+      >(PREVIEW_MAIL_TEMPLATE_QUERY, { id, values });
+      if (reportFailure(result) || !result.ok) {
+        return null;
+      }
+      return result.data.previewMailTemplate;
+    },
+
+    async sendTemplatedMessage(input) {
+      const result = await graphqlRequest<
+        { readonly sendTemplatedMessage: MessageView },
+        { input: SendTemplatedMessageVariables }
+      >(SEND_TEMPLATED_MESSAGE_MUTATION, { input });
+      if (reportFailure(result) || !result.ok) {
+        return false;
+      }
+      pushToast("success", "Message sent");
+      await fetchPage(null);
+      await reloadAddressActivity().catch(() => undefined);
+      return true;
+    },
+  };
+}

@@ -1,0 +1,273 @@
+import { flagBoolean, type ParsedArgs, parseArgs } from "./args";
+import { createCliClient } from "./client";
+import {
+  adminCommands,
+  validateAdminBootstrapInputs,
+} from "./commands/admin-bootstrap";
+import {
+  createClientServeApp,
+  describeServe,
+  resolveClientServeOptions,
+  startClientServe,
+} from "./commands/client-serve";
+import { runWatch } from "./commands/watch";
+import { userCommands } from "./commands/user";
+import {
+  type CommandContext,
+  type CommandHandler,
+  configCommands,
+  domainCommands,
+  keyCommands,
+  mailCommands,
+} from "./commands";
+import { apiKeyArgvWarning, resolveConfig } from "./config";
+import { CliError, ExitCode } from "./exit-codes";
+import { colorize } from "./output";
+
+const VERSION = "0.1.0";
+
+const HELP = `flying-mail - self-hosted mail on Cloudflare Workers
+
+Usage
+  flying-mail <command> <subcommand> [flags]
+
+Commands
+  admin bootstrap             Create the first admin (token from $FLYING_MAIL_BOOTSTRAP_TOKEN)
+  client serve                Serve the browser mail client locally
+  watch                       Stream mail events over WebSocket
+  domain list|add|verify      Manage mail domains
+  key list|create|revoke      Manage API keys
+  mail list|show|send|fetch   Read and send mail
+  user list|show|set-role|activate|deactivate|rule|template-rule
+                              Manage users and their permission rules
+  config show|set             Manage local CLI configuration
+
+Global flags
+  --endpoint <url>            Deployment base URL ($FLYING_MAIL_ENDPOINT)
+  --api-key <key>             API key. Prefer $FLYING_MAIL_API_KEY: command-line
+                              arguments are visible in the process list and
+                              shell history
+  --json                      Machine-readable output
+  --help, --version
+
+config set
+  config set endpoint <url>   Save the deployment URL (https; http only for localhost)
+  config set apiKey <key>     Save the API key; pass - as <key> to read it from
+                              stdin, e.g. pass show flying-mail | flying-mail config set apiKey -
+
+client serve flags
+  --port <n>                  Listen port (default 5173)
+  --host <addr>               Listen address (default 127.0.0.1)
+  --dist <dir>                Serve an alternate build
+  --open                      Open a browser on start
+  --allow-remote              Permit a non-loopback host; disables API key
+                              injection, since a key-injecting proxy on a
+                              reachable address is an open relay for that key
+
+watch flags
+  --domain <name|id>          Filter events by domain
+  --address <addr>            Filter events by mailbox address
+  --type <list>               received|sent|updated|deleted|draft-saved|draft-deleted
+                              Event types (comma-separated or repeatable)
+  --json                      Emit newline-delimited JSON events
+
+user flags
+  --effect <ALLOW|DENY>       Permission rule effect
+  --domain <name|id>          Mail rule domain (default: all domains)
+  --pattern <pattern>         Mailbox address pattern
+  --capability <TEMPLATE_...> Template capability for template-rule add
+
+admin bootstrap flags
+  --email <addr>              Admin email
+  --name <name>               Admin display name
+  --secret-file <path>        API key destination (default .private/bootstrap-admin-api-key)
+
+mail list flags
+  --limit <n>                 Messages to show (default 20)
+  --from <addr>               Sender filter
+  --to <addr>                 Recipient filter, cc NOT included
+  --recipient <addr>          Recipient filter, cc/bcc included
+  --search <text>             Full text over subject, snippet and body
+  --has-attachment            Only messages with attachments
+  --no-attachment             Only messages without attachments
+  --attachment-kind <k>       image|video|audio|pdf|document|spreadsheet|
+                              presentation|archive|text|calendar|other
+                              (repeatable, or comma-separated)
+  --tag <name>                Tag filter by name (repeatable)
+  --include-spam              Include spam in the listing
+  --spam-only                 Only spam (the junk folder)
+  --mailing-list              Only mailing-list messages
+  --status <s>                draft|sent|received (repeatable/comma-sep)
+  --unread                    Unread only
+
+mail fetch flags
+  --limit <n>                 Messages per poll (default 20)
+  --ack                       Acknowledge after printing
+  --watch                     Poll continuously
+  --interval <s>              Seconds between polls (default 30, minimum 1).
+                              Rate-limit and network errors back off up to 60s
+
+mail send flags
+  --from <addr>               Sender (must be within a MAIL_SEND scope)
+  --to/--cc/--bcc <addr>      Recipients; repeatable
+  --subject <text>            Subject
+  --text <body>               Plain-text body
+  --text-file <path>          Read the body from a file, or - for stdin
+  --attach <path>             Attach a file; repeatable
+
+key create flags
+  --scope <spec>              CAPABILITY[:domain[:pattern]]; repeatable
+  --expires-in <dur>          e.g. 30d, 12h, 45m
+`;
+
+const COMMAND_GROUPS: ReadonlyMap<
+  string,
+  ReadonlyMap<string, CommandHandler>
+> = new Map([
+  ["admin", adminCommands],
+  ["domain", domainCommands],
+  ["key", keyCommands],
+  ["mail", mailCommands],
+  ["user", userCommands],
+  ["config", configCommands],
+]);
+
+/** `client serve` is handled separately because it binds a port and never
+ * returns, so it has no place in the request/response command tables. */
+async function runClientServe(
+  args: ParsedArgs,
+  env: Record<string, string | undefined>,
+): Promise<ExitCode> {
+  const config = await resolveConfig(args, env);
+  const options = resolveClientServeOptions(args, config);
+  const app = createClientServeApp(options);
+  const handle = startClientServe(options, app);
+
+  console.log(describeServe(options));
+  if (options.open) {
+    console.log(`Open ${handle.url} in your browser.`);
+  }
+  // Resolves only on signal; the listener owns the process from here.
+  await new Promise<void>((resolveSignal) => {
+    const stop = (): void => {
+      handle.stop();
+      resolveSignal();
+    };
+    process.once("SIGINT", stop);
+    process.once("SIGTERM", stop);
+  });
+  return ExitCode.Success;
+}
+
+/** `parseArgs` keeps every token before the first flag in `command`, so
+ * `domain add example.com` leaves `positionals` empty. Handlers expect the
+ * operands after `<group> <subcommand>` in `positionals`; this moves them
+ * there. Operands that follow a flag already are in `positionals`. */
+export function withOperands(args: ParsedArgs): ParsedArgs {
+  return {
+    command: args.command.slice(0, 2),
+    flags: args.flags,
+    positionals: [...args.command.slice(2), ...args.positionals],
+  };
+}
+
+export async function runCli(
+  argv: readonly string[],
+  env: Record<string, string | undefined>,
+): Promise<ExitCode> {
+  const args = parseArgs(argv);
+
+  if (flagBoolean(args, "version")) {
+    console.log(VERSION);
+    return ExitCode.Success;
+  }
+  if (flagBoolean(args, "help") || args.command.length === 0) {
+    console.log(HELP);
+    return args.command.length === 0 && !flagBoolean(args, "help")
+      ? ExitCode.UsageError
+      : ExitCode.Success;
+  }
+
+  const warning = apiKeyArgvWarning(
+    args,
+    process.stdin.isTTY === true && process.stderr.isTTY === true,
+  );
+  if (warning !== null) {
+    console.error(warning);
+  }
+
+  const [group, subcommand] = args.command;
+
+  if (group === "client") {
+    if (subcommand !== "serve") {
+      throw new CliError(
+        `Unknown client subcommand "${subcommand ?? ""}". Try: flying-mail client serve`,
+        ExitCode.UsageError,
+      );
+    }
+    return runClientServe(args, env);
+  }
+
+  if (group === "watch" && subcommand === undefined) {
+    return runWatch(args, env);
+  }
+
+  const handlers = group === undefined ? undefined : COMMAND_GROUPS.get(group);
+  if (handlers === undefined) {
+    throw new CliError(
+      `Unknown command "${group ?? ""}". Run \`flying-mail --help\`.`,
+      ExitCode.UsageError,
+    );
+  }
+  const handler =
+    subcommand === undefined ? undefined : handlers.get(subcommand);
+  if (handler === undefined) {
+    throw new CliError(
+      `Unknown ${group} subcommand "${subcommand ?? ""}". Available: ${[...handlers.keys()].join(", ")}`,
+      ExitCode.UsageError,
+    );
+  }
+
+  if (group === "admin" && subcommand === "bootstrap") {
+    validateAdminBootstrapInputs(args, env);
+  }
+  const config = await resolveConfig(args, env);
+  const context: CommandContext = {
+    // `user` commands slice `command` themselves (see `operands`).
+    args: group === "user" ? args : withOperands(args),
+    config,
+    client: createCliClient(config),
+    env,
+    json: flagBoolean(args, "json"),
+  };
+  return handler(context);
+}
+
+export async function main(
+  argv: readonly string[],
+  env: Record<string, string | undefined>,
+): Promise<ExitCode> {
+  try {
+    return await runCli(argv, env);
+  } catch (error) {
+    if (error instanceof CliError) {
+      console.error(colorize(error.message, "red", env));
+      return error.exitCode;
+    }
+    console.error(
+      colorize(
+        error instanceof Error ? error.message : "Unexpected error",
+        "red",
+        env,
+      ),
+    );
+    return ExitCode.GeneralError;
+  }
+}
+
+// Guarded so tests can import `runCli`/`main` without the process exiting.
+if (import.meta.main === true) {
+  void main(process.argv.slice(2), process.env).then((code) => {
+    process.exit(code);
+  });
+}

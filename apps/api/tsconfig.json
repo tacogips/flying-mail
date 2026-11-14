@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": [
+    "src/**/*.ts",
+    // Same reasoning as `packages/infrastructure/tsconfig.json`: this
+    // ambient `declare module "cloudflare:sockets"` is reachable only
+    // through `@flying-mail/infrastructure/composition/build-dependencies`'s
+    // import of `@flying-mail/adapter/tcp/cloudflare-tcp-dialer`, and ambient
+    // module declarations load only from a program's own root file set,
+    // never transitively.
+    "../../packages/adapter/src/tcp/cloudflare-sockets.d.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

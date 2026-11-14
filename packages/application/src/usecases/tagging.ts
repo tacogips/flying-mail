@@ -1,0 +1,159 @@
+import { Capability } from "@flying-mail/domain/entities/api-key";
+import { MailEventType } from "@flying-mail/domain/entities/mail-event";
+import type { Message } from "@flying-mail/domain/entities/message";
+import {
+  createSpamMark,
+  SpamMarkedBy,
+} from "@flying-mail/domain/entities/spam-mark";
+import type { Tag } from "@flying-mail/domain/entities/tag";
+import type { MessageId, TagId } from "@flying-mail/domain/value-objects/ids";
+import type { AppDependencies } from "../dependencies";
+import { NotFoundError } from "../errors";
+import type { Viewer } from "../policies/viewer";
+import { recordMailEvents } from "./mail-events";
+import { assertIdCountWithinLimit } from "./id-limits";
+import { loadReadableMessages } from "./messages";
+
+async function requireTags(
+  deps: AppDependencies,
+  tagIds: readonly TagId[],
+): Promise<readonly Tag[]> {
+  assertIdCountWithinLimit(tagIds, "tagIds");
+  const found = await deps.tagRepository.findByIds(tagIds);
+  const foundIds = new Set<string>(found.map((tag) => tag.id));
+  for (const tagId of tagIds) {
+    if (!foundIds.has(tagId)) {
+      throw new NotFoundError("Tag", tagId);
+    }
+  }
+  return found;
+}
+
+async function applyTags(
+  deps: AppDependencies,
+  viewer: Viewer,
+  messageIds: readonly MessageId[],
+  tagIds: readonly TagId[],
+  add: boolean,
+): Promise<readonly Message[]> {
+  assertIdCountWithinLimit(messageIds, "messageIds");
+  const messages = await loadReadableMessages(
+    deps,
+    viewer,
+    messageIds,
+    Capability.MailManage,
+  );
+  if (messages.length === 0 || tagIds.length === 0) {
+    return messages;
+  }
+  const ids = messages.map((message) => message.id);
+  if (add) {
+    await deps.messageRepository.addTags(
+      ids,
+      tagIds,
+      deps.clock.now().toISOString(),
+    );
+  } else {
+    await deps.messageRepository.removeTags(ids, tagIds);
+  }
+  await recordMailEvents(
+    deps,
+    messages.map((message) => ({
+      type: MailEventType.MessageUpdated,
+      message,
+    })),
+  );
+  return messages;
+}
+
+export function createTagMessagesUseCase(
+  deps: AppDependencies,
+): (
+  viewer: Viewer,
+  messageIds: readonly MessageId[],
+  tagIds: readonly TagId[],
+) => Promise<readonly Message[]> {
+  return async (viewer, messageIds, tagIds) => {
+    await requireTags(deps, tagIds);
+    return applyTags(deps, viewer, messageIds, tagIds, true);
+  };
+}
+
+export function createUntagMessagesUseCase(
+  deps: AppDependencies,
+): (
+  viewer: Viewer,
+  messageIds: readonly MessageId[],
+  tagIds: readonly TagId[],
+) => Promise<readonly Message[]> {
+  return async (viewer, messageIds, tagIds) => {
+    await requireTags(deps, tagIds);
+    return applyTags(deps, viewer, messageIds, tagIds, false);
+  };
+}
+
+/** A hand mark writes a `USER` spam verdict row -- no score, since no
+ * scorer ran. Marking already-marked messages simply refreshes the mark. */
+export function createMarkSpamUseCase(
+  deps: AppDependencies,
+): (
+  viewer: Viewer,
+  messageIds: readonly MessageId[],
+) => Promise<readonly Message[]> {
+  return async (viewer, messageIds) => {
+    assertIdCountWithinLimit(messageIds, "messageIds");
+    const messages = await loadReadableMessages(
+      deps,
+      viewer,
+      messageIds,
+      Capability.MailManage,
+    );
+    const markedAt = deps.clock.now().toISOString();
+    await deps.messageRepository.setSpamMarks(
+      messages.map((message) =>
+        createSpamMark({
+          messageId: message.id,
+          score: null,
+          markedBy: SpamMarkedBy.User,
+          markedAt,
+        }),
+      ),
+    );
+    await recordMailEvents(
+      deps,
+      messages.map((message) => ({
+        type: MailEventType.MessageUpdated,
+        message,
+      })),
+    );
+    return messages;
+  };
+}
+
+export function createMarkNotSpamUseCase(
+  deps: AppDependencies,
+): (
+  viewer: Viewer,
+  messageIds: readonly MessageId[],
+) => Promise<readonly Message[]> {
+  return async (viewer, messageIds) => {
+    assertIdCountWithinLimit(messageIds, "messageIds");
+    const messages = await loadReadableMessages(
+      deps,
+      viewer,
+      messageIds,
+      Capability.MailManage,
+    );
+    await deps.messageRepository.clearSpamMarks(
+      messages.map((message) => message.id),
+    );
+    await recordMailEvents(
+      deps,
+      messages.map((message) => ({
+        type: MailEventType.MessageUpdated,
+        message,
+      })),
+    );
+    return messages;
+  };
+}

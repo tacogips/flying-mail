@@ -1,0 +1,731 @@
+import type { ApiKey, ApiKeyScope } from "@flying-mail/domain/entities/api-key";
+import type { Attachment } from "@flying-mail/domain/entities/attachment";
+import type { MessageFetchState } from "@flying-mail/domain/entities/fetch-state";
+import type { FileLink } from "@flying-mail/domain/entities/file-link";
+import type {
+  DomainStatus,
+  MailDomain,
+} from "@flying-mail/domain/entities/mail-domain";
+import type { ClassificationRule } from "@flying-mail/domain/entities/classification-rule";
+import type { Message } from "@flying-mail/domain/entities/message";
+import type { MessageEvent } from "@flying-mail/domain/entities/message-event";
+import type { Tag } from "@flying-mail/domain/entities/tag";
+import type { User, UserRole } from "@flying-mail/domain/entities/user";
+import type { UserMailPermission } from "@flying-mail/domain/entities/user-mail-permission";
+import type {
+  ClassificationRuleId,
+  MessageEventId,
+  ApiKeyId,
+  ApiKeyScopeId,
+  AttachmentId,
+  DomainId,
+  FileLinkId,
+  MessageId,
+  TagId,
+  ThreadId,
+  UserId,
+  UserMailPermissionId,
+} from "@flying-mail/domain/value-objects/ids";
+import type {
+  MailAddress,
+  MailAddressStatus,
+} from "@flying-mail/domain/entities/mail-address";
+import type {
+  MailTemplate,
+  MailTemplateContentInput,
+} from "@flying-mail/domain/entities/mail-template";
+export type { MailTemplateContentInput };
+import type { UserTemplatePermission } from "@flying-mail/domain/entities/user-template-permission";
+import type {
+  MailAddressId,
+  MailTemplateId,
+  UserTemplatePermissionId,
+} from "@flying-mail/domain/value-objects/ids";
+import type {
+  TemplateValidation,
+  TemplateValueEntry,
+} from "@flying-mail/domain/entities/template-values";
+import type { AppDependencies } from "./dependencies";
+import {
+  type ComposeUseCases,
+  createComposeUseCases,
+} from "./usecases/compose-usecases";
+import {
+  type ContactUseCases,
+  createContactUseCases,
+} from "./usecases/contact-usecases";
+import {
+  type ExternalMailUseCases,
+  createExternalMailUseCases,
+} from "./usecases/external-mail-usecases";
+import {
+  type CreateMailAddressUseCaseInput,
+  createCreateMailAddressUseCase,
+  createDeleteMailAddressUseCase,
+  createListMailAddressesUseCase,
+  createRenameMailAddressUseCase,
+  createSetMailAddressStatusUseCase,
+} from "./usecases/mail-addresses";
+import {
+  createCreateMailTemplateUseCase,
+  createDeleteMailTemplateUseCase,
+  createGetMailTemplateUseCase,
+  createListMailTemplatesUseCase,
+  createMailTemplateReferencesUseCase,
+  createUpdateMailTemplateUseCase,
+} from "./usecases/mail-templates";
+import {
+  createPreviewMailTemplateUseCase,
+  createSendTemplatedMessageUseCase,
+  createValidateMailTemplateValuesUseCase,
+  type RenderedTemplate,
+  type SendTemplatedMessageInput,
+} from "./usecases/mail-template-send";
+import {
+  createAddUserTemplatePermissionUseCase,
+  createListUserTemplatePermissionsUseCase,
+  createRemoveUserTemplatePermissionUseCase,
+  type UserTemplatePermissionInput,
+} from "./usecases/user-template-permissions";
+import type { Viewer } from "./policies/viewer";
+import {
+  type ApiKeyScopeInput,
+  type ApiKeyWithSecret,
+  type CreateApiKeyUseCaseInput,
+  createAddApiKeyScopeUseCase,
+  createCreateApiKeyUseCase,
+  createListApiKeyScopesUseCase,
+  createListApiKeysUseCase,
+  createRemoveApiKeyScopeUseCase,
+  createRevokeApiKeyUseCase,
+} from "./usecases/api-keys";
+import {
+  createGetViewerUserUseCase,
+  createLogoutUseCase,
+  createResolveApiKeyViewerFromTokenUseCase,
+  createResolveViewerFromTokenHashUseCase,
+  createResolveViewerFromTokenUseCase,
+  type ApiKeyViewer,
+} from "./usecases/auth";
+import {
+  createReadAttachmentUseCase,
+  createStageAttachmentUploadUseCase,
+  type AttachmentContent,
+  type StageAttachmentUploadInput,
+} from "./usecases/attachment-uploads";
+import {
+  buildDomainDnsRecords,
+  createInboundMxStatusUseCase,
+  createCreateDomainUseCase,
+  createDeleteDomainUseCase,
+  createGetDomainUseCase,
+  createListDomainsUseCase,
+  createSetDomainStatusUseCase,
+  createVerifyDomainUseCase,
+  type DnsRecord,
+  type InboundMxStatus,
+} from "./usecases/domains";
+import {
+  type BootstrapResult,
+  createBootstrapAdminUseCase,
+  createRequestEmailAuthUseCase,
+  createSweepExpiredAuthUseCase,
+  createVerifyEmailAuthTokenUseCase,
+  type EmailAuthSession,
+} from "./usecases/email-auth";
+import { createResendInvitationUseCase } from "./usecases/invitations";
+import {
+  createMarkMessagesFetchedUseCase,
+  createMarkMessagesNotFetchedUseCase,
+  createResolveFetchStatesUseCase,
+} from "./usecases/fetch-state";
+import {
+  type CreatedFileLink,
+  createCreateAttachmentLinkUseCase,
+  createCreateRawMessageLinkUseCase,
+  createListFileLinksUseCase,
+  createResolveFileLinkUseCase,
+  createRevokeFileLinkUseCase,
+  createSweepExpiredFileLinksUseCase,
+  type FileLinkDownload,
+} from "./usecases/file-links";
+import {
+  createReceiveMessageUseCase,
+  type ReceiveMessageInput,
+  type ReceiveMessageResult,
+} from "./usecases/ingest";
+import {
+  createDeleteMessagesUseCase,
+  createGetMessageUseCase,
+  createGetThreadUseCase,
+  createListMessagesUseCase,
+  createMarkReadUseCase,
+  type ListMessagesInput,
+  type MessageListResult,
+  type ThreadView,
+} from "./usecases/messages";
+import { createTrashMessagesUseCase } from "./usecases/trash";
+import {
+  createListSendableAddressesUseCase,
+  createRetrySendUseCase,
+  createSendMessageUseCase,
+  type SendMessageInput,
+} from "./usecases/send";
+import {
+  createMarkNotSpamUseCase,
+  createMarkSpamUseCase,
+  createTagMessagesUseCase,
+  createUntagMessagesUseCase,
+} from "./usecases/tagging";
+import {
+  createCreateTagUseCase,
+  createDeleteTagUseCase,
+  createEnsureSystemTagsUseCase,
+  createListTagsUseCase,
+  createRenameTagUseCase,
+} from "./usecases/tags";
+import {
+  createSaveDraftUseCase,
+  createSendDraftUseCase,
+  type SaveDraftInput,
+} from "./usecases/drafts";
+import { createDeleteDraftUseCase } from "./usecases/delete-draft";
+import {
+  type CreateMessageEventInput,
+  createCreateMessageEventUseCase,
+  createDeleteMessageEventUseCase,
+  createListEventsByMessagesUseCase,
+  createListMessageEventsUseCase,
+  createUpdateMessageEventUseCase,
+  type ListMessageEventsInput,
+  type UpdateMessageEventInput,
+} from "./usecases/events";
+import {
+  createApplyClassificationRuleUseCase,
+  createCreateClassificationRuleUseCase,
+  createDeleteClassificationRuleUseCase,
+  createListClassificationRulesUseCase,
+  createSetClassificationRuleEnabledUseCase,
+  type CreateRuleInput,
+  type RuleApplication,
+} from "./usecases/rules";
+import {
+  createAddUserMailPermissionUseCase,
+  createCreateUserUseCase,
+  createGetUserUseCase,
+  createListUsersUseCase,
+  createRemoveUserMailPermissionUseCase,
+  createSetUserActiveUseCase,
+  createSetUserRoleUseCase,
+  type CreateUserInput,
+  type UserMailPermissionInput,
+  type UserWithPermissions,
+} from "./usecases/users";
+
+/** One flat object of pre-bound use cases, constructed once per isolate at
+ * the composition root. Every transport (GraphQL, the REST routes, the
+ * Worker's `email()` handler, the CLI) calls through this and nothing else,
+ * so authorization and validation can never be bypassed by reaching for a
+ * repository directly. */
+export interface UseCases {
+  // --- auth ---
+  readonly resolveViewerFromToken: (token: string) => Promise<Viewer | null>;
+  readonly resolveApiKeyViewerFromToken: (
+    token: string,
+  ) => Promise<ApiKeyViewer | null>;
+  readonly resolveViewerFromTokenHash: (
+    tokenHash: string,
+    options: { readonly recordUsage: boolean },
+  ) => Promise<Viewer | null>;
+  readonly logout: (token: string) => Promise<boolean>;
+  readonly getViewerUser: (viewer: Viewer) => Promise<User | null>;
+  readonly requestEmailAuth: (input: {
+    readonly email: string;
+    readonly turnstileToken: string | null;
+    readonly clientIp: string | null;
+  }) => Promise<boolean>;
+  readonly verifyEmailAuthToken: (
+    token: string,
+    clientIp: string | null,
+  ) => Promise<EmailAuthSession>;
+  readonly bootstrapAdmin: (input: {
+    readonly email: string;
+    readonly name: string;
+    readonly token: string;
+    readonly clientIp: string | null;
+  }) => Promise<BootstrapResult>;
+  readonly sweepExpiredAuth: () => Promise<void>;
+
+  // --- inbound ---
+  readonly receiveMessage: (
+    input: ReceiveMessageInput,
+  ) => Promise<ReceiveMessageResult>;
+
+  // --- outbound ---
+  readonly sendMessage: (
+    viewer: Viewer,
+    input: SendMessageInput,
+  ) => Promise<Message>;
+  readonly saveDraft: (
+    viewer: Viewer,
+    input: SaveDraftInput,
+  ) => Promise<Message>;
+  readonly sendDraft: (viewer: Viewer, draftId: MessageId) => Promise<Message>;
+  readonly deleteDraft: (viewer: Viewer, id: MessageId) => Promise<boolean>;
+  readonly retrySend: (
+    viewer: Viewer,
+    messageId: MessageId,
+  ) => Promise<Message>;
+  readonly listSendableAddresses: (
+    viewer: Viewer,
+  ) => Promise<readonly string[]>;
+
+  // --- reading ---
+  readonly listMessages: (
+    viewer: Viewer,
+    input: ListMessagesInput,
+  ) => Promise<MessageListResult>;
+  readonly getMessage: (
+    viewer: Viewer,
+    id: MessageId,
+  ) => Promise<Message | null>;
+  readonly getThread: (
+    viewer: Viewer,
+    id: ThreadId,
+  ) => Promise<ThreadView | null>;
+  readonly markRead: (
+    viewer: Viewer,
+    ids: readonly MessageId[],
+    read: boolean,
+  ) => Promise<readonly Message[]>;
+  readonly deleteMessages: (
+    viewer: Viewer,
+    ids: readonly MessageId[],
+  ) => Promise<number>;
+  readonly trashMessages: (
+    viewer: Viewer,
+    ids: readonly MessageId[],
+  ) => Promise<number>;
+  readonly stageAttachmentUpload: (
+    viewer: Viewer,
+    input: StageAttachmentUploadInput,
+  ) => Promise<Attachment>;
+  readonly readAttachment: (
+    viewer: Viewer,
+    id: AttachmentId,
+    options: { readonly includeBody: boolean },
+  ) => Promise<AttachmentContent>;
+
+  // --- fetch state ---
+  readonly markMessagesFetched: (
+    viewer: Viewer,
+    ids: readonly MessageId[],
+  ) => Promise<readonly Message[]>;
+  readonly markMessagesNotFetched: (
+    viewer: Viewer,
+    ids: readonly MessageId[],
+  ) => Promise<readonly Message[]>;
+  readonly resolveFetchStates: (
+    viewer: Viewer,
+    ids: readonly MessageId[],
+  ) => Promise<ReadonlyMap<string, MessageFetchState>>;
+
+  // --- tagging ---
+  readonly listTags: (viewer: Viewer) => Promise<readonly Tag[]>;
+  readonly createTag: (
+    viewer: Viewer,
+    name: string,
+    color: string | null,
+  ) => Promise<Tag>;
+  readonly renameTag: (
+    viewer: Viewer,
+    id: TagId,
+    name: string,
+    color: string | null,
+  ) => Promise<Tag>;
+  readonly deleteTag: (viewer: Viewer, id: TagId) => Promise<boolean>;
+  readonly ensureSystemTags: () => Promise<readonly Tag[]>;
+  readonly tagMessages: (
+    viewer: Viewer,
+    messageIds: readonly MessageId[],
+    tagIds: readonly TagId[],
+  ) => Promise<readonly Message[]>;
+  readonly untagMessages: (
+    viewer: Viewer,
+    messageIds: readonly MessageId[],
+    tagIds: readonly TagId[],
+  ) => Promise<readonly Message[]>;
+  // --- events ---
+  readonly createMessageEvent: (
+    viewer: Viewer,
+    input: CreateMessageEventInput,
+  ) => Promise<MessageEvent>;
+  readonly updateMessageEvent: (
+    viewer: Viewer,
+    id: MessageEventId,
+    input: UpdateMessageEventInput,
+  ) => Promise<MessageEvent>;
+  readonly deleteMessageEvent: (
+    viewer: Viewer,
+    id: MessageEventId,
+  ) => Promise<boolean>;
+  readonly listMessageEvents: (
+    viewer: Viewer,
+    input: ListMessageEventsInput,
+  ) => Promise<readonly MessageEvent[]>;
+  readonly listEventsByMessages: (
+    ids: readonly MessageId[],
+  ) => Promise<ReadonlyMap<string, readonly MessageEvent[]>>;
+
+  // --- classification rules ---
+  readonly createClassificationRule: (
+    viewer: Viewer,
+    input: CreateRuleInput,
+  ) => Promise<ClassificationRule>;
+  readonly setClassificationRuleEnabled: (
+    viewer: Viewer,
+    id: ClassificationRuleId,
+    enabled: boolean,
+  ) => Promise<ClassificationRule>;
+  readonly deleteClassificationRule: (
+    viewer: Viewer,
+    id: ClassificationRuleId,
+  ) => Promise<boolean>;
+  readonly listClassificationRules: (
+    viewer: Viewer,
+  ) => Promise<readonly ClassificationRule[]>;
+  readonly applyClassificationRule: (
+    viewer: Viewer,
+    id: ClassificationRuleId,
+  ) => Promise<RuleApplication>;
+
+  readonly markSpam: (
+    viewer: Viewer,
+    messageIds: readonly MessageId[],
+  ) => Promise<readonly Message[]>;
+  readonly markNotSpam: (
+    viewer: Viewer,
+    messageIds: readonly MessageId[],
+  ) => Promise<readonly Message[]>;
+
+  // --- domains ---
+  readonly listDomains: (viewer: Viewer) => Promise<readonly MailDomain[]>;
+  readonly getDomain: (
+    viewer: Viewer,
+    id: DomainId,
+  ) => Promise<MailDomain | null>;
+  readonly createDomain: (
+    viewer: Viewer,
+    name: string,
+    catchAll: boolean,
+  ) => Promise<MailDomain>;
+  readonly verifyDomain: (viewer: Viewer, id: DomainId) => Promise<MailDomain>;
+  readonly setDomainStatus: (
+    viewer: Viewer,
+    id: DomainId,
+    status: DomainStatus,
+  ) => Promise<MailDomain>;
+  readonly deleteDomain: (viewer: Viewer, id: DomainId) => Promise<boolean>;
+  readonly domainDnsRecords: (domain: MailDomain) => readonly DnsRecord[];
+  readonly inboundMxStatus: (domain: MailDomain) => Promise<InboundMxStatus>;
+
+  // --- mail addresses (mailbox provisioning) ---
+  readonly listMailAddresses: (
+    viewer: Viewer,
+    domainId: DomainId | null,
+  ) => Promise<readonly MailAddress[]>;
+  readonly createMailAddress: (
+    viewer: Viewer,
+    input: CreateMailAddressUseCaseInput,
+  ) => Promise<MailAddress>;
+  readonly renameMailAddress: (
+    viewer: Viewer,
+    id: MailAddressId,
+    displayName: string | null,
+  ) => Promise<MailAddress>;
+  readonly setMailAddressStatus: (
+    viewer: Viewer,
+    id: MailAddressId,
+    status: MailAddressStatus,
+  ) => Promise<MailAddress>;
+  readonly deleteMailAddress: (
+    viewer: Viewer,
+    id: MailAddressId,
+  ) => Promise<boolean>;
+
+  // --- api keys ---
+  readonly listApiKeys: (viewer: Viewer) => Promise<readonly ApiKey[]>;
+  readonly listApiKeyScopes: (
+    viewer: Viewer,
+    ids: readonly ApiKeyId[],
+  ) => Promise<ReadonlyMap<string, readonly ApiKeyScope[]>>;
+  readonly createApiKey: (
+    viewer: Viewer,
+    input: CreateApiKeyUseCaseInput,
+  ) => Promise<ApiKeyWithSecret>;
+  readonly revokeApiKey: (viewer: Viewer, id: ApiKeyId) => Promise<ApiKey>;
+  readonly addApiKeyScope: (
+    viewer: Viewer,
+    apiKeyId: ApiKeyId,
+    scope: ApiKeyScopeInput,
+  ) => Promise<readonly ApiKeyScope[]>;
+  readonly removeApiKeyScope: (
+    viewer: Viewer,
+    scopeId: ApiKeyScopeId,
+  ) => Promise<boolean>;
+
+  // --- file links ---
+  readonly createAttachmentLink: (
+    viewer: Viewer,
+    attachmentId: AttachmentId,
+    ttlSeconds?: number,
+    maxDownloads?: number | null,
+  ) => Promise<CreatedFileLink>;
+  readonly createRawMessageLink: (
+    viewer: Viewer,
+    messageId: MessageId,
+    ttlSeconds?: number,
+    maxDownloads?: number | null,
+  ) => Promise<CreatedFileLink>;
+  readonly revokeFileLink: (viewer: Viewer, id: FileLinkId) => Promise<boolean>;
+  readonly listFileLinks: (
+    viewer: Viewer,
+    messageId: MessageId,
+  ) => Promise<readonly FileLink[]>;
+  /** Unauthenticated by design: the token is the credential. */
+  readonly resolveFileLink: (token: string) => Promise<FileLinkDownload | null>;
+  readonly sweepExpiredFileLinks: () => Promise<number>;
+
+  // --- users (admin-only) ---
+  readonly listUsers: (
+    viewer: Viewer,
+  ) => Promise<readonly UserWithPermissions[]>;
+  readonly getUser: (
+    viewer: Viewer,
+    id: UserId,
+  ) => Promise<UserWithPermissions | null>;
+  readonly createUser: (
+    viewer: Viewer,
+    input: CreateUserInput,
+  ) => Promise<UserWithPermissions>;
+  readonly resendInvitation: (
+    viewer: Viewer,
+    userId: UserId,
+  ) => Promise<UserWithPermissions>;
+  readonly setUserRole: (
+    viewer: Viewer,
+    id: UserId,
+    role: UserRole,
+  ) => Promise<UserWithPermissions>;
+  readonly setUserActive: (
+    viewer: Viewer,
+    id: UserId,
+    active: boolean,
+  ) => Promise<UserWithPermissions>;
+  readonly addUserMailPermission: (
+    viewer: Viewer,
+    userId: UserId,
+    input: UserMailPermissionInput,
+  ) => Promise<UserMailPermission>;
+  readonly removeUserMailPermission: (
+    viewer: Viewer,
+    id: UserMailPermissionId,
+  ) => Promise<boolean>;
+
+  // --- mail templates ---
+  readonly listMailTemplates: (
+    viewer: Viewer,
+  ) => Promise<readonly MailTemplate[]>;
+  readonly getMailTemplate: (
+    viewer: Viewer,
+    id: MailTemplateId,
+  ) => Promise<MailTemplate | null>;
+  readonly createMailTemplate: (
+    viewer: Viewer,
+    input: MailTemplateContentInput,
+  ) => Promise<MailTemplate>;
+  readonly updateMailTemplate: (
+    viewer: Viewer,
+    id: MailTemplateId,
+    input: MailTemplateContentInput,
+  ) => Promise<MailTemplate>;
+  readonly deleteMailTemplate: (
+    viewer: Viewer,
+    id: MailTemplateId,
+  ) => Promise<boolean>;
+  readonly mailTemplateReferences: (
+    template: MailTemplate,
+  ) => readonly string[];
+  readonly validateMailTemplateValues: (
+    viewer: Viewer,
+    id: MailTemplateId,
+    values: readonly TemplateValueEntry[],
+  ) => Promise<TemplateValidation>;
+  readonly previewMailTemplate: (
+    viewer: Viewer,
+    id: MailTemplateId,
+    values: readonly TemplateValueEntry[],
+  ) => Promise<RenderedTemplate>;
+  readonly sendTemplatedMessage: (
+    viewer: Viewer,
+    input: SendTemplatedMessageInput,
+  ) => Promise<Message>;
+  readonly listUserTemplatePermissions: (
+    viewer: Viewer,
+    userIds: readonly UserId[],
+  ) => Promise<ReadonlyMap<string, readonly UserTemplatePermission[]>>;
+  readonly addUserTemplatePermission: (
+    viewer: Viewer,
+    userId: UserId,
+    input: UserTemplatePermissionInput,
+  ) => Promise<UserTemplatePermission>;
+  readonly removeUserTemplatePermission: (
+    viewer: Viewer,
+    id: UserTemplatePermissionId,
+  ) => Promise<boolean>;
+}
+
+/** The contact and external-mail halves are declared in their own
+ * modules and spread in, so this file does not grow another feature's worth
+ * of entries. */
+export interface UseCases
+  extends ContactUseCases,
+    ExternalMailUseCases,
+    ComposeUseCases {}
+
+export function createUseCases(deps: AppDependencies): UseCases {
+  const sendMessage = createSendMessageUseCase(deps);
+  const receiveMessage = createReceiveMessageUseCase(deps);
+  return {
+    ...createContactUseCases(deps),
+    ...createExternalMailUseCases(deps, receiveMessage),
+    ...createComposeUseCases(deps),
+
+    listMailTemplates: createListMailTemplatesUseCase(deps),
+    getMailTemplate: createGetMailTemplateUseCase(deps),
+    createMailTemplate: createCreateMailTemplateUseCase(deps),
+    updateMailTemplate: createUpdateMailTemplateUseCase(deps),
+    deleteMailTemplate: createDeleteMailTemplateUseCase(deps),
+    mailTemplateReferences: createMailTemplateReferencesUseCase(deps),
+    validateMailTemplateValues: createValidateMailTemplateValuesUseCase(deps),
+    previewMailTemplate: createPreviewMailTemplateUseCase(deps),
+    sendTemplatedMessage: createSendTemplatedMessageUseCase(deps, sendMessage),
+    listUserTemplatePermissions: createListUserTemplatePermissionsUseCase(deps),
+    addUserTemplatePermission: createAddUserTemplatePermissionUseCase(deps),
+    removeUserTemplatePermission:
+      createRemoveUserTemplatePermissionUseCase(deps),
+
+    resolveViewerFromToken: createResolveViewerFromTokenUseCase(deps),
+    resolveApiKeyViewerFromToken:
+      createResolveApiKeyViewerFromTokenUseCase(deps),
+    resolveViewerFromTokenHash: createResolveViewerFromTokenHashUseCase(deps),
+    logout: createLogoutUseCase(deps),
+    getViewerUser: createGetViewerUserUseCase(deps),
+    requestEmailAuth: createRequestEmailAuthUseCase(deps),
+    verifyEmailAuthToken: createVerifyEmailAuthTokenUseCase(deps),
+    bootstrapAdmin: createBootstrapAdminUseCase(deps),
+    sweepExpiredAuth: createSweepExpiredAuthUseCase(deps),
+
+    receiveMessage,
+
+    sendMessage,
+    saveDraft: createSaveDraftUseCase(deps),
+    sendDraft: createSendDraftUseCase(deps),
+    deleteDraft: createDeleteDraftUseCase(deps),
+    retrySend: createRetrySendUseCase(deps),
+    listSendableAddresses: createListSendableAddressesUseCase(deps),
+
+    listMessages: createListMessagesUseCase(deps),
+    getMessage: createGetMessageUseCase(deps),
+    getThread: createGetThreadUseCase(deps),
+    markRead: createMarkReadUseCase(deps),
+    deleteMessages: createDeleteMessagesUseCase(deps),
+    trashMessages: createTrashMessagesUseCase(deps),
+    stageAttachmentUpload: createStageAttachmentUploadUseCase(deps),
+    readAttachment: createReadAttachmentUseCase(deps),
+
+    markMessagesFetched: createMarkMessagesFetchedUseCase(deps),
+    markMessagesNotFetched: createMarkMessagesNotFetchedUseCase(deps),
+    resolveFetchStates: createResolveFetchStatesUseCase(deps),
+
+    listTags: createListTagsUseCase(deps),
+    createTag: createCreateTagUseCase(deps),
+    renameTag: createRenameTagUseCase(deps),
+    deleteTag: createDeleteTagUseCase(deps),
+    ensureSystemTags: createEnsureSystemTagsUseCase(deps),
+    tagMessages: createTagMessagesUseCase(deps),
+    untagMessages: createUntagMessagesUseCase(deps),
+    createMessageEvent: createCreateMessageEventUseCase(deps),
+    updateMessageEvent: createUpdateMessageEventUseCase(deps),
+    deleteMessageEvent: createDeleteMessageEventUseCase(deps),
+    listMessageEvents: createListMessageEventsUseCase(deps),
+    listEventsByMessages: createListEventsByMessagesUseCase(deps),
+    createClassificationRule: createCreateClassificationRuleUseCase(deps),
+    setClassificationRuleEnabled:
+      createSetClassificationRuleEnabledUseCase(deps),
+    deleteClassificationRule: createDeleteClassificationRuleUseCase(deps),
+    listClassificationRules: createListClassificationRulesUseCase(deps),
+    applyClassificationRule: createApplyClassificationRuleUseCase(deps),
+    markSpam: createMarkSpamUseCase(deps),
+    markNotSpam: createMarkNotSpamUseCase(deps),
+
+    listDomains: createListDomainsUseCase(deps),
+    getDomain: createGetDomainUseCase(deps),
+    createDomain: createCreateDomainUseCase(deps),
+    verifyDomain: createVerifyDomainUseCase(deps),
+    setDomainStatus: createSetDomainStatusUseCase(deps),
+    deleteDomain: createDeleteDomainUseCase(deps),
+    domainDnsRecords: buildDomainDnsRecords,
+    inboundMxStatus: createInboundMxStatusUseCase(deps),
+
+    listMailAddresses: createListMailAddressesUseCase(deps),
+    createMailAddress: createCreateMailAddressUseCase(deps),
+    renameMailAddress: createRenameMailAddressUseCase(deps),
+    setMailAddressStatus: createSetMailAddressStatusUseCase(deps),
+    deleteMailAddress: createDeleteMailAddressUseCase(deps),
+
+    listApiKeys: createListApiKeysUseCase(deps),
+    listApiKeyScopes: createListApiKeyScopesUseCase(deps),
+    createApiKey: createCreateApiKeyUseCase(deps),
+    revokeApiKey: createRevokeApiKeyUseCase(deps),
+    addApiKeyScope: createAddApiKeyScopeUseCase(deps),
+    removeApiKeyScope: createRemoveApiKeyScopeUseCase(deps),
+
+    createAttachmentLink: createCreateAttachmentLinkUseCase(deps),
+    createRawMessageLink: createCreateRawMessageLinkUseCase(deps),
+    revokeFileLink: createRevokeFileLinkUseCase(deps),
+    listFileLinks: createListFileLinksUseCase(deps),
+    resolveFileLink: createResolveFileLinkUseCase(deps),
+    sweepExpiredFileLinks: createSweepExpiredFileLinksUseCase(deps),
+
+    listUsers: createListUsersUseCase(deps),
+    getUser: createGetUserUseCase(deps),
+    createUser: createCreateUserUseCase(deps),
+    resendInvitation: createResendInvitationUseCase(deps),
+    setUserRole: createSetUserRoleUseCase(deps),
+    setUserActive: createSetUserActiveUseCase(deps),
+    addUserMailPermission: createAddUserMailPermissionUseCase(deps),
+    removeUserMailPermission: createRemoveUserMailPermissionUseCase(deps),
+  };
+}
+
+export type {
+  ApiKeyScopeInput,
+  CreateMailAddressUseCaseInput,
+  BootstrapResult,
+  ApiKeyWithSecret,
+  CreateApiKeyUseCaseInput,
+  CreatedFileLink,
+  CreateUserInput,
+  DnsRecord,
+  EmailAuthSession,
+  FileLinkDownload,
+  ListMessagesInput,
+  MessageListResult,
+  ReceiveMessageInput,
+  ReceiveMessageResult,
+  SendMessageInput,
+  ThreadView,
+  UserMailPermissionInput,
+  UserWithPermissions,
+};

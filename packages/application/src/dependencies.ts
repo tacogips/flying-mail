@@ -1,0 +1,138 @@
+import type { ApiKeyRepository } from "./ports/api-key-repository";
+import type {
+  EmailAuthChallengeRepository,
+  SessionRepository,
+  UserRepository,
+} from "./ports/auth-repository";
+import type { BlobStore } from "./ports/blob-store";
+import type { FileLinkRepository } from "./ports/file-link-repository";
+import type { MailAddressRepository } from "./ports/mail-address-repository";
+import type { MailDomainRepository } from "./ports/mail-domain-repository";
+import type { MailSender } from "./ports/mail-sender";
+import type { ClassificationRuleRepository } from "./ports/classification-rule-repository";
+import type { DnsResolver } from "./ports/dns-resolver";
+import type { MessageEventRepository } from "./ports/message-event-repository";
+import type { MailEventLog } from "./ports/mail-event-log";
+import type { MailEventNotifier } from "./ports/mail-event-notifier";
+import type { MessageRepository } from "./ports/message-repository";
+import type { MimeBuilder, MimeParser } from "./ports/mime";
+import type { Clock, RandomSource, TokenHasher } from "./ports/runtime-ports";
+import type { SqlDatabase } from "./ports/sql-database";
+import type { TagRepository } from "./ports/tag-repository";
+import type { UserMailPermissionRepository } from "./ports/user-mail-permission-repository";
+import type { CredentialCipher } from "./ports/credential-cipher";
+import type { MailTemplateRepository } from "./ports/mail-template-repository";
+import type { TemplateRenderer } from "./ports/template-renderer";
+import type { UserTemplatePermissionRepository } from "./ports/user-template-permission-repository";
+import type { AddressBookRepository } from "./ports/address-book-repository";
+import type { ContactRepository } from "./ports/contact-repository";
+import type { CarddavAccountRepository, CarddavClient } from "./ports/carddav";
+import type { VcardCodec } from "./ports/vcard-codec";
+import type {
+  ExternalMailAccountRepository,
+  ExternalMessageStateRepository,
+  JmapClient,
+  Pop3Client,
+  SmtpSubmissionClient,
+  TcpDialer,
+} from "./ports/external-mail";
+import type { RateLimiter } from "./ports/rate-limiter";
+import type { TurnstileVerifier } from "./ports/turnstile-verifier";
+
+export interface InstanceConfig {
+  /** Invitation sign-in link lifetime in seconds. */
+  readonly inviteTtlSeconds: number;
+  /** Raw one-time bootstrap secret held in memory only; never log it. */
+  readonly bootstrapToken: string | null;
+  /** Public Turnstile site key; null disables the widget. */
+  readonly turnstileSiteKey: string | null;
+  /** Absolute origin (scheme + host, no trailing slash) this deployment is
+   * reachable at, or `null` when unconfigured -- in which case passwordless
+   * login is disabled rather than mailing broken links, and file-link URLs
+   * are returned as relative paths. */
+  readonly publicOrigin: string | null;
+  /** Verified sender mailbox used for **system** mail only -- the
+   * passwordless login link, which has no user-chosen sender to use. `null`
+   * disables passwordless login with a clear `SERVICE_UNAVAILABLE` rather
+   * than mailing from an address the provider would reject.
+   *
+   * Deliberately *not* the sender for user mail: flying-mail runs many
+   * addresses across many domains, and each message leaves as the mailbox
+   * its sender was authorized for. */
+  readonly mailFrom: string | null;
+  /** Spam score at or above which the `SPAM` system tag is applied. */
+  readonly spamThreshold: number;
+  /** Operator-supplied phrases that contribute to the spam score when they
+   * appear in a subject or body. Empty by default. */
+  readonly spamPhrases: readonly string[];
+  /** Hard cap on a file link's requested `ttlSeconds`. */
+  readonly fileLinkMaxTtlSeconds: number;
+  /** Rolling 24h cap on outbound messages per sending domain. */
+  readonly maxSendsPerDomainPerDay: number;
+  /** Retention window for durable mail events, in seconds. */
+  readonly eventRetentionSeconds: number;
+  /** MX suffix that must receive inbound mail, or null to disable the gate. */
+  readonly inboundMxSuffix: string | null;
+}
+
+/** Composition-root bundle of every port a use case may need. Concrete
+ * adapters are wired into this object at the Worker / local-server entry
+ * point; use cases only ever see the port interfaces.
+ *
+ * Repository ports live here alongside the infrastructure ports because use
+ * cases need concrete repository instances, and the application layer
+ * cannot construct those from `db` itself without importing concrete
+ * adapters -- which would invert the dependency rule. `instanceConfig` is
+ * not a port at all, just a read-only settings bundle resolved once at
+ * startup. */
+export interface AppDependencies {
+  readonly db: SqlDatabase;
+  readonly blobs: BlobStore;
+  readonly clock: Clock;
+  readonly random: RandomSource;
+  readonly tokenHasher: TokenHasher;
+  readonly mimeParser: MimeParser;
+  readonly mimeBuilder: MimeBuilder;
+  readonly mailSender: MailSender;
+  readonly templateRenderer: TemplateRenderer;
+  readonly vcardCodec: VcardCodec;
+  readonly carddavClient: CarddavClient;
+  readonly jmapClient: JmapClient;
+  readonly pop3Client: Pop3Client;
+  readonly smtpSubmissionClient: SmtpSubmissionClient;
+  /** Underlies the POP3 and SMTP submission clients; the JMAP client needs
+   * no raw socket since it speaks plain `fetch`. */
+  readonly tcpDialer: TcpDialer;
+  /** One deployment key encrypts every third-party credential kind. */
+  readonly credentialCipher: CredentialCipher;
+
+  readonly mailDomainRepository: MailDomainRepository;
+  readonly mailAddressRepository: MailAddressRepository;
+  readonly messageRepository: MessageRepository;
+  readonly messageEventRepository: MessageEventRepository;
+  readonly mailEventLog: MailEventLog;
+  readonly mailEventNotifier: MailEventNotifier;
+  readonly classificationRuleRepository: ClassificationRuleRepository;
+  readonly dns: DnsResolver;
+  readonly tagRepository: TagRepository;
+  readonly apiKeyRepository: ApiKeyRepository;
+  readonly fileLinkRepository: FileLinkRepository;
+  readonly userRepository: UserRepository;
+  readonly userMailPermissionRepository: UserMailPermissionRepository;
+  readonly sessionRepository: SessionRepository;
+  readonly emailAuthChallengeRepository: EmailAuthChallengeRepository;
+  readonly mailTemplateRepository: MailTemplateRepository;
+  readonly userTemplatePermissionRepository: UserTemplatePermissionRepository;
+  readonly addressBookRepository: AddressBookRepository;
+  readonly contactRepository: ContactRepository;
+  readonly carddavAccountRepository: CarddavAccountRepository;
+  readonly externalMailAccountRepository: ExternalMailAccountRepository;
+  readonly externalMessageStateRepository: ExternalMessageStateRepository;
+
+  /** Optional per-IP limiter; null disables rate limiting. */
+  readonly rateLimiter: RateLimiter | null;
+  /** Optional bot verifier; null disables Turnstile. */
+  readonly turnstileVerifier: TurnstileVerifier | null;
+
+  readonly instanceConfig: InstanceConfig;
+}

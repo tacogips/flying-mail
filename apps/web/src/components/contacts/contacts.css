@@ -1,0 +1,440 @@
+/* Contacts surface. One stylesheet for the rail, list, detail pane and
+   dialogs. */
+
+.contacts-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.contacts-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.contacts-toolbar h1 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.contacts-toolbar__spacer {
+  flex: 1;
+}
+
+.contacts-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.contacts-rail {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  overflow: auto;
+  padding: 12px 8px;
+}
+
+.contacts-rail__group {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.contacts-rail__nested {
+  list-style: none;
+  margin: 0;
+  padding-left: 14px;
+}
+
+.contacts-rail__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.contacts-rail__item:hover {
+  background: var(--bg-subtle);
+}
+
+.contacts-rail__item--active {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.contacts-rail__item--nested {
+  font-size: 0.85rem;
+  padding: 5px 8px;
+}
+
+.contacts-rail__count {
+  font-size: 0.72rem;
+}
+
+.contacts-rail__empty {
+  padding: 8px;
+  font-size: 0.82rem;
+}
+
+.contacts-list {
+  width: var(--list-width);
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 8px;
+}
+
+.contacts-list__toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.contacts-list__search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  padding: 6px 10px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+}
+
+.contacts-list__search input {
+  flex: 1;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--text);
+}
+
+.contacts-list__search input:focus {
+  outline: none;
+}
+
+.contacts-list__count {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.contacts-list__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+}
+
+.contacts-list__item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.contacts-list__item:hover {
+  background: var(--bg-subtle);
+}
+
+.contacts-list__item--active {
+  background: var(--accent-soft);
+}
+
+.contacts-list__name {
+  font-weight: 600;
+}
+
+.contacts-list__book {
+  font-size: 0.76rem;
+}
+
+.contacts-list__chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.contacts-list__chip {
+  font-size: 0.7rem;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+}
+
+.contacts-list__more {
+  align-self: center;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.contact-detail {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 20px;
+}
+
+.contact-detail__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.contact-detail__header h2 {
+  margin: 0 0 4px;
+}
+
+.contact-detail__meta {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.contact-detail__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.contact-detail__actions button {
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text);
+}
+
+.contact-detail__actions button.danger {
+  color: var(--danger);
+}
+
+.contact-detail__role {
+  margin: 0 0 4px;
+}
+
+.contact-detail__section {
+  margin: 14px 0;
+}
+
+.contact-detail__section h3 {
+  font-size: 0.85rem;
+  margin: 0 0 6px;
+  color: var(--text-muted);
+}
+
+.contact-detail__section ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.contact-detail__note {
+  white-space: pre-wrap;
+}
+
+.contact-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(20 24 31 / 45%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 20;
+}
+
+.contact-dialog {
+  background: var(--bg-raised);
+  color: var(--text);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  width: min(640px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 20px;
+}
+
+.contact-dialog h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.contact-dialog label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.contact-dialog input,
+.contact-dialog select,
+.contact-dialog textarea {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.contact-dialog__row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.contact-dialog__row > * {
+  flex: 1;
+  min-width: 140px;
+}
+
+.contact-dialog__field {
+  margin-bottom: 12px;
+}
+
+.contact-dialog__grouplabel {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.contact-dialog__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.contact-dialog__listrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.contact-dialog__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.contact-dialog__actions button {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.contact-dialog__actions button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.contact-dialog__hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 4px 0 0;
+}
+
+.carddav-settings {
+  border-top: 1px solid var(--border);
+  padding: 16px;
+}
+
+.carddav-settings h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.carddav-settings__account {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.carddav-settings__row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 8px;
+}
+
+.carddav-settings__row > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.carddav-settings input,
+.carddav-settings select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.carddav-settings button {
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+  font: inherit;
+}

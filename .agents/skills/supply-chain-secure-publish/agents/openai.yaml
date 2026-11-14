@@ -1,0 +1,3 @@
+interface:
+  display_name: "supply-chain-secure-publish"
+  short_description: "Use when creating, publishing, or maintaining npm packages with Bun. Provides Shai-Hulud supply chain attack countermeasures including npm token management, 2FA enforcement, provenance signing, trusted publishing via GitHub Actions, and pre-publish security checklists."

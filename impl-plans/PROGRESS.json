@@ -1,0 +1,1936 @@
+{
+  "lastUpdated": "2026-10-28T00:40:02Z",
+  "phases": {
+    "1": {
+      "status": "COMPLETED"
+    },
+    "2": {
+      "status": "COMPLETED"
+    },
+    "3": {
+      "status": "COMPLETED"
+    },
+    "4": {
+      "status": "COMPLETED"
+    },
+    "5": {
+      "status": "COMPLETED"
+    },
+    "6": {
+      "status": "COMPLETED"
+    },
+    "7": {
+      "status": "COMPLETED"
+    },
+    "8": {
+      "status": "COMPLETED"
+    },
+    "9": {
+      "status": "COMPLETED"
+    },
+    "10": {
+      "status": "COMPLETED"
+    },
+    "11": {
+      "status": "COMPLETED"
+    },
+    "12": {
+      "status": "COMPLETED"
+    },
+    "13": {
+      "status": "COMPLETED"
+    },
+    "14": {
+      "status": "COMPLETED"
+    },
+    "15": {
+      "status": "COMPLETED"
+    },
+    "16": {
+      "status": "COMPLETED"
+    },
+    "17": {
+      "status": "COMPLETED"
+    },
+    "18": {
+      "status": "COMPLETED"
+    },
+    "19": {
+      "status": "COMPLETED"
+    },
+    "20": {
+      "status": "COMPLETED"
+    },
+    "21": {
+      "status": "COMPLETED"
+    },
+    "22": {
+      "status": "COMPLETED"
+    },
+    "23": {
+      "status": "COMPLETED"
+    },
+    "24": {
+      "status": "COMPLETED"
+    },
+    "25": {
+      "status": "COMPLETED"
+    },
+    "26": {
+      "status": "COMPLETED"
+    },
+    "27": {
+      "status": "COMPLETED"
+    },
+    "28": {
+      "status": "COMPLETED"
+    },
+    "29": {
+      "status": "COMPLETED"
+    },
+    "30": {
+      "status": "READY"
+    },
+    "31": {
+      "status": "BLOCKED"
+    },
+    "32": {
+      "status": "BLOCKED"
+    },
+    "33": {
+      "status": "BLOCKED"
+    }
+  },
+  "plans": {
+    "domain-model": {
+      "phase": 1,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        }
+      }
+    },
+    "app-api-migrations": {
+      "phase": 1,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "infrastructure-http:TASK-004"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "infrastructure-http:TASK-004"
+          ]
+        }
+      }
+    },
+    "application-ports-and-policies": {
+      "phase": 2,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "domain-model:TASK-001"
+          ]
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "domain-model:TASK-002",
+            "domain-model:TASK-003",
+            "domain-model:TASK-004"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-002"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-002"
+          ]
+        }
+      }
+    },
+    "application-usecases-mail": {
+      "phase": 3,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "application-ports-and-policies:TASK-002"
+          ]
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "application-ports-and-policies:TASK-004"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "application-ports-and-policies:TASK-004"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "application-ports-and-policies:TASK-004"
+          ]
+        },
+        "TASK-005": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-004"
+          ]
+        }
+      }
+    },
+    "application-usecases-admin": {
+      "phase": 3,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "application-ports-and-policies:TASK-001"
+          ]
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "TASK-001",
+            "application-ports-and-policies:TASK-004"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "TASK-001",
+            "application-ports-and-policies:TASK-004"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "application-usecases-mail:TASK-004"
+          ]
+        },
+        "TASK-005": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-002",
+            "TASK-003",
+            "TASK-004",
+            "application-usecases-mail:TASK-005"
+          ]
+        }
+      }
+    },
+    "adapter-layer": {
+      "phase": 3,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "application-ports-and-policies:TASK-001"
+          ]
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "application-ports-and-policies:TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-003",
+            "app-api-migrations:TASK-001",
+            "application-ports-and-policies:TASK-002"
+          ]
+        },
+        "TASK-005": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-004"
+          ]
+        }
+      }
+    },
+    "infrastructure-graphql": {
+      "phase": 4,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "application-usecases-admin:TASK-005"
+          ]
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "application-usecases-admin:TASK-005"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "TASK-002"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-003"
+          ]
+        }
+      }
+    },
+    "infrastructure-http": {
+      "phase": 4,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "infrastructure-graphql:TASK-002"
+          ]
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "adapter-layer:TASK-005"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "TASK-002",
+            "TASK-003",
+            "infrastructure-graphql:TASK-004"
+          ]
+        }
+      }
+    },
+    "app-web-client": {
+      "phase": 5,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "infrastructure-graphql:TASK-004"
+          ]
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-002"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-003"
+          ]
+        }
+      }
+    },
+    "app-cli": {
+      "phase": 5,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "infrastructure-graphql:TASK-004"
+          ]
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-002",
+            "TASK-003"
+          ]
+        }
+      }
+    },
+    "user-mail-permissions": {
+      "phase": 6,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-002"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-002",
+            "TASK-003"
+          ]
+        },
+        "TASK-005": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-004"
+          ]
+        },
+        "TASK-006": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-005"
+          ]
+        },
+        "TASK-007": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-006"
+          ]
+        }
+      }
+    },
+    "mail-templates": {
+      "phase": 7,
+      "status": "Completed",
+      "note": "Backend, catalogue page and web integration (send panel mounted in the mailbox, sidebar entry, users-page template permission editor, settings styles) all restored after the 2026-08-24 checkout incident. Shared files remain a re-derivation pending a human diff.",
+      "tasks": {}
+    },
+    "contacts-domain": {
+      "phase": 8,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        }
+      }
+    },
+    "contacts-application": {
+      "phase": 9,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "contacts-domain:TASK-003",
+            "contacts-domain:TASK-004"
+          ]
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-002"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-003"
+          ]
+        },
+        "TASK-005": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "TASK-004"
+          ]
+        }
+      }
+    },
+    "contacts-adapter": {
+      "phase": 9,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "contacts-domain:TASK-003",
+            "contacts-domain:TASK-004"
+          ]
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "contacts-application:TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "TASK-001",
+            "contacts-application:TASK-001"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "contacts-domain:TASK-003",
+            "contacts-application:TASK-001"
+          ]
+        },
+        "TASK-005": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "contacts-application:TASK-001"
+          ]
+        }
+      }
+    },
+    "contacts-graphql": {
+      "phase": 10,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "contacts-application:TASK-001",
+            "contacts-application:TASK-002",
+            "contacts-application:TASK-003",
+            "contacts-application:TASK-004",
+            "contacts-application:TASK-005"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "contacts-adapter:TASK-001",
+            "contacts-adapter:TASK-002",
+            "contacts-adapter:TASK-003",
+            "contacts-adapter:TASK-004",
+            "contacts-adapter:TASK-005"
+          ]
+        }
+      }
+    },
+    "contacts-web": {
+      "phase": 10,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "contacts-graphql:TASK-001"
+          ]
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-002"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-003"
+          ]
+        },
+        "TASK-005": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "TASK-001"
+          ]
+        }
+      }
+    },
+    "external-mail-core": {
+      "phase": 8,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-002"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "TASK-002",
+            "TASK-003"
+          ]
+        },
+        "TASK-005": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "TASK-002",
+            "TASK-003"
+          ]
+        },
+        "TASK-006": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "TASK-002",
+            "TASK-003"
+          ]
+        },
+        "TASK-007": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-004",
+            "TASK-005",
+            "TASK-006"
+          ]
+        }
+      }
+    },
+    "external-mail-adapter": {
+      "phase": 9,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "external-mail-core:TASK-002"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "external-mail-core:TASK-002"
+          ]
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "TASK-001",
+            "external-mail-core:TASK-002"
+          ]
+        },
+        "TASK-005": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "external-mail-core:TASK-002",
+            "TASK-002"
+          ]
+        },
+        "TASK-006": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "external-mail-core:TASK-002",
+            "TASK-002"
+          ]
+        },
+        "TASK-007": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "external-mail-core:TASK-002"
+          ]
+        }
+      }
+    },
+    "external-mail-graphql": {
+      "phase": 10,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "external-mail-core:TASK-007"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "external-mail-adapter:TASK-001",
+            "external-mail-adapter:TASK-002",
+            "external-mail-adapter:TASK-003",
+            "external-mail-adapter:TASK-004",
+            "external-mail-adapter:TASK-005",
+            "external-mail-adapter:TASK-006",
+            "external-mail-adapter:TASK-007"
+          ]
+        }
+      }
+    },
+    "remove-calendar": {
+      "phase": 11,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-004": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "TASK-002",
+            "TASK-003"
+          ]
+        },
+        "TASK-005": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-006": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-007": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-008": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-004",
+            "TASK-005",
+            "TASK-006",
+            "TASK-007"
+          ]
+        }
+      }
+    },
+    "webmail-01-data-layer": {
+      "phase": 12,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-01-data-layer.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "webmail-02-outbound-delivery": {
+      "phase": 12,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-02-outbound-delivery.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "webmail-03-web-compose-libs": {
+      "phase": 12,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-03-web-compose-libs.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "webmail-04-rest-attachments-limits": {
+      "phase": 12,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-04-rest-attachments-limits.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "webmail-05-web-api-contract": {
+      "phase": 12,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-05-web-api-contract.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "webmail-06-send-drafts-forward": {
+      "phase": 13,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-06-send-drafts-forward.md",
+      "dependsOn": [
+        "webmail-01-data-layer",
+        "webmail-02-outbound-delivery"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-01-data-layer:TASK-001",
+            "webmail-02-outbound-delivery:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-07-attachment-deletion": {
+      "phase": 13,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-07-attachment-deletion.md",
+      "dependsOn": [
+        "webmail-01-data-layer"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-01-data-layer:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-08-ingest-multi-domain": {
+      "phase": 13,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-08-ingest-multi-domain.md",
+      "dependsOn": [
+        "webmail-01-data-layer"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-01-data-layer:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-09-compose-prefill": {
+      "phase": 13,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-09-compose-prefill.md",
+      "dependsOn": [
+        "webmail-01-data-layer",
+        "webmail-04-rest-attachments-limits"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-01-data-layer:TASK-001",
+            "webmail-04-rest-attachments-limits:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-10-web-compose-ui": {
+      "phase": 13,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-10-web-compose-ui.md",
+      "dependsOn": [
+        "webmail-03-web-compose-libs",
+        "webmail-05-web-api-contract"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-03-web-compose-libs:TASK-001",
+            "webmail-05-web-api-contract:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-11-web-mailbox-ui": {
+      "phase": 14,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-11-web-mailbox-ui.md",
+      "dependsOn": [
+        "webmail-05-web-api-contract",
+        "webmail-10-web-compose-ui"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-05-web-api-contract:TASK-001",
+            "webmail-10-web-compose-ui:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-12-graphql-compose-api": {
+      "phase": 14,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-12-graphql-compose-api.md",
+      "dependsOn": [
+        "webmail-04-rest-attachments-limits",
+        "webmail-05-web-api-contract",
+        "webmail-06-send-drafts-forward",
+        "webmail-09-compose-prefill"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "webmail-04-rest-attachments-limits:TASK-001",
+            "webmail-05-web-api-contract:TASK-001",
+            "webmail-06-send-drafts-forward:TASK-001",
+            "webmail-09-compose-prefill:TASK-001"
+          ]
+        }
+      }
+    },
+    "webmail-13-docs-and-final-verification": {
+      "phase": 15,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-13-docs-and-final-verification.md",
+      "dependsOn": [
+        "webmail-01-data-layer",
+        "webmail-02-outbound-delivery",
+        "webmail-03-web-compose-libs",
+        "webmail-04-rest-attachments-limits",
+        "webmail-05-web-api-contract",
+        "webmail-06-send-drafts-forward",
+        "webmail-07-attachment-deletion",
+        "webmail-08-ingest-multi-domain",
+        "webmail-09-compose-prefill",
+        "webmail-10-web-compose-ui",
+        "webmail-11-web-mailbox-ui",
+        "webmail-12-graphql-compose-api"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "webmail-12-graphql-compose-api:TASK-001",
+            "webmail-10-web-compose-ui:TASK-001",
+            "webmail-11-web-mailbox-ui:TASK-001",
+            "webmail-07-attachment-deletion:TASK-001",
+            "webmail-08-ingest-multi-domain:TASK-001"
+          ]
+        }
+      }
+    },
+    "rename-flying-mail": {
+      "phase": 2,
+      "status": "Completed",
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001"
+          ]
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-002"
+          ]
+        }
+      }
+    },
+    "webmail-14-domain-rail-mx": {
+      "phase": 16,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/webmail-14-domain-rail-mx.md",
+      "dependsOn": [
+        "webmail-11-web-mailbox-ui"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-002": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        },
+        "TASK-003": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "TASK-001",
+            "TASK-002"
+          ]
+        }
+      }
+    },
+    "auth-hardening-01-contracts-and-persistence": {
+      "phase": 17,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/auth-hardening-01-contracts-and-persistence.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "auth-hardening-02-web-client": {
+      "phase": 17,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/auth-hardening-02-web-client.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "auth-hardening-03-cli-bootstrap": {
+      "phase": 17,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/auth-hardening-03-cli-bootstrap.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "auth-hardening-04-docs": {
+      "phase": 17,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/auth-hardening-04-docs.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "auth-hardening-05-auth-usecases": {
+      "phase": 18,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/auth-hardening-05-auth-usecases.md",
+      "dependsOn": [
+        "auth-hardening-01-contracts-and-persistence"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "auth-hardening-01-contracts-and-persistence:TASK-001"
+          ]
+        }
+      }
+    },
+    "auth-hardening-06-adapters": {
+      "phase": 18,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/auth-hardening-06-adapters.md",
+      "dependsOn": [
+        "auth-hardening-01-contracts-and-persistence"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "auth-hardening-01-contracts-and-persistence:TASK-001"
+          ]
+        }
+      }
+    },
+    "auth-hardening-07-graphql-http": {
+      "phase": 19,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/auth-hardening-07-graphql-http.md",
+      "dependsOn": [
+        "auth-hardening-01-contracts-and-persistence",
+        "auth-hardening-02-web-client",
+        "auth-hardening-05-auth-usecases"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "auth-hardening-02-web-client:TASK-001",
+            "auth-hardening-05-auth-usecases:TASK-001"
+          ]
+        }
+      }
+    },
+    "auth-hardening-08-composition-and-worker": {
+      "phase": 20,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/auth-hardening-08-composition-and-worker.md",
+      "dependsOn": [
+        "auth-hardening-01-contracts-and-persistence",
+        "auth-hardening-02-web-client",
+        "auth-hardening-05-auth-usecases",
+        "auth-hardening-06-adapters",
+        "auth-hardening-07-graphql-http"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "auth-hardening-02-web-client:TASK-001",
+            "auth-hardening-05-auth-usecases:TASK-001",
+            "auth-hardening-06-adapters:TASK-001",
+            "auth-hardening-07-graphql-http:TASK-001"
+          ]
+        }
+      }
+    },
+    "auth-hardening-09-final-verification": {
+      "phase": 21,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/auth-hardening-09-final-verification.md",
+      "dependsOn": [
+        "auth-hardening-01-contracts-and-persistence",
+        "auth-hardening-02-web-client",
+        "auth-hardening-03-cli-bootstrap",
+        "auth-hardening-04-docs",
+        "auth-hardening-05-auth-usecases",
+        "auth-hardening-06-adapters",
+        "auth-hardening-07-graphql-http",
+        "auth-hardening-08-composition-and-worker"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "auth-hardening-07-graphql-http:TASK-001",
+            "auth-hardening-08-composition-and-worker:TASK-001",
+            "auth-hardening-02-web-client:TASK-001",
+            "auth-hardening-03-cli-bootstrap:TASK-001",
+            "auth-hardening-04-docs:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-01-contracts-and-persistence": {
+      "phase": 22,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/realtime-push-01-contracts-and-persistence.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "realtime-push-02-realtime-client": {
+      "phase": 22,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/realtime-push-02-realtime-client.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "realtime-push-03-docs": {
+      "phase": 22,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/realtime-push-03-docs.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "realtime-push-04a-emission-ingest-send-drafts": {
+      "phase": 23,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/realtime-push-04a-emission-ingest-send-drafts.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-01-contracts-and-persistence:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-04b-emission-message-mutations": {
+      "phase": 23,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/realtime-push-04b-emission-message-mutations.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-01-contracts-and-persistence:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-05-graphql-surface-and-executor": {
+      "phase": 23,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/realtime-push-05-graphql-surface-and-executor.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-01-contracts-and-persistence:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-06-web-live-updates": {
+      "phase": 23,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/realtime-push-06-web-live-updates.md",
+      "dependsOn": [
+        "realtime-push-02-realtime-client"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-02-realtime-client:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-07-cli-watch": {
+      "phase": 23,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/realtime-push-07-cli-watch.md",
+      "dependsOn": [
+        "realtime-push-02-realtime-client"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-02-realtime-client:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-08-hub-core": {
+      "phase": 24,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/realtime-push-08-hub-core.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence",
+        "realtime-push-05-graphql-surface-and-executor"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "realtime-push-01-contracts-and-persistence:TASK-001",
+            "realtime-push-05-graphql-surface-and-executor:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-09-worker-durable-object": {
+      "phase": 25,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/realtime-push-09-worker-durable-object.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence",
+        "realtime-push-05-graphql-surface-and-executor",
+        "realtime-push-08-hub-core"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-08-hub-core:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-10-bun-server": {
+      "phase": 25,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/realtime-push-10-bun-server.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence",
+        "realtime-push-05-graphql-surface-and-executor",
+        "realtime-push-08-hub-core"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "realtime-push-08-hub-core:TASK-001"
+          ]
+        }
+      }
+    },
+    "realtime-push-11-final-verification": {
+      "phase": 26,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/realtime-push-11-final-verification.md",
+      "dependsOn": [
+        "realtime-push-01-contracts-and-persistence",
+        "realtime-push-02-realtime-client",
+        "realtime-push-03-docs",
+        "realtime-push-04a-emission-ingest-send-drafts",
+        "realtime-push-04b-emission-message-mutations",
+        "realtime-push-05-graphql-surface-and-executor",
+        "realtime-push-06-web-live-updates",
+        "realtime-push-07-cli-watch",
+        "realtime-push-08-hub-core",
+        "realtime-push-09-worker-durable-object",
+        "realtime-push-10-bun-server"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "realtime-push-03-docs:TASK-001",
+            "realtime-push-04a-emission-ingest-send-drafts:TASK-001",
+            "realtime-push-04b-emission-message-mutations:TASK-001",
+            "realtime-push-06-web-live-updates:TASK-001",
+            "realtime-push-07-cli-watch:TASK-001",
+            "realtime-push-09-worker-durable-object:TASK-001",
+            "realtime-push-10-bun-server:TASK-001"
+          ]
+        }
+      }
+    },
+    "user-admin-01-capability-contract": {
+      "phase": 27,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/user-admin-01-capability-contract.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "user-admin-02-realtime-type-filter": {
+      "phase": 27,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/user-admin-02-realtime-type-filter.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "user-admin-03-cli-watch-type": {
+      "phase": 27,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/user-admin-03-cli-watch-type.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "user-admin-04-web-api-keys": {
+      "phase": 27,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/user-admin-04-web-api-keys.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "user-admin-05-cli-user-commands": {
+      "phase": 27,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/user-admin-05-cli-user-commands.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "user-admin-06-readme-docs": {
+      "phase": 27,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/user-admin-06-readme-docs.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": []
+        }
+      }
+    },
+    "user-admin-07-authorization": {
+      "phase": 28,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/user-admin-07-authorization.md",
+      "dependsOn": [
+        "user-admin-01-capability-contract"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": true,
+          "deps": [
+            "user-admin-01-capability-contract:TASK-001"
+          ]
+        }
+      }
+    },
+    "user-admin-08-final-verification": {
+      "phase": 29,
+      "status": "Completed",
+      "planPath": "impl-plans/completed/user-admin-08-final-verification.md",
+      "dependsOn": [
+        "user-admin-01-capability-contract",
+        "user-admin-02-realtime-type-filter",
+        "user-admin-03-cli-watch-type",
+        "user-admin-04-web-api-keys",
+        "user-admin-05-cli-user-commands",
+        "user-admin-06-readme-docs",
+        "user-admin-07-authorization"
+      ],
+      "tasks": {
+        "TASK-001": {
+          "status": "Completed",
+          "parallelizable": false,
+          "deps": [
+            "user-admin-01-capability-contract:TASK-001",
+            "user-admin-02-realtime-type-filter:TASK-001",
+            "user-admin-03-cli-watch-type:TASK-001",
+            "user-admin-04-web-api-keys:TASK-001",
+            "user-admin-05-cli-user-commands:TASK-001",
+            "user-admin-06-readme-docs:TASK-001",
+            "user-admin-07-authorization:TASK-001"
+          ]
+        }
+      }
+    },
+    "mcp-server-01-application-usecases": {
+      "phase": 30,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-01-application-usecases.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": [] },
+        "TASK-002": { "status": "Not Started", "parallelizable": true, "deps": [] },
+        "TASK-003": { "status": "Not Started", "parallelizable": true, "deps": [] },
+        "TASK-004": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-01-application-usecases:TASK-001", "mcp-server-01-application-usecases:TASK-002", "mcp-server-01-application-usecases:TASK-003"] },
+        "TASK-005": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-01-application-usecases:TASK-004"] }
+      }
+    },
+    "mcp-server-02-content-shaping": {
+      "phase": 30,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-02-content-shaping.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": [] },
+        "TASK-002": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-02-content-shaping:TASK-001"] },
+        "TASK-003": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-02-content-shaping:TASK-002"] },
+        "TASK-004": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-02-content-shaping:TASK-002", "mcp-server-02-content-shaping:TASK-003"] }
+      }
+    },
+    "mcp-server-03-protocol-core": {
+      "phase": 30,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-03-protocol-core.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": [] }
+      }
+    },
+    "mcp-server-04-docs": {
+      "phase": 30,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-04-docs.md",
+      "dependsOn": [],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": [] },
+        "TASK-002": { "status": "Not Started", "parallelizable": true, "deps": [] }
+      }
+    },
+    "mcp-server-05-read-tools": {
+      "phase": 31,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-05-read-tools.md",
+      "dependsOn": ["mcp-server-02-content-shaping", "mcp-server-03-protocol-core"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["mcp-server-02-content-shaping:TASK-004", "mcp-server-03-protocol-core:TASK-001"] }
+      }
+    },
+    "mcp-server-06-compose-tools": {
+      "phase": 31,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-06-compose-tools.md",
+      "dependsOn": ["mcp-server-02-content-shaping", "mcp-server-03-protocol-core"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["mcp-server-02-content-shaping:TASK-004", "mcp-server-03-protocol-core:TASK-001"] }
+      }
+    },
+    "mcp-server-07-attachment-tools": {
+      "phase": 31,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-07-attachment-tools.md",
+      "dependsOn": ["mcp-server-01-application-usecases", "mcp-server-02-content-shaping", "mcp-server-03-protocol-core"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["mcp-server-01-application-usecases:TASK-005", "mcp-server-02-content-shaping:TASK-004", "mcp-server-03-protocol-core:TASK-001"] }
+      }
+    },
+    "mcp-server-08-manage-tools": {
+      "phase": 31,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-08-manage-tools.md",
+      "dependsOn": ["mcp-server-01-application-usecases", "mcp-server-03-protocol-core"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["mcp-server-01-application-usecases:TASK-005", "mcp-server-03-protocol-core:TASK-001"] }
+      }
+    },
+    "mcp-server-09-user-admin-tools": {
+      "phase": 31,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-09-user-admin-tools.md",
+      "dependsOn": ["mcp-server-03-protocol-core"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["mcp-server-03-protocol-core:TASK-001"] }
+      }
+    },
+    "mcp-server-10-transport-wiring": {
+      "phase": 31,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-10-transport-wiring.md",
+      "dependsOn": ["mcp-server-01-application-usecases", "mcp-server-02-content-shaping", "mcp-server-03-protocol-core"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": true, "deps": ["mcp-server-01-application-usecases:TASK-005", "mcp-server-02-content-shaping:TASK-001", "mcp-server-03-protocol-core:TASK-001"] },
+        "TASK-002": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-10-transport-wiring:TASK-001"] },
+        "TASK-003": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-10-transport-wiring:TASK-002"] }
+      }
+    },
+    "mcp-server-11-catalogue-integration": {
+      "phase": 32,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-11-catalogue-integration.md",
+      "dependsOn": ["mcp-server-05-read-tools", "mcp-server-06-compose-tools", "mcp-server-07-attachment-tools", "mcp-server-08-manage-tools", "mcp-server-09-user-admin-tools", "mcp-server-10-transport-wiring"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-05-read-tools:TASK-001", "mcp-server-06-compose-tools:TASK-001", "mcp-server-07-attachment-tools:TASK-001", "mcp-server-08-manage-tools:TASK-001", "mcp-server-09-user-admin-tools:TASK-001", "mcp-server-10-transport-wiring:TASK-003"] }
+      }
+    },
+    "mcp-server-12-final-verification": {
+      "phase": 33,
+      "status": "Ready",
+      "planPath": "impl-plans/active/mcp-server-12-final-verification.md",
+      "dependsOn": ["mcp-server-01-application-usecases", "mcp-server-02-content-shaping", "mcp-server-03-protocol-core", "mcp-server-04-docs", "mcp-server-05-read-tools", "mcp-server-06-compose-tools", "mcp-server-07-attachment-tools", "mcp-server-08-manage-tools", "mcp-server-09-user-admin-tools", "mcp-server-10-transport-wiring", "mcp-server-11-catalogue-integration"],
+      "tasks": {
+        "TASK-001": { "status": "Not Started", "parallelizable": false, "deps": ["mcp-server-04-docs:TASK-002", "mcp-server-11-catalogue-integration:TASK-001"] }
+      }
+    },
+    "login-page-clarity": {
+      "phase": 2,
+      "status": "In Progress",
+      "tasks": {
+        "TASK-001": {
+          "status": "In Progress",
+          "parallelizable": false,
+          "deps": []
+        }
+      },
+      "planPath": "impl-plans/active/login-page-clarity.md"
+    },
+      "security-review-dependencies": {
+        "status": "Completed",
+        "planPath": "impl-plans/completed/security-review-dependencies.md",
+        "dependsOn": [],
+        "tasks": {
+          "TASK-001": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          },
+          "TASK-002": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          }
+        }
+      },
+      "security-review-http-graphql": {
+        "status": "Completed",
+        "planPath": "impl-plans/completed/security-review-http-graphql.md",
+        "dependsOn": [],
+        "tasks": {
+          "TASK-001": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          },
+          "TASK-002": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          },
+          "TASK-003": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          },
+          "TASK-004": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          }
+        }
+      },
+      "security-client-review": {
+        "status": "Completed",
+        "planPath": "impl-plans/completed/security-client-review.md",
+        "dependsOn": [],
+        "tasks": {
+          "TASK-001": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          },
+          "TASK-002": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          },
+          "TASK-003": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          },
+          "TASK-004": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          }
+        }
+      },
+      "application-security-review": {
+        "status": "Completed",
+        "planPath": "impl-plans/completed/application-security-review.md",
+        "dependsOn": [],
+        "tasks": {
+          "TASK-001": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          },
+          "TASK-002": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          },
+          "TASK-003": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          },
+          "TASK-004": {
+            "status": "Completed",
+            "parallelizable": false,
+            "deps": []
+          }
+        }
+      }
+  }
+}

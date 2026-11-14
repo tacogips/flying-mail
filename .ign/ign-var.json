@@ -1,0 +1,12 @@
+{
+  "variables": {
+    "AUTHOR_EMAIL": "",
+    "AUTHOR_NAME": "",
+    "DESCRIPTION": "tr",
+    "HAS_AUTHOR": false,
+    "HOMEPAGE": "https://github.com/user/repo",
+    "PROJECT_NAME": "flying-mail",
+    "REPOSITORY": "https://github.com/user/repo",
+    "VERSION": "0.1.0"
+  }
+}
